@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::DerefMut};
+use std::{collections::HashSet, marker::PhantomData, ops::DerefMut};
 
 use twilight_model::{
     application::interaction::InteractionData,
@@ -103,6 +103,8 @@ type VoiceStateSerializer<'a, C> = <<C as CacheConfig>::VoiceState<'a> as Cachea
 
 impl<C: CacheConfig> RedisCache<C> {
     pub async fn update<'a>(&self, event: &'a Event) -> CacheResult<()> {
+        let start = std::time::Instant::now();
+
         match event {
             Event::AutoModerationActionExecution(_) => {}
             Event::AutoModerationRuleCreate(_) => {}
@@ -282,6 +284,9 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::WebhooksUpdate(_) => {}
         }
+
+        let elapsed = start.elapsed();
+        println!("{:?}: {elapsed:.2?}", event.kind());
 
         Ok(())
     }
@@ -1143,9 +1148,11 @@ impl<C: CacheConfig> RedisCache<C> {
     async fn delete_guild(&self, guild_id: Id<GuildMarker>) -> CacheResult<()> {
         let mut conn = self.connection().await?;
 
+        let mut keys_to_delete = Vec::new();
+
         if C::Guild::WANTED {
             let key = RedisKey::Guild { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::Guilds;
             conn.srem(key, guild_id.get()).await?;
@@ -1156,19 +1163,16 @@ impl<C: CacheConfig> RedisCache<C> {
             let channel_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildChannels { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::Channels;
             conn.srem(key, channel_ids.as_slice()).await?;
 
-            let channel_keys: Vec<_> = channel_ids
-                .into_iter()
-                .map(|channel_id| RedisKey::Channel {
-                    id: Id::new(channel_id),
-                })
-                .collect();
+            let channel_keys = channel_ids.into_iter().map(|channel_id| RedisKey::Channel {
+                id: Id::new(channel_id),
+            });
 
-            conn.del(channel_keys).await?;
+            keys_to_delete.extend(channel_keys);
         }
 
         if C::Emoji::WANTED {
@@ -1176,19 +1180,16 @@ impl<C: CacheConfig> RedisCache<C> {
             let emoji_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildEmojis { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::Emojis;
             conn.srem(key, emoji_ids.as_slice()).await?;
 
-            let emoji_keys: Vec<_> = emoji_ids
-                .into_iter()
-                .map(|emoji_id| RedisKey::Emoji {
-                    id: Id::new(emoji_id),
-                })
-                .collect();
+            let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
+                id: Id::new(emoji_id),
+            });
 
-            conn.del(emoji_keys).await?;
+            keys_to_delete.extend(emoji_keys);
         }
 
         if C::Integration::WANTED {
@@ -1196,17 +1197,17 @@ impl<C: CacheConfig> RedisCache<C> {
             let integration_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildIntegrations { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
-            let integration_keys: Vec<_> = integration_ids
-                .into_iter()
-                .map(|integration_id| RedisKey::Integration {
-                    guild: guild_id,
-                    id: Id::new(integration_id),
-                })
-                .collect();
+            let integration_keys =
+                integration_ids
+                    .into_iter()
+                    .map(|integration_id| RedisKey::Integration {
+                        guild: guild_id,
+                        id: Id::new(integration_id),
+                    });
 
-            conn.del(integration_keys).await?;
+            keys_to_delete.extend(integration_keys);
         }
 
         if C::Member::WANTED {
@@ -1214,17 +1215,14 @@ impl<C: CacheConfig> RedisCache<C> {
             let user_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildMembers { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
-            let member_keys: Vec<_> = user_ids
-                .iter()
-                .map(|&user_id| RedisKey::Member {
-                    guild: guild_id,
-                    user: Id::new(user_id),
-                })
-                .collect();
+            let member_keys = user_ids.iter().map(|&user_id| RedisKey::Member {
+                guild: guild_id,
+                user: Id::new(user_id),
+            });
 
-            conn.del(member_keys).await?;
+            keys_to_delete.extend(member_keys);
 
             for &user_id in user_ids.iter() {
                 let key = RedisKey::UserGuilds {
@@ -1242,7 +1240,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     if common_guild_count == 0 {
                         let key = RedisKey::User { id: user_id };
-                        conn.del(key).await?;
+                        keys_to_delete.push(key);
 
                         let key = RedisKey::Users;
                         conn.srem(key, user_id.get()).await?;
@@ -1256,17 +1254,14 @@ impl<C: CacheConfig> RedisCache<C> {
             let user_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildPresences { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
-            let presence_keys: Vec<_> = user_ids
-                .into_iter()
-                .map(|user_id| RedisKey::Presence {
-                    guild: guild_id,
-                    user: Id::new(user_id),
-                })
-                .collect();
+            let presence_keys = user_ids.into_iter().map(|user_id| RedisKey::Presence {
+                guild: guild_id,
+                user: Id::new(user_id),
+            });
 
-            conn.del(presence_keys).await?;
+            keys_to_delete.extend(presence_keys);
         }
 
         if C::Role::WANTED {
@@ -1274,19 +1269,16 @@ impl<C: CacheConfig> RedisCache<C> {
             let role_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildRoles { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::Roles;
             conn.srem(key, role_ids.as_slice()).await?;
 
-            let role_keys: Vec<_> = role_ids
-                .into_iter()
-                .map(|role_id| RedisKey::Role {
-                    id: Id::new(role_id),
-                })
-                .collect();
+            let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
+                id: Id::new(role_id),
+            });
 
-            conn.del(role_keys).await?;
+            keys_to_delete.extend(role_keys);
         }
 
         if C::StageInstance::WANTED {
@@ -1294,19 +1286,19 @@ impl<C: CacheConfig> RedisCache<C> {
             let stage_instance_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildStageInstances { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::StageInstances;
             conn.srem(key, stage_instance_ids.as_slice()).await?;
 
-            let stage_instance_keys: Vec<_> = stage_instance_ids
-                .into_iter()
-                .map(|stage_instance_id| RedisKey::StageInstance {
-                    id: Id::new(stage_instance_id),
-                })
-                .collect();
+            let stage_instance_keys =
+                stage_instance_ids
+                    .into_iter()
+                    .map(|stage_instance_id| RedisKey::StageInstance {
+                        id: Id::new(stage_instance_id),
+                    });
 
-            conn.del(stage_instance_keys).await?;
+            keys_to_delete.extend(stage_instance_keys);
         }
 
         if C::Sticker::WANTED {
@@ -1314,19 +1306,16 @@ impl<C: CacheConfig> RedisCache<C> {
             let sticker_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildStickers { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
             let key = RedisKey::Stickers;
             conn.srem(key, sticker_ids.as_slice()).await?;
 
-            let sticker_keys: Vec<_> = sticker_ids
-                .into_iter()
-                .map(|sticker_id| RedisKey::Sticker {
-                    id: Id::new(sticker_id),
-                })
-                .collect();
+            let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
+                id: Id::new(sticker_id),
+            });
 
-            conn.del(sticker_keys).await?;
+            keys_to_delete.extend(sticker_keys);
         }
 
         if C::VoiceState::WANTED {
@@ -1334,24 +1323,329 @@ impl<C: CacheConfig> RedisCache<C> {
             let user_ids: Vec<_> = conn.smembers(key).await?;
 
             let key = RedisKey::GuildVoiceStates { id: guild_id };
-            conn.del(key).await?;
+            keys_to_delete.push(key);
 
-            let voice_state_keys: Vec<_> = user_ids
-                .into_iter()
-                .map(|user_id| RedisKey::VoiceState {
-                    guild: guild_id,
-                    user: Id::new(user_id),
-                })
-                .collect();
+            let voice_state_keys = user_ids.into_iter().map(|user_id| RedisKey::VoiceState {
+                guild: guild_id,
+                user: Id::new(user_id),
+            });
 
-            conn.del(voice_state_keys).await?;
+            keys_to_delete.extend(voice_state_keys);
+        }
+
+        if !keys_to_delete.is_empty() {
+            conn.del(keys_to_delete).await?;
         }
 
         Ok(())
     }
 
     async fn delete_guilds(&self, guild_ids: &[u64]) -> CacheResult<()> {
-        todo!()
+        let mut conn = self.connection().await?;
+
+        let mut keys_to_delete = Vec::new();
+
+        if C::Guild::WANTED {
+            let guild_keys = guild_ids.iter().copied().map(|guild_id| RedisKey::Guild {
+                id: Id::new(guild_id),
+            });
+
+            keys_to_delete.extend(guild_keys);
+
+            let key = RedisKey::Guilds;
+            conn.srem(key, guild_ids).await?;
+        }
+
+        if C::Channel::WANTED {
+            let mut channel_ids = Vec::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildChannels {
+                    id: Id::new(guild_id),
+                };
+                let mut new_channel_ids: Vec<_> = conn.smembers(key).await?;
+                channel_ids.append(&mut new_channel_ids);
+            }
+
+            let key = RedisKey::Channels;
+            conn.srem(key, channel_ids.as_slice()).await?;
+
+            let channel_keys = channel_ids.into_iter().map(|emoji_id| RedisKey::Channel {
+                id: Id::new(emoji_id),
+            });
+
+            keys_to_delete.extend(channel_keys);
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildChannels {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::Emoji::WANTED {
+            let mut emoji_ids = Vec::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildEmojis {
+                    id: Id::new(guild_id),
+                };
+                let mut new_emoji_ids: Vec<_> = conn.smembers(key).await?;
+                emoji_ids.append(&mut new_emoji_ids);
+            }
+
+            let key = RedisKey::Emojis;
+            conn.srem(key, emoji_ids.as_slice()).await?;
+
+            let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
+                id: Id::new(emoji_id),
+            });
+
+            keys_to_delete.extend(emoji_keys);
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildEmojis {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::Integration::WANTED {
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildIntegrations {
+                    id: Id::new(guild_id),
+                };
+                let integration_ids: Vec<_> = conn.smembers(key).await?;
+
+                let integration_keys =
+                    integration_ids
+                        .into_iter()
+                        .map(|integration_id| RedisKey::Integration {
+                            guild: Id::new(guild_id),
+                            id: Id::new(integration_id),
+                        });
+
+                keys_to_delete.extend(integration_keys);
+            }
+
+            let guild_keys =
+                guild_ids
+                    .iter()
+                    .copied()
+                    .map(|guild_id| RedisKey::GuildIntegrations {
+                        id: Id::new(guild_id),
+                    });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::Member::WANTED {
+            let mut user_ids = HashSet::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildMembers {
+                    id: Id::new(guild_id),
+                };
+                let new_user_ids: Vec<_> = conn.smembers(key).await?;
+
+                for &user_id in new_user_ids.iter() {
+                    let key = RedisKey::UserGuilds {
+                        id: Id::new(user_id),
+                    };
+                    conn.srem(key, guild_id).await?;
+                }
+
+                let member_keys = new_user_ids.iter().map(|&user_id| RedisKey::Member {
+                    guild: Id::new(guild_id),
+                    user: Id::new(user_id),
+                });
+
+                keys_to_delete.extend(member_keys);
+                user_ids.extend(new_user_ids.into_iter());
+            }
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildMembers {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+
+            if C::User::WANTED {
+                for user_id in user_ids {
+                    let user_id = Id::new(user_id);
+
+                    let key = RedisKey::UserGuilds { id: user_id };
+                    let common_guild_count: usize = conn.scard(key).await?;
+
+                    if common_guild_count == 0 {
+                        let key = RedisKey::User { id: user_id };
+                        keys_to_delete.push(key);
+
+                        let key = RedisKey::Users;
+                        conn.srem(key, user_id.get()).await?;
+                    }
+                }
+            }
+        }
+
+        if C::Presence::WANTED {
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildPresences {
+                    id: Id::new(guild_id),
+                };
+                let user_ids: Vec<_> = conn.smembers(key).await?;
+
+                let presence_keys = user_ids.into_iter().map(|user_id| RedisKey::Presence {
+                    guild: Id::new(guild_id),
+                    user: Id::new(user_id),
+                });
+
+                keys_to_delete.extend(presence_keys);
+            }
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildPresences {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::Role::WANTED {
+            let mut role_ids = Vec::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildRoles {
+                    id: Id::new(guild_id),
+                };
+                let mut new_role_ids: Vec<_> = conn.smembers(key).await?;
+                role_ids.append(&mut new_role_ids);
+            }
+
+            let key = RedisKey::Roles;
+            conn.srem(key, role_ids.as_slice()).await?;
+
+            let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
+                id: Id::new(role_id),
+            });
+
+            keys_to_delete.extend(role_keys);
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildRoles {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::StageInstance::WANTED {
+            let mut stage_instance_ids = Vec::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildStageInstances {
+                    id: Id::new(guild_id),
+                };
+                let mut new_stage_instance_ids: Vec<_> = conn.smembers(key).await?;
+                stage_instance_ids.append(&mut new_stage_instance_ids);
+            }
+
+            let key = RedisKey::StageInstances;
+            conn.srem(key, stage_instance_ids.as_slice()).await?;
+
+            let stage_instance_keys =
+                stage_instance_ids
+                    .into_iter()
+                    .map(|stage_instance_id| RedisKey::StageInstance {
+                        id: Id::new(stage_instance_id),
+                    });
+
+            keys_to_delete.extend(stage_instance_keys);
+
+            let guild_keys =
+                guild_ids
+                    .iter()
+                    .copied()
+                    .map(|guild_id| RedisKey::GuildStageInstances {
+                        id: Id::new(guild_id),
+                    });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::Sticker::WANTED {
+            let mut sticker_ids = Vec::new();
+
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildStickers {
+                    id: Id::new(guild_id),
+                };
+                let mut new_sticker_ids: Vec<_> = conn.smembers(key).await?;
+                sticker_ids.append(&mut new_sticker_ids);
+            }
+
+            let key = RedisKey::Stickers;
+            conn.srem(key, sticker_ids.as_slice()).await?;
+
+            let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
+                id: Id::new(sticker_id),
+            });
+
+            keys_to_delete.extend(sticker_keys);
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildStickers {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if C::VoiceState::WANTED {
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildVoiceStates {
+                    id: Id::new(guild_id),
+                };
+                let user_ids: Vec<_> = conn.smembers(key).await?;
+
+                let voice_state_keys = user_ids.into_iter().map(|user_id| RedisKey::VoiceState {
+                    guild: Id::new(guild_id),
+                    user: Id::new(user_id),
+                });
+
+                keys_to_delete.extend(voice_state_keys);
+            }
+
+            let guild_keys = guild_ids
+                .iter()
+                .copied()
+                .map(|guild_id| RedisKey::GuildVoiceStates {
+                    id: Id::new(guild_id),
+                });
+
+            keys_to_delete.extend(guild_keys);
+        }
+
+        if !keys_to_delete.is_empty() {
+            conn.del(keys_to_delete).await?;
+        }
+
+        Ok(())
     }
 
     async fn delete_integration(
