@@ -1069,6 +1069,11 @@ impl<C: CacheConfig> RedisCache<C> {
     ) -> CacheResult<()> {
         debug_assert!(pipe.cmd_iter().next().is_none());
 
+        if C::Member::WANTED {
+            let key = RedisKey::GuildMembers { id: guild_id };
+            pipe.smembers(key);
+        }
+
         if C::Channel::WANTED {
             let key = RedisKey::GuildChannels { id: guild_id };
             pipe.smembers(key);
@@ -1081,11 +1086,6 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::Integration::WANTED {
             let key = RedisKey::GuildIntegrations { id: guild_id };
-            pipe.smembers(key);
-        }
-
-        if C::Member::WANTED {
-            let key = RedisKey::GuildMembers { id: guild_id };
             pipe.smembers(key);
         }
 
@@ -1333,6 +1333,15 @@ impl<C: CacheConfig> RedisCache<C> {
             + C::Sticker::WANTED as usize
             + C::VoiceState::WANTED as usize;
 
+        if C::Member::WANTED {
+            for &guild_id in guild_ids {
+                let key = RedisKey::GuildMembers {
+                    id: Id::new(guild_id),
+                };
+                pipe.smembers(key);
+            }
+        }
+
         if C::Channel::WANTED {
             for &guild_id in guild_ids {
                 let key = RedisKey::GuildChannels {
@@ -1354,15 +1363,6 @@ impl<C: CacheConfig> RedisCache<C> {
         if C::Integration::WANTED {
             for &guild_id in guild_ids {
                 let key = RedisKey::GuildIntegrations {
-                    id: Id::new(guild_id),
-                };
-                pipe.smembers(key);
-            }
-        }
-
-        if C::Member::WANTED {
-            for &guild_id in guild_ids {
-                let key = RedisKey::GuildMembers {
                     id: Id::new(guild_id),
                 };
                 pipe.smembers(key);
