@@ -9,7 +9,7 @@ use twilight_model::id::{
     Id,
 };
 
-use crate::redis;
+use crate::redis::{RedisWrite, ToRedisArgs};
 
 pub(crate) enum RedisKey {
     Channel {
@@ -141,10 +141,10 @@ impl From<Id<UserMarker>> for RedisKey {
     }
 }
 
-impl redis::ToRedisArgs for RedisKey {
+impl ToRedisArgs for RedisKey {
     fn write_redis_args<W>(&self, out: &mut W)
     where
-        W: ?Sized + redis::RedisWrite,
+        W: ?Sized + RedisWrite,
     {
         fn name_id<T>(name: &[u8], id: &Id<T>) -> Cow<'static, [u8]> {
             fn inner(name: &[u8], id: u64) -> Cow<'static, [u8]> {
