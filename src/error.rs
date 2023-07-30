@@ -18,6 +18,8 @@ pub enum CacheError {
     #[error("failed to get a connection")]
     GetConnection(#[source] deadpool_redis::PoolError),
 
+    #[error("received invalid response from redis")]
+    InvalidResponse,
     #[error("redis error")]
     Redis(#[from] crate::redis::RedisError),
     #[error("cached bytes did not correspond to the cached type")]
