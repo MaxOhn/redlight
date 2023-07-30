@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::DerefMut, pin::Pin};
+use std::{collections::HashSet, marker::PhantomData, ops::DerefMut, pin::Pin};
 
 use twilight_model::{
     application::interaction::InteractionData,
@@ -1958,12 +1958,20 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(sticker_id).await
     }
 
-    pub async fn unavailable_guilds(&self) -> CacheResult<Vec<Id<GuildMarker>>> {
-        todo!()
+    pub async fn unavailable_guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        let mut conn = self.connection().await?;
+        let key = RedisKey::UnavailableGuilds;
+        let guild_ids = conn.smembers(key).await?;
+
+        Ok(convert_ids(guild_ids))
     }
 
     pub async fn unavailable_guilds_count(&self) -> CacheResult<usize> {
-        todo!()
+        let mut conn = self.connection().await?;
+        let key = RedisKey::UnavailableGuilds;
+        let count = conn.scard(key).await?;
+
+        Ok(count)
     }
 
     pub async fn user(
@@ -2000,4 +2008,9 @@ impl<C: CacheConfig> RedisCache<C> {
 
         CachedValue::new(bytes).map(Some)
     }
+}
+
+fn convert_ids<T>(ids: HashSet<u64>) -> HashSet<Id<T>> {
+    // SAFETY: Id<T> is a transparent wrapper around NonZeroU64
+    unsafe { std::mem::transmute(ids) }
 }
