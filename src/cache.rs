@@ -1878,37 +1878,25 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(guild_id).await
     }
 
-    pub async fn guild_emojis(
+    pub async fn guild_emoji_ids(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<Vec<Id<EmojiMarker>>> {
-        let mut conn = self.connection().await?;
-        let key = RedisKey::GuildEmojis { id: guild_id };
-        let emojis_raw: Vec<u64> = conn.smembers(key).await?;
-        let emojis = emojis_raw.into_iter().map(Id::new).collect();
-
-        Ok(emojis)
+    ) -> CacheResult<HashSet<Id<EmojiMarker>>> {
+        self.get_ids(RedisKey::GuildEmojis { id: guild_id }).await
     }
 
-    pub async fn guild_roles(&self, guild_id: Id<GuildMarker>) -> CacheResult<Vec<Id<RoleMarker>>> {
-        let mut conn = self.connection().await?;
-        let key = RedisKey::GuildRoles { id: guild_id };
-        let roles_raw: Vec<u64> = conn.smembers(key).await?;
-        let roles = roles_raw.into_iter().map(Id::new).collect();
-
-        Ok(roles)
-    }
-
-    pub async fn guild_stickers(
+    pub async fn guild_role_ids(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<Vec<Id<StickerMarker>>> {
-        let mut conn = self.connection().await?;
-        let key = RedisKey::GuildStickers { id: guild_id };
-        let stickers_raw: Vec<u64> = conn.smembers(key).await?;
-        let stickers = stickers_raw.into_iter().map(Id::new).collect();
+    ) -> CacheResult<HashSet<Id<RoleMarker>>> {
+        self.get_ids(RedisKey::GuildRoles { id: guild_id }).await
+    }
 
-        Ok(stickers)
+    pub async fn guild_sticker_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<StickerMarker>>> {
+        self.get_ids(RedisKey::GuildStickers { id: guild_id }).await
     }
 
     pub async fn member(
@@ -1959,11 +1947,7 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     pub async fn unavailable_guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
-        let mut conn = self.connection().await?;
-        let key = RedisKey::UnavailableGuilds;
-        let guild_ids = conn.smembers(key).await?;
-
-        Ok(convert_ids(guild_ids))
+        self.get_ids(RedisKey::UnavailableGuilds).await
     }
 
     pub async fn unavailable_guilds_count(&self) -> CacheResult<usize> {
@@ -2007,6 +1991,13 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         CachedValue::new(bytes).map(Some)
+    }
+
+    async fn get_ids<T>(&self, key: RedisKey) -> CacheResult<HashSet<Id<T>>> {
+        let mut conn = self.connection().await?;
+        let ids = conn.smembers(key).await?;
+
+        Ok(convert_ids(ids))
     }
 }
 
