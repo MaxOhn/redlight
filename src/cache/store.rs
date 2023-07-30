@@ -19,10 +19,11 @@ use crate::{
         FromSticker, FromUser, FromVoiceState,
     },
     key::RedisKey,
-    redis::Pipeline,
     util::aligned_vec::BytesRedisArgs,
     RedisCache,
 };
+
+use super::pipe::Pipe;
 
 type ChannelSerializer<'a, C> = <<C as CacheConfig>::Channel<'a> as Cacheable>::Serializer;
 type EmojiSerializer<'a, C> = <<C as CacheConfig>::Emoji<'a> as Cacheable>::Serializer;
@@ -36,7 +37,7 @@ type UserSerializer<'a, C> = <<C as CacheConfig>::User<'a> as Cacheable>::Serial
 type VoiceStateSerializer<'a, C> = <<C as CacheConfig>::VoiceState<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
-    pub(crate) fn store_channel(&self, pipe: &mut Pipeline, channel: &Channel) {
+    pub(crate) fn store_channel(&self, pipe: &mut Pipe<'_, C>, channel: &Channel) {
         if C::Channel::WANTED {
             let guild_id = channel.guild_id;
             let channel_id = channel.id;
@@ -71,7 +72,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_channels(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         channels: &[Channel],
     ) {
@@ -109,7 +110,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_users(pipe, users);
     }
 
-    pub(crate) fn store_current_user(&self, pipe: &mut Pipeline, current_user: &CurrentUser) {
+    pub(crate) fn store_current_user(&self, pipe: &mut Pipe<'_, C>, current_user: &CurrentUser) {
         if !C::CurrentUser::WANTED {
             return;
         }
@@ -123,7 +124,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_emojis(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         emojis: &[Emoji],
     ) {
@@ -158,7 +159,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.sadd(key, emoji_ids).ignore();
     }
 
-    pub(crate) fn store_guild(&self, pipe: &mut Pipeline, guild: &Guild) {
+    pub(crate) fn store_guild(&self, pipe: &mut Pipe<'_, C>, guild: &Guild) {
         if C::Guild::WANTED {
             let guild_id = guild.id;
             let key = RedisKey::Guild { id: guild_id };
@@ -186,7 +187,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_integration(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         integration: &GuildIntegration,
     ) {
@@ -211,7 +212,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_member(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         member: &Member,
     ) {
@@ -237,7 +238,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_user(pipe, &member.user);
     }
 
-    pub(crate) fn store_member_update(&self, pipe: &mut Pipeline, update: &MemberUpdate) {
+    pub(crate) fn store_member_update(&self, pipe: &mut Pipe<'_, C>, update: &MemberUpdate) {
         if C::Member::WANTED {
             let user_id = update.user.id;
             let key = RedisKey::Member {
@@ -265,7 +266,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_members(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         members: &[Member],
     ) {
@@ -306,7 +307,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_users(pipe, users);
     }
 
-    pub(crate) fn store_message(&self, pipe: &mut Pipeline, msg: &Message) {
+    pub(crate) fn store_message(&self, pipe: &mut Pipe<'_, C>, msg: &Message) {
         if C::Message::WANTED {
             let key = RedisKey::Message { id: msg.id };
             let msg = C::Message::from_message(msg);
@@ -330,7 +331,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
     }
 
-    pub(crate) fn store_message_update(&self, pipe: &mut Pipeline, update: &MessageUpdate) {
+    pub(crate) fn store_message_update(&self, pipe: &mut Pipe<'_, C>, update: &MessageUpdate) {
         if C::Message::WANTED {
             if let Some(msg) = C::Message::from_message_update(update) {
                 let key = RedisKey::Message { id: update.id };
@@ -349,7 +350,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
     }
 
-    pub(crate) fn store_partial_guild(&self, pipe: &mut Pipeline, guild: &PartialGuild) {
+    pub(crate) fn store_partial_guild(&self, pipe: &mut Pipe<'_, C>, guild: &PartialGuild) {
         if C::Guild::WANTED {
             let guild_id = guild.id;
 
@@ -372,7 +373,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_partial_member(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         member: &PartialMember,
     ) {
@@ -402,7 +403,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
     }
 
-    pub(crate) fn store_partial_user(&self, pipe: &mut Pipeline, user: &PartialUser) {
+    pub(crate) fn store_partial_user(&self, pipe: &mut Pipe<'_, C>, user: &PartialUser) {
         if !C::User::WANTED {
             return;
         }
@@ -419,7 +420,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.sadd(key, id.get()).ignore();
     }
 
-    pub(crate) fn store_presence(&self, pipe: &mut Pipeline, presence: &Presence) {
+    pub(crate) fn store_presence(&self, pipe: &mut Pipe<'_, C>, presence: &Presence) {
         if C::Presence::WANTED {
             let guild_id = presence.guild_id;
             let user_id = presence.user.id();
@@ -442,7 +443,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_presences(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         presences: &[Presence],
     ) {
@@ -481,7 +482,12 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_users(pipe, users);
     }
 
-    pub(crate) fn store_role(&self, pipe: &mut Pipeline, guild_id: Id<GuildMarker>, role: &Role) {
+    pub(crate) fn store_role(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        guild_id: Id<GuildMarker>,
+        role: &Role,
+    ) {
         if !C::Role::WANTED {
             return;
         }
@@ -501,7 +507,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_roles<'a, I>(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         roles: I,
     ) where
@@ -538,7 +544,11 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.sadd(key, role_ids).ignore();
     }
 
-    pub(crate) fn store_stage_instance(&self, pipe: &mut Pipeline, stage_instance: &StageInstance) {
+    pub(crate) fn store_stage_instance(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        stage_instance: &StageInstance,
+    ) {
         if !C::StageInstance::WANTED {
             return;
         }
@@ -561,7 +571,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_stage_instances(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         stage_instances: &[StageInstance],
     ) {
@@ -598,7 +608,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_stickers(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         stickers: &[Sticker],
     ) {
@@ -635,7 +645,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) async fn store_unavailable_guild(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
     ) -> CacheResult<()> {
         self.delete_guild(pipe, guild_id).await?;
@@ -648,7 +658,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) async fn store_unavailable_guilds(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         unavailable_guilds: &[UnavailableGuild],
     ) -> CacheResult<()> {
         let guild_ids: Vec<_> = unavailable_guilds
@@ -664,7 +674,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_user(&self, pipe: &mut Pipeline, user: &User) {
+    pub(crate) fn store_user(&self, pipe: &mut Pipe<'_, C>, user: &User) {
         if !C::User::WANTED {
             return;
         }
@@ -679,7 +689,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.sadd(key, id.get()).ignore();
     }
 
-    pub(crate) fn store_users<'a, I>(&self, pipe: &mut Pipeline, users: I)
+    pub(crate) fn store_users<'a, I>(&self, pipe: &mut Pipe<'_, C>, users: I)
     where
         I: IntoIterator<Item = &'a User>,
     {
@@ -713,7 +723,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_voice_state(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         channel_id: Id<ChannelMarker>,
         voice_state: &VoiceState,
     ) {
@@ -742,7 +752,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn store_voice_states(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         voice_states: &[VoiceState],
     ) {

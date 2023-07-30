@@ -1,23 +1,30 @@
 mod delete;
 mod get;
+pub mod pipe;
 mod store;
 
-use std::{marker::PhantomData, ops::DerefMut, pin::Pin};
+use std::{marker::PhantomData, pin::Pin};
 
 use twilight_model::{application::interaction::InteractionData, gateway::event::Event};
 
 use crate::{
+    cache::pipe::Pipe,
     config::{CacheConfig, FromChannel},
     key::RedisKey,
-    redis::{aio::Connection, FromRedisValue, Pipeline},
     CacheError, CacheResult,
 };
 
 #[cfg(feature = "bb8")]
 type Pool = bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>;
 
+#[cfg(feature = "bb8")]
+type Connection<'a> = bb8_redis::bb8::PooledConnection<'a, bb8_redis::RedisConnectionManager>;
+
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 type Pool = deadpool_redis::Pool;
+
+#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
+type Connection<'a> = deadpool_redis::Connection;
 
 /// Redis-based cache for data of twilight's gateway [`Event`]s.
 pub struct RedisCache<C> {
@@ -28,7 +35,7 @@ pub struct RedisCache<C> {
 impl<C> RedisCache<C> {
     #[cfg(feature = "bb8")]
     pub async fn new(url: &str) -> CacheResult<Self> {
-        use bb8_redis::{bb8::Pool, RedisConnectionManager};
+        use bb8_redis::RedisConnectionManager;
 
         let manager = RedisConnectionManager::new(url).map_err(CacheError::CreatePool)?;
 
@@ -37,10 +44,7 @@ impl<C> RedisCache<C> {
             .await
             .map_err(CacheError::CreatePool)?;
 
-        Ok(Self {
-            pool,
-            config: PhantomData,
-        })
+        Ok(Self::with_pool(pool))
     }
 
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
@@ -50,10 +54,7 @@ impl<C> RedisCache<C> {
         let cfg = Config::from_url(url);
         let pool = cfg.create_pool(Some(Runtime::Tokio1))?;
 
-        Ok(Self {
-            pool,
-            config: PhantomData,
-        })
+        Ok(Self::with_pool(pool))
     }
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
@@ -64,14 +65,7 @@ impl<C> RedisCache<C> {
         }
     }
 
-    async fn query_pipe<T: FromRedisValue>(
-        pipe: &Pipeline,
-        conn: &mut Connection,
-    ) -> CacheResult<T> {
-        pipe.query_async(conn).await.map_err(CacheError::Redis)
-    }
-
-    async fn connection(&self) -> CacheResult<impl DerefMut<Target = Connection> + '_> {
+    async fn connection(&self) -> CacheResult<Connection<'_>> {
         self.pool.get().await.map_err(CacheError::GetConnection)
     }
 }
@@ -80,7 +74,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn update(&self, event: &Event) -> CacheResult<()> {
         let start = std::time::Instant::now();
 
-        let mut pipe = Pipeline::new();
+        let mut pipe = Pipe::new(self);
 
         match event {
             Event::AutoModerationActionExecution(_) => {}
@@ -104,7 +98,7 @@ impl<C: CacheConfig> RedisCache<C> {
                         let key = RedisKey::Channel {
                             id: event.channel_id,
                         };
-                        pipe.set(key, channel.bytes).ignore();
+                        pipe.set(key, &channel.bytes).ignore();
                     }
                 }
             }
@@ -283,9 +277,8 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::WebhooksUpdate(_) => {}
         };
 
-        if pipe.cmd_iter().next().is_some() {
-            let mut conn = self.connection().await?;
-            Self::query_pipe::<()>(&pipe, &mut conn).await?;
+        if !pipe.is_empty() {
+            pipe.query::<()>().await?;
         }
 
         let elapsed = start.elapsed();

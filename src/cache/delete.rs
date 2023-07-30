@@ -9,14 +9,15 @@ use twilight_model::id::{
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
-    redis::Pipeline,
     CacheError, CacheResult, RedisCache,
 };
+
+use super::pipe::Pipe;
 
 impl<C: CacheConfig> RedisCache<C> {
     pub(crate) fn delete_channel(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Option<Id<GuildMarker>>,
         channel_id: Id<ChannelMarker>,
     ) {
@@ -38,10 +39,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) async fn delete_guild(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
     ) -> CacheResult<()> {
-        debug_assert!(pipe.cmd_iter().next().is_none());
+        debug_assert!(pipe.is_empty());
 
         if C::Member::WANTED {
             let key = RedisKey::GuildMembers { id: guild_id };
@@ -88,7 +89,7 @@ impl<C: CacheConfig> RedisCache<C> {
             pipe.smembers(key);
         }
 
-        if pipe.cmd_iter().next().is_none() {
+        if pipe.is_empty() {
             if C::Guild::WANTED {
                 let key = RedisKey::Guild { id: guild_id };
                 pipe.del(key).ignore();
@@ -100,13 +101,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut conn = self.connection().await?;
+        let mut iter = pipe.query::<Vec<Vec<u64>>>().await?.into_iter();
 
-        let mut iter = Self::query_pipe::<Vec<Vec<u64>>>(pipe, &mut conn)
-            .await?
-            .into_iter();
-
-        pipe.clear();
         let mut keys_to_delete = Vec::new();
 
         if C::Member::WANTED {
@@ -123,8 +119,7 @@ impl<C: CacheConfig> RedisCache<C> {
                     pipe.scard(key);
                 }
 
-                let scards: Vec<usize> = Self::query_pipe(pipe, &mut conn).await?;
-                pipe.clear();
+                let scards: Vec<usize> = pipe.query().await?;
 
                 let user_keys = user_ids
                     .iter()
@@ -296,10 +291,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) async fn delete_guilds(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_ids: &[u64],
     ) -> CacheResult<()> {
-        debug_assert!(pipe.cmd_iter().next().is_none());
+        debug_assert!(pipe.is_empty());
 
         let count = C::Channel::WANTED as usize
             + C::Emoji::WANTED as usize
@@ -392,7 +387,7 @@ impl<C: CacheConfig> RedisCache<C> {
             }
         }
 
-        if pipe.cmd_iter().next().is_none() {
+        if pipe.is_empty() {
             if C::Guild::WANTED {
                 let guild_keys: Vec<_> = guild_ids
                     .iter()
@@ -411,8 +406,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut conn = self.connection().await?;
-        let data = Self::query_pipe::<Vec<Vec<u64>>>(pipe, &mut conn).await?;
+        let data = pipe.query::<Vec<Vec<u64>>>().await?;
 
         if data.len() != count * guild_ids.len() {
             return Err(CacheError::InvalidResponse);
@@ -420,7 +414,6 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let mut iter = data.into_iter();
 
-        pipe.clear();
         let mut keys_to_delete = Vec::new();
 
         if C::Member::WANTED {
@@ -441,8 +434,7 @@ impl<C: CacheConfig> RedisCache<C> {
                     }
                 }
 
-                let scards: Vec<usize> = Self::query_pipe(pipe, &mut conn).await?;
-                pipe.clear();
+                let scards: Vec<usize> = pipe.query().await?;
 
                 let key = RedisKey::Users;
                 pipe.srem(key, &user_ids).ignore();
@@ -687,7 +679,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn delete_integration(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         integration_id: Id<IntegrationMarker>,
     ) {
@@ -707,7 +699,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) async fn delete_member(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
     ) -> CacheResult<()> {
@@ -716,7 +708,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if C::User::WANTED {
-            debug_assert!(pipe.cmd_iter().next().is_none());
+            debug_assert!(pipe.is_empty());
 
             let key = RedisKey::UserGuilds { id: user_id };
             pipe.srem(key, guild_id.get()).ignore();
@@ -724,9 +716,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::UserGuilds { id: user_id };
             pipe.scard(key);
 
-            let mut conn = self.connection().await?;
-            let common_guild_count: usize = Self::query_pipe(pipe, &mut conn).await?;
-            pipe.clear();
+            let common_guild_count: usize = pipe.query().await?;
 
             if common_guild_count == 0 {
                 let key = RedisKey::User { id: user_id };
@@ -749,7 +739,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn delete_message(&self, pipe: &mut Pipeline, msg_id: Id<MessageMarker>) {
+    pub(crate) fn delete_message(&self, pipe: &mut Pipe<'_, C>, msg_id: Id<MessageMarker>) {
         if !C::Message::WANTED {
             return;
         }
@@ -758,7 +748,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.del(key).ignore();
     }
 
-    pub(crate) fn delete_messages(&self, pipe: &mut Pipeline, msg_ids: &[Id<MessageMarker>]) {
+    pub(crate) fn delete_messages(&self, pipe: &mut Pipe<'_, C>, msg_ids: &[Id<MessageMarker>]) {
         if !C::Message::WANTED || msg_ids.is_empty() {
             return;
         }
@@ -774,7 +764,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn delete_role(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         role_id: Id<RoleMarker>,
     ) {
@@ -794,7 +784,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn delete_stage_instance(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         stage_instance_id: Id<StageMarker>,
     ) {
@@ -816,7 +806,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
     pub(crate) fn delete_voice_state(
         &self,
-        pipe: &mut Pipeline,
+        pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
     ) {
