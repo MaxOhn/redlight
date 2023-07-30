@@ -34,13 +34,11 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_ids(RedisKey::UserGuilds { id: user_id }).await
     }
 
-    pub async fn current_user<const CURRENT_USER_SCRATCH: usize>(
-        &self,
-    ) -> CacheResult<Option<CachedValue<C::CurrentUser<'static>>>> {
+    pub async fn current_user(&self) -> CacheResult<Option<CachedValue<C::CurrentUser<'static>>>> {
         self.get_single(RedisKey::CurrentUser).await
     }
 
-    pub async fn emoji<const EMOJI_SCRATCH: usize>(
+    pub async fn emoji(
         &self,
         emoji_id: Id<EmojiMarker>,
     ) -> CacheResult<Option<CachedValue<C::Emoji<'static>>>> {
