@@ -1,7 +1,12 @@
+use std::pin::Pin;
+
+use rkyv::{Archive, Archived};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
-        payload::incoming::{invite_create::PartialUser, MemberUpdate, MessageUpdate},
+        payload::incoming::{
+            invite_create::PartialUser, ChannelPinsUpdate, MemberUpdate, MessageUpdate,
+        },
         presence::Presence,
     },
     guild::{Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role},
@@ -17,6 +22,14 @@ use twilight_model::{
 pub trait FromChannel<'a>: Sized {
     /// Create an instance from a [`Channel`] reference.
     fn from_channel(channel: &'a Channel) -> Self;
+
+    /// What happens on a [`ChannelPinsUpdate`] event.
+    ///
+    /// If the event is not of interested, return `None`.
+    /// Otherwise, return a function that updates the currently cached channel.
+    fn on_pins_update() -> Option<fn(Pin<&mut Archived<Self>>, &ChannelPinsUpdate)>
+    where
+        Self: Archive;
 }
 
 /// Create a type from a [`CurrentUser`] reference.

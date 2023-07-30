@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::DerefMut};
+use std::{marker::PhantomData, ops::DerefMut, pin::Pin};
 
 use twilight_model::{
     application::interaction::InteractionData,
@@ -123,7 +123,23 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::BanRemove(event) => self.store_user(&mut pipe, &event.user),
             Event::ChannelCreate(event) => self.store_channel(&mut pipe, event),
             Event::ChannelDelete(event) => self.delete_channel(&mut pipe, event.guild_id, event.id),
-            Event::ChannelPinsUpdate(_) => {}
+            Event::ChannelPinsUpdate(event) => {
+                if let Some(f) = C::Channel::on_pins_update() {
+                    if let Some(mut channel) = self.channel(event.channel_id).await? {
+                        let bytes = Pin::new(channel.bytes.as_mut_slice());
+
+                        let archived =
+                            unsafe { rkyv::archived_root_mut::<C::Channel<'static>>(bytes) };
+
+                        f(archived, event);
+
+                        let key = RedisKey::Channel {
+                            id: event.channel_id,
+                        };
+                        pipe.set(key, channel.bytes).ignore();
+                    }
+                }
+            }
             Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event),
             Event::CommandPermissionsUpdate(_) => {}
             Event::GatewayClose(_) => {}

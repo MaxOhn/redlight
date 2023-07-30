@@ -1,10 +1,12 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, pin::Pin};
 
-use rkyv::{Archive, Serialize};
+use rkyv::{Archive, Archived, Serialize};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
-        payload::incoming::{invite_create::PartialUser, MemberUpdate, MessageUpdate},
+        payload::incoming::{
+            invite_create::PartialUser, ChannelPinsUpdate, MemberUpdate, MessageUpdate,
+        },
         presence::Presence,
     },
     guild::{Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role},
@@ -33,6 +35,13 @@ pub struct Ignore;
 impl FromChannel<'_> for Ignore {
     fn from_channel(_: &'_ Channel) -> Self {
         Self
+    }
+
+    fn on_pins_update() -> Option<fn(Pin<&mut Archived<Self>>, &ChannelPinsUpdate)>
+    where
+        Self: Archive,
+    {
+        None
     }
 }
 

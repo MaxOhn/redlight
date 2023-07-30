@@ -8,7 +8,7 @@ use crate::CacheResult;
 ///
 /// Implements [`Deref<T>`] so fields and methods of the archived type are easily accessible.
 pub struct CachedValue<T> {
-    bytes: Vec<u8>,
+    pub(crate) bytes: Vec<u8>,
     phantom: PhantomData<T>,
 }
 
