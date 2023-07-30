@@ -1858,6 +1858,17 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(channel_id).await
     }
 
+    pub async fn channel_ids(&self) -> CacheResult<HashSet<Id<ChannelMarker>>> {
+        self.get_ids(RedisKey::Channels).await
+    }
+
+    pub async fn common_guild_ids(
+        &self,
+        user_id: Id<UserMarker>,
+    ) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        self.get_ids(RedisKey::UserGuilds { id: user_id }).await
+    }
+
     pub async fn current_user<const CURRENT_USER_SCRATCH: usize>(
         &self,
     ) -> CacheResult<Option<CachedValue<C::CurrentUser<'static>>>> {
@@ -1878,11 +1889,41 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(guild_id).await
     }
 
+    pub async fn guild_channel_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<ChannelMarker>>> {
+        self.get_ids(RedisKey::GuildChannels { id: guild_id }).await
+    }
+
     pub async fn guild_emoji_ids(
         &self,
         guild_id: Id<GuildMarker>,
     ) -> CacheResult<HashSet<Id<EmojiMarker>>> {
         self.get_ids(RedisKey::GuildEmojis { id: guild_id }).await
+    }
+
+    pub async fn guild_integration_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<IntegrationMarker>>> {
+        self.get_ids(RedisKey::GuildIntegrations { id: guild_id })
+            .await
+    }
+
+    pub async fn guild_member_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildMembers { id: guild_id }).await
+    }
+
+    pub async fn guild_presence_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildPresences { id: guild_id })
+            .await
     }
 
     pub async fn guild_role_ids(
@@ -1892,11 +1933,44 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_ids(RedisKey::GuildRoles { id: guild_id }).await
     }
 
+    pub async fn guild_stage_instance_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<StageMarker>>> {
+        self.get_ids(RedisKey::GuildStageInstances { id: guild_id })
+            .await
+    }
+
     pub async fn guild_sticker_ids(
         &self,
         guild_id: Id<GuildMarker>,
     ) -> CacheResult<HashSet<Id<StickerMarker>>> {
         self.get_ids(RedisKey::GuildStickers { id: guild_id }).await
+    }
+
+    pub async fn guild_voice_state_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildVoiceStates { id: guild_id })
+            .await
+    }
+
+    pub async fn guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        self.get_ids(RedisKey::Guilds).await
+    }
+
+    pub async fn integration(
+        &self,
+        guild_id: Id<GuildMarker>,
+        integration_id: Id<IntegrationMarker>,
+    ) -> CacheResult<Option<CachedValue<C::Integration<'static>>>> {
+        let key = RedisKey::Integration {
+            guild: guild_id,
+            id: integration_id,
+        };
+
+        self.get_single(key).await
     }
 
     pub async fn member(
@@ -1939,6 +2013,17 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(role_id).await
     }
 
+    pub async fn role_ids(&self) -> CacheResult<HashSet<Id<RoleMarker>>> {
+        self.get_ids(RedisKey::Roles).await
+    }
+
+    pub async fn stage_instance(
+        &self,
+        stage_instance_id: Id<StageMarker>,
+    ) -> CacheResult<Option<CachedValue<C::StageInstance<'static>>>> {
+        self.get_single(stage_instance_id).await
+    }
+
     pub async fn sticker(
         &self,
         sticker_id: Id<StickerMarker>,
@@ -1963,6 +2048,10 @@ impl<C: CacheConfig> RedisCache<C> {
         user_id: Id<UserMarker>,
     ) -> CacheResult<Option<CachedValue<C::User<'static>>>> {
         self.get_single(user_id).await
+    }
+
+    pub async fn user_ids(&self) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::Users).await
     }
 
     pub async fn voice_state(
