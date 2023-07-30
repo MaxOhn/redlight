@@ -18,6 +18,8 @@ use twilight_model::{
     voice::VoiceState,
 };
 
+type OnChannelPinsUpdate<T> = fn(Pin<&mut Archived<T>>, &ChannelPinsUpdate);
+
 /// Create a type from a [`Channel`] reference.
 pub trait FromChannel<'a>: Sized {
     /// Create an instance from a [`Channel`] reference.
@@ -25,9 +27,9 @@ pub trait FromChannel<'a>: Sized {
 
     /// What happens on a [`ChannelPinsUpdate`] event.
     ///
-    /// If the event is not of interested, return `None`.
+    /// If the event is not of interest, return `None`.
     /// Otherwise, return a function that updates the currently cached channel.
-    fn on_pins_update() -> Option<fn(Pin<&mut Archived<Self>>, &ChannelPinsUpdate)>
+    fn on_pins_update() -> Option<OnChannelPinsUpdate<Self>>
     where
         Self: Archive;
 }
