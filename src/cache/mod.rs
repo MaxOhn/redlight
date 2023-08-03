@@ -91,6 +91,10 @@ impl<C: CacheConfig> RedisCache<C> {
                         let mut bytes = channel.into_bytes();
                         let bytes_mut = bytes.as_mut();
 
+                        #[cfg(feature = "validation")]
+                        rkyv::check_archived_root::<C::Channel<'static>>(bytes_mut)
+                            .map_err(|e| CacheError::Validation(Box::new(e)))?;
+
                         let archived_mut = unsafe {
                             rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut))
                         };
