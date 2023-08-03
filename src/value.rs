@@ -6,19 +6,19 @@ use rkyv::Archive;
 ///
 /// Implements [`Deref<T>`] so fields and methods of the archived type are easily accessible.
 pub struct CachedValue<T> {
-    bytes: Vec<u8>,
+    bytes: Box<[u8]>,
     phantom: PhantomData<T>,
 }
 
 impl<T> CachedValue<T> {
-    pub(crate) fn new_unchecked(bytes: Vec<u8>) -> Self {
+    pub(crate) fn new_unchecked(bytes: Box<[u8]>) -> Self {
         Self {
             bytes,
             phantom: PhantomData,
         }
     }
 
-    pub(crate) fn into_bytes(self) -> Vec<u8> {
+    pub(crate) fn into_bytes(self) -> Box<[u8]> {
         self.bytes
     }
 }
@@ -30,8 +30,8 @@ where
     <T as Archive>::Archived:
         for<'a> rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
 {
-    pub(crate) fn new(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        rkyv::check_archived_root::<T>(bytes.as_slice())?;
+    pub(crate) fn new(bytes: Box<[u8]>) -> Result<Self, Box<dyn std::error::Error>> {
+        rkyv::check_archived_root::<T>(bytes.as_ref())?;
 
         Ok(Self::new_unchecked(bytes))
     }
@@ -41,6 +41,6 @@ impl<T: Archive> Deref for CachedValue<T> {
     type Target = <T as Archive>::Archived;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { rkyv::archived_root::<T>(&self.bytes) }
+        unsafe { rkyv::archived_root::<T>(self.bytes.as_ref()) }
     }
 }

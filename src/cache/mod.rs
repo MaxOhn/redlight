@@ -89,7 +89,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 if let Some(f) = C::Channel::on_pins_update() {
                     if let Some(channel) = self.channel(event.channel_id).await? {
                         let mut bytes = channel.into_bytes();
-                        let bytes_mut = bytes.as_mut_slice();
+                        let bytes_mut = bytes.as_mut();
 
                         let archived_mut = unsafe {
                             rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut))
@@ -100,7 +100,7 @@ impl<C: CacheConfig> RedisCache<C> {
                         let key = RedisKey::Channel {
                             id: event.channel_id,
                         };
-                        pipe.set(key, bytes.as_slice()).ignore();
+                        pipe.set(key, bytes.as_ref()).ignore();
                     }
                 }
             }

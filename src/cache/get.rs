@@ -260,7 +260,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(Ok(None));
         }
 
-        Ok(CachedValue::new(bytes).map(Some))
+        Ok(CachedValue::new(bytes.into_boxed_slice()).map(Some))
     }
 
     #[cfg(not(feature = "validation"))]
@@ -275,7 +275,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(None);
         }
 
-        Ok(Some(CachedValue::new_unchecked(bytes)))
+        Ok(Some(CachedValue::new_unchecked(bytes.into_boxed_slice())))
     }
 
     async fn get_ids<T>(&self, key: RedisKey) -> CacheResult<HashSet<Id<T>>> {
