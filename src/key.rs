@@ -148,8 +148,6 @@ impl ToRedisArgs for RedisKey {
     {
         fn name_id<T>(name: &[u8], id: &Id<T>) -> Cow<'static, [u8]> {
             fn inner(name: &[u8], id: u64) -> Cow<'static, [u8]> {
-                debug_assert_eq!(name.last(), Some(&b':'));
-
                 let mut buf = Buffer::new();
                 let id = buf.format(id).as_bytes();
 
@@ -169,8 +167,6 @@ impl ToRedisArgs for RedisKey {
             id: &Id<T>,
         ) -> Cow<'static, [u8]> {
             fn inner(name: &[u8], guild: &Id<GuildMarker>, id: u64) -> Cow<'static, [u8]> {
-                debug_assert_eq!(name.last(), Some(&b':'));
-
                 let mut buf = Buffer::new();
                 let guild = buf.format(guild.get()).as_bytes();
 
@@ -194,7 +190,7 @@ impl ToRedisArgs for RedisKey {
             Self::Emoji { id } => name_id(b"EMOJI:", id),
             Self::Emojis => Cow::<[u8]>::Borrowed(b"EMOJIS"),
             Self::Guild { id } => name_id(b"GUILD:", id),
-            Self::GuildChannels { id } => name_id(b"GUILD_CHANNELS>:", id),
+            Self::GuildChannels { id } => name_id(b"GUILD_CHANNELS:", id),
             Self::GuildEmojis { id } => name_id(b"GUILD_EMOJIS:", id),
             Self::GuildIntegrations { id } => name_id(b"GUILD_INTEGRATIONS:", id),
             Self::GuildMembers { id } => name_id(b"GUILD_MEMBERS:", id),
