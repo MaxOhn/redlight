@@ -1,20 +1,15 @@
-use std::fmt::Debug;
-
 use crate::ser::CacheSerializer;
-use rkyv::{ser::Serializer, Fallible, Serialize};
+use rkyv::{ser::Serializer, AlignedVec, Fallible, Serialize};
 
 use super::checked::CheckedArchive;
 
-type SerializeResult<T> = Result<
-    <<T as Cacheable>::Serializer as CacheSerializer>::Inner,
-    <<T as Cacheable>::Serializer as Fallible>::Error,
->;
+type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fallible>::Error>;
 
 /// Trait to configure the serialization of cached entries.
 ///
 /// # Example
 /// ```
-/// use rkyv::{ser::serializers::AllocSerializer, with::RefAsBox, Archive, Fallible, Serialize};
+/// use rkyv::{ser::serializers::AlignedSerializer, with::RefAsBox, Archive, Fallible, Serialize};
 /// use twilight_redis::config::Cacheable;
 ///
 /// #[derive(Archive, Serialize)]
@@ -25,21 +20,14 @@ type SerializeResult<T> = Result<
 /// }
 ///
 /// impl Cacheable for CachedRole<'_> {
-///     type Serializer = AllocSerializer<0>;
-///     type SerializeError = <Self::Serializer as Fallible>::Error;
+///     type Serializer = AlignedSerializer;
 /// }
 /// ```
 pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {
     /// Serializer used to serialize instances of `Self`.
     ///
-    /// When in doubt, use rkyv's [`AllocSerializer`](rkyv::ser::serializers::AllocSerializer) with a sensible scratch space size.
-    type Serializer: CacheSerializer<Error = Self::SerializeError>;
-
-    /// Error of `Self::Serializer`. This should generally be set to `<Self::Serializer as Fallible>::Error`.
-    ///
-    /// The only reason this type exists is due to rust's current lack of support
-    /// for providing trait bounds on associated types.
-    type SerializeError: Debug;
+    /// When in doubt, use [`AllocSerializer`](rkyv::ser::serializers::AllocSerializer) with a sensible scratch space size.
+    type Serializer: CacheSerializer;
 
     /// Whether a type should be handled by the cache. Otherwise, it will just be ignored.
     ///

@@ -9,7 +9,7 @@ use twilight_model::{application::interaction::InteractionData, gateway::event::
 
 use crate::{
     cache::pipe::Pipe,
-    config::{CacheConfig, FromChannel},
+    config::{CacheConfig, ICachedChannel},
     key::RedisKey,
     CacheError, CacheResult,
 };
@@ -81,28 +81,30 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::AutoModerationRuleCreate(_) => {}
             Event::AutoModerationRuleDelete(_) => {}
             Event::AutoModerationRuleUpdate(_) => {}
-            Event::BanAdd(event) => self.store_user(&mut pipe, &event.user),
-            Event::BanRemove(event) => self.store_user(&mut pipe, &event.user),
-            Event::ChannelCreate(event) => self.store_channel(&mut pipe, event),
+            Event::BanAdd(event) => self.store_user(&mut pipe, &event.user)?,
+            Event::BanRemove(event) => self.store_user(&mut pipe, &event.user)?,
+            Event::ChannelCreate(event) => self.store_channel(&mut pipe, event)?,
             Event::ChannelDelete(event) => self.delete_channel(&mut pipe, event.guild_id, event.id),
             Event::ChannelPinsUpdate(event) => {
                 if let Some(f) = C::Channel::on_pins_update() {
-                    if let Some(mut channel) = self.channel(event.channel_id).await? {
-                        let bytes = Pin::new(channel.bytes.as_mut_slice());
+                    if let Some(channel) = self.channel(event.channel_id).await? {
+                        let mut bytes = channel.into_bytes();
+                        let bytes_mut = bytes.as_mut_slice();
 
-                        let archived =
-                            unsafe { rkyv::archived_root_mut::<C::Channel<'static>>(bytes) };
+                        let archived_mut = unsafe {
+                            rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut))
+                        };
 
-                        f(archived, event);
+                        f(archived_mut, event);
 
                         let key = RedisKey::Channel {
                             id: event.channel_id,
                         };
-                        pipe.set(key, &channel.bytes).ignore();
+                        pipe.set(key, bytes.as_slice()).ignore();
                     }
                 }
             }
-            Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event),
+            Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event)?,
             Event::CommandPermissionsUpdate(_) => {}
             Event::GatewayClose(_) => {}
             Event::GatewayHeartbeat(_) => {}
@@ -112,7 +114,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::GatewayReconnect => {}
             Event::GiftCodeUpdate => {}
             Event::GuildAuditLogEntryCreate(_) => {}
-            Event::GuildCreate(event) => self.store_guild(&mut pipe, event),
+            Event::GuildCreate(event) => self.store_guild(&mut pipe, event)?,
             Event::GuildDelete(event) => {
                 if event.unavailable {
                     self.store_unavailable_guild(&mut pipe, event.id).await?
@@ -121,33 +123,33 @@ impl<C: CacheConfig> RedisCache<C> {
                 }
             }
             Event::GuildEmojisUpdate(event) => {
-                self.store_emojis(&mut pipe, event.guild_id, &event.emojis)
+                self.store_emojis(&mut pipe, event.guild_id, &event.emojis)?
             }
             Event::GuildIntegrationsUpdate(_) => {}
             Event::GuildScheduledEventCreate(event) => {
                 if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user);
+                    self.store_user(&mut pipe, user)?;
                 }
             }
             Event::GuildScheduledEventDelete(event) => {
                 if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user);
+                    self.store_user(&mut pipe, user)?;
                 }
             }
             Event::GuildScheduledEventUpdate(event) => {
                 if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user);
+                    self.store_user(&mut pipe, user)?;
                 }
             }
             Event::GuildScheduledEventUserAdd(_) => {}
             Event::GuildScheduledEventUserRemove(_) => {}
             Event::GuildStickersUpdate(event) => {
-                self.store_stickers(&mut pipe, event.guild_id, &event.stickers)
+                self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?
             }
-            Event::GuildUpdate(event) => self.store_partial_guild(&mut pipe, event),
+            Event::GuildUpdate(event) => self.store_partial_guild(&mut pipe, event)?,
             Event::IntegrationCreate(event) => {
                 if let Some(guild_id) = event.guild_id {
-                    self.store_integration(&mut pipe, guild_id, event);
+                    self.store_integration(&mut pipe, guild_id, event)?;
                 }
             }
             Event::IntegrationDelete(event) => {
@@ -155,72 +157,74 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::IntegrationUpdate(event) => {
                 if let Some(guild_id) = event.guild_id {
-                    self.store_integration(&mut pipe, guild_id, event);
+                    self.store_integration(&mut pipe, guild_id, event)?;
                 }
             }
             Event::InteractionCreate(event) => {
                 if let Some(ref channel) = event.channel {
-                    self.store_channel(&mut pipe, channel);
+                    self.store_channel(&mut pipe, channel)?;
                 }
 
                 if let Some(InteractionData::ApplicationCommand(ref data)) = event.data {
                     if let Some(ref resolved) = data.resolved {
                         if let Some(guild_id) = event.guild_id {
                             let roles = resolved.roles.values();
-                            self.store_roles(&mut pipe, guild_id, roles);
+                            self.store_roles(&mut pipe, guild_id, roles)?;
                         }
 
                         let users = resolved.users.values();
-                        self.store_users(&mut pipe, users);
+                        self.store_users(&mut pipe, users)?;
                     }
                 }
 
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
-                    self.store_partial_member(&mut pipe, guild_id, member);
+                    self.store_partial_member(&mut pipe, guild_id, member)?;
                 }
 
                 if let Some(ref msg) = event.message {
-                    self.store_message(&mut pipe, msg);
+                    self.store_message(&mut pipe, msg)?;
                 }
 
                 if let Some(ref user) = event.user {
-                    self.store_user(&mut pipe, user);
+                    self.store_user(&mut pipe, user)?;
                 }
             }
             Event::InviteCreate(event) => {
                 if let Some(ref user) = event.inviter {
-                    self.store_user(&mut pipe, user);
+                    self.store_user(&mut pipe, user)?;
                 }
 
                 if let Some(ref user) = event.target_user {
-                    self.store_partial_user(&mut pipe, user);
+                    self.store_partial_user(&mut pipe, user)?;
                 }
             }
             Event::InviteDelete(_) => {}
-            Event::MemberAdd(event) => self.store_member(&mut pipe, event.guild_id, &event.member),
+            Event::MemberAdd(event) => {
+                self.store_member(&mut pipe, event.guild_id, &event.member)?
+            }
             Event::MemberRemove(event) => {
                 self.delete_member(&mut pipe, event.guild_id, event.user.id)
                     .await?
             }
-            Event::MemberUpdate(event) => self.store_member_update(&mut pipe, event),
+            Event::MemberUpdate(event) => self.store_member_update(&mut pipe, event)?,
             Event::MemberChunk(event) => {
-                self.store_members(&mut pipe, event.guild_id, &event.members);
-                self.store_presences(&mut pipe, event.guild_id, &event.presences);
+                self.store_members(&mut pipe, event.guild_id, &event.members)?;
+                self.store_presences(&mut pipe, event.guild_id, &event.presences)?;
             }
-            Event::MessageCreate(event) => self.store_message(&mut pipe, event),
+            Event::MessageCreate(event) => self.store_message(&mut pipe, event)?,
             Event::MessageDelete(event) => self.delete_message(&mut pipe, event.id),
             Event::MessageDeleteBulk(event) => self.delete_messages(&mut pipe, &event.ids),
-            Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event),
-            Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event),
+            Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event)?,
+            Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event)?,
             Event::PresencesReplace => {}
             Event::ReactionAdd(event) => {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
-                    self.store_member(&mut pipe, guild_id, member);
+                    self.store_member(&mut pipe, guild_id, member)?;
                 }
             }
             Event::ReactionRemove(event) => {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
-                    self.store_member(&mut pipe, guild_id, member);
+                    self.store_member(&mut pipe, guild_id, member)?;
                 }
             }
             Event::ReactionRemoveAll(_) => {}
@@ -228,48 +232,48 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::Ready(event) => {
                 self.store_unavailable_guilds(&mut pipe, &event.guilds)
                     .await?;
-                self.store_current_user(&mut pipe, &event.user);
+                self.store_current_user(&mut pipe, &event.user)?;
             }
             Event::Resumed => {}
-            Event::RoleCreate(event) => self.store_role(&mut pipe, event.guild_id, &event.role),
+            Event::RoleCreate(event) => self.store_role(&mut pipe, event.guild_id, &event.role)?,
             Event::RoleDelete(event) => self.delete_role(&mut pipe, event.guild_id, event.role_id),
-            Event::RoleUpdate(event) => self.store_role(&mut pipe, event.guild_id, &event.role),
-            Event::StageInstanceCreate(event) => self.store_stage_instance(&mut pipe, event),
+            Event::RoleUpdate(event) => self.store_role(&mut pipe, event.guild_id, &event.role)?,
+            Event::StageInstanceCreate(event) => self.store_stage_instance(&mut pipe, event)?,
             Event::StageInstanceDelete(event) => {
                 self.delete_stage_instance(&mut pipe, event.guild_id, event.id)
             }
-            Event::StageInstanceUpdate(event) => self.store_stage_instance(&mut pipe, event),
-            Event::ThreadCreate(event) => self.store_channel(&mut pipe, event),
+            Event::StageInstanceUpdate(event) => self.store_stage_instance(&mut pipe, event)?,
+            Event::ThreadCreate(event) => self.store_channel(&mut pipe, event)?,
             Event::ThreadDelete(event) => {
                 self.delete_channel(&mut pipe, Some(event.guild_id), event.id)
             }
             Event::ThreadListSync(event) => {
-                self.store_channels(&mut pipe, event.guild_id, &event.threads)
+                self.store_channels(&mut pipe, event.guild_id, &event.threads)?
             }
             Event::ThreadMemberUpdate(event) => {
                 if let Some(ref presence) = event.presence {
-                    self.store_presence(&mut pipe, presence);
+                    self.store_presence(&mut pipe, presence)?;
 
                     if let Some(ref member) = event.member {
-                        self.store_member(&mut pipe, presence.guild_id, member);
+                        self.store_member(&mut pipe, presence.guild_id, member)?;
                     }
                 }
             }
             Event::ThreadMembersUpdate(_) => {}
-            Event::ThreadUpdate(event) => self.store_channel(&mut pipe, event),
+            Event::ThreadUpdate(event) => self.store_channel(&mut pipe, event)?,
             Event::TypingStart(event) => {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
-                    self.store_member(&mut pipe, guild_id, member);
+                    self.store_member(&mut pipe, guild_id, member)?;
                 }
             }
             Event::UnavailableGuild(event) => {
                 self.store_unavailable_guild(&mut pipe, event.id).await?
             }
-            Event::UserUpdate(event) => self.store_current_user(&mut pipe, event),
+            Event::UserUpdate(event) => self.store_current_user(&mut pipe, event)?,
             Event::VoiceServerUpdate(_) => {}
             Event::VoiceStateUpdate(event) => {
                 if let Some(channel_id) = event.channel_id {
-                    self.store_voice_state(&mut pipe, channel_id, event);
+                    self.store_voice_state(&mut pipe, channel_id, event)?;
                 } else if let Some(guild_id) = event.guild_id {
                     self.delete_voice_state(&mut pipe, guild_id, event.user_id);
                 }

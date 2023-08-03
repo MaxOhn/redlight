@@ -1,6 +1,6 @@
 use std::{convert::Infallible, pin::Pin};
 
-use rkyv::{Archive, Archived, Serialize};
+use rkyv::{Archive, Deserialize, Fallible, Serialize};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
@@ -20,9 +20,9 @@ use twilight_model::{
 
 use crate::{
     config::{
-        Cacheable, Expirable, FromChannel, FromCurrentUser, FromEmoji, FromGuild, FromIntegration,
-        FromMember, FromMessage, FromPresence, FromRole, FromStageInstance, FromSticker, FromUser,
-        FromVoiceState,
+        Cacheable, Expirable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
+        ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
+        ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     ser::NoopSerializer,
 };
@@ -32,38 +32,35 @@ use crate::{
 /// Used by specifying [`Ignore`] for associated types of [`CacheConfig`](crate::config::CacheConfig).
 pub struct Ignore;
 
-impl FromChannel<'_> for Ignore {
+impl ICachedChannel<'_> for Ignore {
     fn from_channel(_: &'_ Channel) -> Self {
         Self
     }
 
-    fn on_pins_update() -> Option<fn(Pin<&mut Archived<Self>>, &ChannelPinsUpdate)>
-    where
-        Self: Archive,
-    {
+    fn on_pins_update() -> Option<fn(Pin<&mut Self::Archived>, &ChannelPinsUpdate)> {
         None
     }
 }
 
-impl FromCurrentUser<'_> for Ignore {
+impl ICachedCurrentUser<'_> for Ignore {
     fn from_current_user(_: &'_ CurrentUser) -> Self {
         Self
     }
 }
 
-impl FromEmoji<'_> for Ignore {
+impl ICachedEmoji<'_> for Ignore {
     fn from_emoji(_: &'_ Emoji) -> Self {
         Self
     }
 }
 
-impl FromIntegration<'_> for Ignore {
+impl ICachedIntegration<'_> for Ignore {
     fn from_integration(_: &'_ GuildIntegration) -> Self {
         Self
     }
 }
 
-impl FromGuild<'_> for Ignore {
+impl ICachedGuild<'_> for Ignore {
     fn from_guild(_: &'_ Guild) -> Self {
         Self
     }
@@ -73,7 +70,7 @@ impl FromGuild<'_> for Ignore {
     }
 }
 
-impl FromMember<'_> for Ignore {
+impl ICachedMember<'_> for Ignore {
     fn from_member(_: Id<GuildMarker>, _: &'_ Member) -> Self {
         Self
     }
@@ -87,7 +84,7 @@ impl FromMember<'_> for Ignore {
     }
 }
 
-impl FromMessage<'_> for Ignore {
+impl ICachedMessage<'_> for Ignore {
     fn from_message(_: &'_ Message) -> Self {
         Self
     }
@@ -97,31 +94,31 @@ impl FromMessage<'_> for Ignore {
     }
 }
 
-impl FromPresence<'_> for Ignore {
+impl ICachedPresence<'_> for Ignore {
     fn from_presence(_: &'_ Presence) -> Self {
         Self
     }
 }
 
-impl FromRole<'_> for Ignore {
+impl ICachedRole<'_> for Ignore {
     fn from_role(_: &'_ Role) -> Self {
         Self
     }
 }
 
-impl FromStageInstance<'_> for Ignore {
+impl ICachedStageInstance<'_> for Ignore {
     fn from_stage_instance(_: &StageInstance) -> Self {
         Self
     }
 }
 
-impl FromSticker<'_> for Ignore {
+impl ICachedSticker<'_> for Ignore {
     fn from_sticker(_: &'_ Sticker) -> Self {
         Self
     }
 }
 
-impl FromUser<'_> for Ignore {
+impl ICachedUser<'_> for Ignore {
     fn from_user(_: &User) -> Self {
         Self
     }
@@ -131,7 +128,7 @@ impl FromUser<'_> for Ignore {
     }
 }
 
-impl FromVoiceState<'_> for Ignore {
+impl ICachedVoiceState<'_> for Ignore {
     fn from_voice_state(_: Id<ChannelMarker>, _: Id<GuildMarker>, _: &'_ VoiceState) -> Self {
         Self
     }
@@ -147,7 +144,6 @@ impl Cacheable for Ignore {
     const WANTED: bool = false;
 
     type Serializer = NoopSerializer;
-    type SerializeError = Infallible;
 }
 
 impl Archive for Ignore {
@@ -160,6 +156,18 @@ impl Archive for Ignore {
 impl Serialize<NoopSerializer> for Ignore {
     fn serialize(&self, _: &mut NoopSerializer) -> Result<(), Infallible> {
         Ok(())
+    }
+}
+
+impl<D: Fallible + ?Sized> Deserialize<Self, D> for Ignore {
+    fn deserialize(&self, _: &mut D) -> Result<Self, D::Error> {
+        Ok(Self)
+    }
+}
+
+impl<'a> From<&'a ()> for Ignore {
+    fn from(_: &'a ()) -> Self {
+        Self
     }
 }
 

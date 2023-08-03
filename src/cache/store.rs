@@ -11,16 +11,17 @@ use twilight_model::id::Id;
 use twilight_model::user::{CurrentUser, User};
 use twilight_model::voice::VoiceState;
 
-use crate::CacheResult;
+use crate::CacheError;
 use crate::{
     config::{
-        CacheConfig, Cacheable, Expirable, FromChannel, FromCurrentUser, FromEmoji, FromGuild,
-        FromIntegration, FromMember, FromMessage, FromPresence, FromRole, FromStageInstance,
-        FromSticker, FromUser, FromVoiceState,
+        CacheConfig, Cacheable, Expirable, ICachedChannel, ICachedCurrentUser, ICachedEmoji,
+        ICachedGuild, ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence,
+        ICachedRole, ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
+    error::SerializeError,
     key::RedisKey,
-    util::aligned_vec::BytesRedisArgs,
-    RedisCache,
+    util::{BytesArg, ZippedVecs},
+    CacheResult, RedisCache,
 };
 
 use super::pipe::Pipe;
@@ -37,13 +38,21 @@ type UserSerializer<'a, C> = <<C as CacheConfig>::User<'a> as Cacheable>::Serial
 type VoiceStateSerializer<'a, C> = <<C as CacheConfig>::VoiceState<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
-    pub(crate) fn store_channel(&self, pipe: &mut Pipe<'_, C>, channel: &Channel) {
+    pub(crate) fn store_channel(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        channel: &Channel,
+    ) -> CacheResult<()> {
         if C::Channel::WANTED {
             let guild_id = channel.guild_id;
             let channel_id = channel.id;
             let key = RedisKey::Channel { id: channel_id };
             let channel = C::Channel::from_channel(channel);
-            let bytes = channel.serialize().unwrap();
+
+            let bytes = channel
+                .serialize()
+                .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             if let Some(guild_id) = guild_id {
@@ -57,17 +66,19 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if let Some(ref member) = channel.member {
             if let (Some(guild_id), Some(member)) = (channel.guild_id, &member.member) {
-                self.store_member(pipe, guild_id, member);
+                self.store_member(pipe, guild_id, member)?;
             }
 
             if let Some(ref presence) = member.presence {
-                self.store_presence(pipe, presence);
+                self.store_presence(pipe, presence)?;
             }
         }
 
         if let Some(ref users) = channel.recipients {
-            self.store_users(pipe, users);
+            self.store_users(pipe, users)?;
         }
+
+        Ok(())
     }
 
     pub(crate) fn store_channels(
@@ -75,20 +86,24 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         channels: &[Channel],
-    ) {
+    ) -> CacheResult<()> {
         if C::Channel::WANTED {
             let mut serializer = ChannelSerializer::<C>::default();
 
-            let (channels, channel_ids): (Vec<_>, Vec<_>) = channels
+            let (channels, channel_ids) = channels
                 .iter()
                 .map(|channel| {
                     let id = channel.id;
                     let key = RedisKey::Channel { id };
                     let channel = C::Channel::from_channel(channel);
-                    let bytes = channel.serialize_with(&mut serializer).unwrap();
 
-                    ((key, BytesRedisArgs(bytes)), id.get())
+                    let bytes = channel
+                        .serialize_with(&mut serializer)
+                        .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+
+                    Ok(((key, BytesArg(bytes)), id.get()))
                 })
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
                 .unzip();
 
             if !channels.is_empty() {
@@ -107,19 +122,30 @@ impl<C: CacheConfig> RedisCache<C> {
             .filter_map(|channel| channel.recipients.as_ref())
             .flatten();
 
-        self.store_users(pipe, users);
+        self.store_users(pipe, users)?;
+
+        Ok(())
     }
 
-    pub(crate) fn store_current_user(&self, pipe: &mut Pipe<'_, C>, current_user: &CurrentUser) {
+    pub(crate) fn store_current_user(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        current_user: &CurrentUser,
+    ) -> CacheResult<()> {
         if !C::CurrentUser::WANTED {
-            return;
+            return Ok(());
         }
 
         let key = RedisKey::CurrentUser;
         let current_user = C::CurrentUser::from_current_user(current_user);
-        let bytes = current_user.serialize().unwrap();
+
+        let bytes = current_user
+            .serialize()
+            .map_err(|e| SerializeError::CurrentUser(Box::new(e)))?;
 
         pipe.set(key, bytes.as_ref()).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_emojis(
@@ -127,27 +153,31 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         emojis: &[Emoji],
-    ) {
+    ) -> CacheResult<()> {
         if !C::Emoji::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = EmojiSerializer::<C>::default();
 
-        let (emojis, emoji_ids): (Vec<_>, Vec<_>) = emojis
+        let (emojis, emoji_ids) = emojis
             .iter()
             .map(|emoji| {
                 let id = emoji.id;
                 let key = RedisKey::Emoji { id };
                 let emoji = C::Emoji::from_emoji(emoji);
-                let bytes = emoji.serialize_with(&mut serializer).unwrap();
 
-                ((key, BytesRedisArgs(bytes)), id.get())
+                let bytes = emoji
+                    .serialize_with(&mut serializer)
+                    .map_err(|e| SerializeError::Emoji(Box::new(e)))?;
+
+                Ok(((key, BytesArg(bytes)), id.get()))
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if emojis.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&emojis).ignore();
@@ -157,14 +187,20 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Emojis;
         pipe.sadd(key, emoji_ids).ignore();
+
+        Ok(())
     }
 
-    pub(crate) fn store_guild(&self, pipe: &mut Pipe<'_, C>, guild: &Guild) {
+    pub(crate) fn store_guild(&self, pipe: &mut Pipe<'_, C>, guild: &Guild) -> CacheResult<()> {
         if C::Guild::WANTED {
             let guild_id = guild.id;
             let key = RedisKey::Guild { id: guild_id };
             let guild = C::Guild::from_guild(guild);
-            let bytes = guild.serialize().unwrap();
+
+            let bytes = guild
+                .serialize()
+                .map_err(|e| SerializeError::Guild(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             let key = RedisKey::Guilds;
@@ -174,15 +210,17 @@ impl<C: CacheConfig> RedisCache<C> {
             pipe.srem(key, guild_id.get()).ignore();
         }
 
-        self.store_channels(pipe, guild.id, &guild.channels);
-        self.store_emojis(pipe, guild.id, &guild.emojis);
-        self.store_members(pipe, guild.id, &guild.members);
-        self.store_presences(pipe, guild.id, &guild.presences);
-        self.store_roles(pipe, guild.id, &guild.roles);
-        self.store_stickers(pipe, guild.id, &guild.stickers);
-        self.store_channels(pipe, guild.id, &guild.threads);
-        self.store_stage_instances(pipe, guild.id, &guild.stage_instances);
-        self.store_voice_states(pipe, guild.id, &guild.voice_states);
+        self.store_channels(pipe, guild.id, &guild.channels)?;
+        self.store_emojis(pipe, guild.id, &guild.emojis)?;
+        self.store_members(pipe, guild.id, &guild.members)?;
+        self.store_presences(pipe, guild.id, &guild.presences)?;
+        self.store_roles(pipe, guild.id, &guild.roles)?;
+        self.store_stickers(pipe, guild.id, &guild.stickers)?;
+        self.store_channels(pipe, guild.id, &guild.threads)?;
+        self.store_stage_instances(pipe, guild.id, &guild.stage_instances)?;
+        self.store_voice_states(pipe, guild.id, &guild.voice_states)?;
+
+        Ok(())
     }
 
     pub(crate) fn store_integration(
@@ -190,7 +228,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         integration: &GuildIntegration,
-    ) {
+    ) -> CacheResult<()> {
         if C::Integration::WANTED {
             let integration_id = integration.id;
             let key = RedisKey::Integration {
@@ -198,7 +236,11 @@ impl<C: CacheConfig> RedisCache<C> {
                 id: integration_id,
             };
             let integration = C::Integration::from_integration(integration);
-            let bytes = integration.serialize().unwrap();
+
+            let bytes = integration
+                .serialize()
+                .map_err(|e| SerializeError::Integration(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             let key = RedisKey::GuildIntegrations { id: guild_id };
@@ -206,8 +248,10 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let Some(ref user) = integration.user {
-            self.store_user(pipe, user);
+            self.store_user(pipe, user)?;
         }
+
+        Ok(())
     }
 
     pub(crate) fn store_member(
@@ -215,7 +259,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         member: &Member,
-    ) {
+    ) -> CacheResult<()> {
         if C::Member::WANTED {
             let user_id = member.user.id;
             let key = RedisKey::Member {
@@ -223,7 +267,11 @@ impl<C: CacheConfig> RedisCache<C> {
                 user: user_id,
             };
             let member = C::Member::from_member(guild_id, member);
-            let bytes = member.serialize().unwrap();
+
+            let bytes = member
+                .serialize()
+                .map_err(|e| SerializeError::Member(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             let key = RedisKey::GuildMembers { id: guild_id };
@@ -235,10 +283,16 @@ impl<C: CacheConfig> RedisCache<C> {
             }
         }
 
-        self.store_user(pipe, &member.user);
+        self.store_user(pipe, &member.user)?;
+
+        Ok(())
     }
 
-    pub(crate) fn store_member_update(&self, pipe: &mut Pipe<'_, C>, update: &MemberUpdate) {
+    pub(crate) fn store_member_update(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        update: &MemberUpdate,
+    ) -> CacheResult<()> {
         if C::Member::WANTED {
             let user_id = update.user.id;
             let key = RedisKey::Member {
@@ -246,7 +300,10 @@ impl<C: CacheConfig> RedisCache<C> {
                 user: user_id,
             };
             if let Some(member) = C::Member::from_member_update(update) {
-                let bytes = member.serialize().unwrap();
+                let bytes = member
+                    .serialize()
+                    .map_err(|e| SerializeError::Member(Box::new(e)))?;
+
                 pipe.set(key, bytes.as_ref()).ignore();
             }
 
@@ -261,7 +318,9 @@ impl<C: CacheConfig> RedisCache<C> {
             }
         }
 
-        self.store_user(pipe, &update.user);
+        self.store_user(pipe, &update.user)?;
+
+        Ok(())
     }
 
     pub(crate) fn store_members(
@@ -269,11 +328,11 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         members: &[Member],
-    ) {
+    ) -> CacheResult<()> {
         if C::Member::WANTED {
             let mut serializer = MemberSerializer::<C>::default();
 
-            let (member_tuples, user_ids): (Vec<_>, Vec<_>) = members
+            let (member_tuples, user_ids) = members
                 .iter()
                 .map(|member| {
                     let user_id = member.user.id;
@@ -282,10 +341,14 @@ impl<C: CacheConfig> RedisCache<C> {
                         user: user_id,
                     };
                     let member = C::Member::from_member(guild_id, member);
-                    let bytes = member.serialize_with(&mut serializer).unwrap();
 
-                    ((key, BytesRedisArgs(bytes)), user_id.get())
+                    let bytes = member
+                        .serialize_with(&mut serializer)
+                        .map_err(|e| SerializeError::Member(Box::new(e)))?;
+
+                    Ok(((key, BytesArg(bytes)), user_id.get()))
                 })
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
                 .unzip();
 
             if !member_tuples.is_empty() {
@@ -304,14 +367,19 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let users = members.iter().map(|member| &member.user);
-        self.store_users(pipe, users);
+        self.store_users(pipe, users)?;
+
+        Ok(())
     }
 
-    pub(crate) fn store_message(&self, pipe: &mut Pipe<'_, C>, msg: &Message) {
+    pub(crate) fn store_message(&self, pipe: &mut Pipe<'_, C>, msg: &Message) -> CacheResult<()> {
         if C::Message::WANTED {
             let key = RedisKey::Message { id: msg.id };
             let msg = C::Message::from_message(msg);
-            let bytes = msg.serialize().unwrap();
+
+            let bytes = msg
+                .serialize()
+                .map_err(|e| SerializeError::Message(Box::new(e)))?;
 
             if let Some(seconds) = C::Message::expire_seconds() {
                 pipe.set_ex(key, bytes.as_ref(), seconds).ignore();
@@ -320,22 +388,31 @@ impl<C: CacheConfig> RedisCache<C> {
             }
         }
 
-        self.store_user(pipe, &msg.author);
+        self.store_user(pipe, &msg.author)?;
 
         if let (Some(guild_id), Some(member)) = (msg.guild_id, &msg.member) {
-            self.store_partial_member(pipe, guild_id, member);
+            self.store_partial_member(pipe, guild_id, member)?;
         }
 
         if let Some(ref channel) = msg.thread {
-            self.store_channel(pipe, channel);
+            self.store_channel(pipe, channel)?;
         }
+
+        Ok(())
     }
 
-    pub(crate) fn store_message_update(&self, pipe: &mut Pipe<'_, C>, update: &MessageUpdate) {
+    pub(crate) fn store_message_update(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        update: &MessageUpdate,
+    ) -> CacheResult<()> {
         if C::Message::WANTED {
             if let Some(msg) = C::Message::from_message_update(update) {
                 let key = RedisKey::Message { id: update.id };
-                let bytes = msg.serialize().unwrap();
+
+                let bytes = msg
+                    .serialize()
+                    .map_err(|e| SerializeError::Message(Box::new(e)))?;
 
                 if let Some(seconds) = C::Message::expire_seconds() {
                     pipe.set_ex(key, bytes.as_ref(), seconds).ignore();
@@ -346,17 +423,27 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let Some(ref user) = update.author {
-            self.store_user(pipe, user);
+            self.store_user(pipe, user)?;
         }
+
+        Ok(())
     }
 
-    pub(crate) fn store_partial_guild(&self, pipe: &mut Pipe<'_, C>, guild: &PartialGuild) {
+    pub(crate) fn store_partial_guild(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        guild: &PartialGuild,
+    ) -> CacheResult<()> {
         if C::Guild::WANTED {
             let guild_id = guild.id;
 
             if let Some(guild) = C::Guild::from_partial_guild(guild) {
                 let key = RedisKey::Guild { id: guild_id };
-                let bytes = guild.serialize().unwrap();
+
+                let bytes = guild
+                    .serialize()
+                    .map_err(|e| SerializeError::Guild(Box::new(e)))?;
+
                 pipe.set(key, bytes.as_ref()).ignore();
             }
 
@@ -367,8 +454,10 @@ impl<C: CacheConfig> RedisCache<C> {
             pipe.srem(key, guild_id.get()).ignore();
         }
 
-        self.store_emojis(pipe, guild.id, &guild.emojis);
-        self.store_roles(pipe, guild.id, &guild.roles);
+        self.store_emojis(pipe, guild.id, &guild.emojis)?;
+        self.store_roles(pipe, guild.id, &guild.roles)?;
+
+        Ok(())
     }
 
     pub(crate) fn store_partial_member(
@@ -376,7 +465,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         member: &PartialMember,
-    ) {
+    ) -> CacheResult<()> {
         if C::Member::WANTED {
             if let Some(ref user) = member.user {
                 if let Some(member) = C::Member::from_partial_member(guild_id, member) {
@@ -384,7 +473,11 @@ impl<C: CacheConfig> RedisCache<C> {
                         guild: guild_id,
                         user: user.id,
                     };
-                    let bytes = member.serialize().unwrap();
+
+                    let bytes = member
+                        .serialize()
+                        .map_err(|e| SerializeError::Member(Box::new(e)))?;
+
                     pipe.set(key, bytes.as_ref()).ignore();
                 }
 
@@ -399,28 +492,43 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let Some(ref user) = member.user {
-            self.store_user(pipe, user);
+            self.store_user(pipe, user)?;
         }
+
+        Ok(())
     }
 
-    pub(crate) fn store_partial_user(&self, pipe: &mut Pipe<'_, C>, user: &PartialUser) {
+    pub(crate) fn store_partial_user(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        user: &PartialUser,
+    ) -> CacheResult<()> {
         if !C::User::WANTED {
-            return;
+            return Ok(());
         }
 
         let id = user.id;
         let key = RedisKey::User { id };
 
         if let Some(user) = C::User::from_partial_user(user) {
-            let bytes = user.serialize().unwrap();
+            let bytes = user
+                .serialize()
+                .map_err(|e| SerializeError::User(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
         }
 
         let key = RedisKey::Users;
         pipe.sadd(key, id.get()).ignore();
+
+        Ok(())
     }
 
-    pub(crate) fn store_presence(&self, pipe: &mut Pipe<'_, C>, presence: &Presence) {
+    pub(crate) fn store_presence(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        presence: &Presence,
+    ) -> CacheResult<()> {
         if C::Presence::WANTED {
             let guild_id = presence.guild_id;
             let user_id = presence.user.id();
@@ -429,7 +537,11 @@ impl<C: CacheConfig> RedisCache<C> {
                 user: user_id,
             };
             let presence = C::Presence::from_presence(presence);
-            let bytes = presence.serialize().unwrap();
+
+            let bytes = presence
+                .serialize()
+                .map_err(|e| SerializeError::Presence(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             let key = RedisKey::GuildPresences { id: guild_id };
@@ -437,8 +549,10 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let UserOrId::User(ref user) = presence.user {
-            self.store_user(pipe, user);
+            self.store_user(pipe, user)?;
         }
+
+        Ok(())
     }
 
     pub(crate) fn store_presences(
@@ -446,11 +560,11 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         presences: &[Presence],
-    ) {
+    ) -> CacheResult<()> {
         if C::Presence::WANTED {
             let mut serializer = PresenceSerializer::<C>::default();
 
-            let (presences, user_ids): (Vec<_>, Vec<_>) = presences
+            let (presences, user_ids) = presences
                 .iter()
                 .map(|presence| {
                     let guild_id = presence.guild_id;
@@ -460,10 +574,14 @@ impl<C: CacheConfig> RedisCache<C> {
                         user: user_id,
                     };
                     let presence = C::Presence::from_presence(presence);
-                    let bytes = presence.serialize_with(&mut serializer).unwrap();
 
-                    ((key, BytesRedisArgs(bytes)), user_id.get())
+                    let bytes = presence
+                        .serialize_with(&mut serializer)
+                        .map_err(|e| SerializeError::Presence(Box::new(e)))?;
+
+                    Ok(((key, BytesArg(bytes)), user_id.get()))
                 })
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
                 .unzip();
 
             if !presences.is_empty() {
@@ -479,7 +597,9 @@ impl<C: CacheConfig> RedisCache<C> {
             UserOrId::UserId { .. } => None,
         });
 
-        self.store_users(pipe, users);
+        self.store_users(pipe, users)?;
+
+        Ok(())
     }
 
     pub(crate) fn store_role(
@@ -487,15 +607,19 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         role: &Role,
-    ) {
+    ) -> CacheResult<()> {
         if !C::Role::WANTED {
-            return;
+            return Ok(());
         }
 
         let id = role.id;
         let key = RedisKey::Role { id };
         let role = C::Role::from_role(role);
-        let bytes = role.serialize().unwrap();
+
+        let bytes = role
+            .serialize()
+            .map_err(|e| SerializeError::Role(Box::new(e)))?;
+
         pipe.set(key, bytes.as_ref()).ignore();
 
         let key = RedisKey::GuildRoles { id: guild_id };
@@ -503,6 +627,8 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Roles;
         pipe.sadd(key, id.get()).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_roles<'a, I>(
@@ -510,29 +636,34 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         roles: I,
-    ) where
+    ) -> CacheResult<()>
+    where
         I: IntoIterator<Item = &'a Role>,
     {
         if !C::Role::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = RoleSerializer::<C>::default();
 
-        let (roles, role_ids): (Vec<_>, Vec<_>) = roles
+        let (roles, role_ids) = roles
             .into_iter()
             .map(|role| {
                 let id = role.id;
                 let key = RedisKey::Role { id };
                 let role = C::Role::from_role(role);
-                let bytes = role.serialize_with(&mut serializer).unwrap();
 
-                ((key, BytesRedisArgs(bytes)), id.get())
+                let bytes = role
+                    .serialize_with(&mut serializer)
+                    .map_err(|e| SerializeError::Role(Box::new(e)))?;
+
+                Ok(((key, BytesArg(bytes)), id.get()))
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if roles.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&roles).ignore();
@@ -542,15 +673,17 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Roles;
         pipe.sadd(key, role_ids).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_stage_instance(
         &self,
         pipe: &mut Pipe<'_, C>,
         stage_instance: &StageInstance,
-    ) {
+    ) -> CacheResult<()> {
         if !C::StageInstance::WANTED {
-            return;
+            return Ok(());
         }
 
         let stage_instance_id = stage_instance.id;
@@ -559,7 +692,11 @@ impl<C: CacheConfig> RedisCache<C> {
             id: stage_instance_id,
         };
         let stage_instance = C::StageInstance::from_stage_instance(stage_instance);
-        let bytes = stage_instance.serialize().unwrap();
+
+        let bytes = stage_instance
+            .serialize()
+            .map_err(|e| SerializeError::StageInstance(Box::new(e)))?;
+
         pipe.set(key, bytes.as_ref()).ignore();
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
@@ -567,6 +704,8 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::StageInstances;
         pipe.sadd(key, stage_instance_id.get()).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_stage_instances(
@@ -574,9 +713,9 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         stage_instances: &[StageInstance],
-    ) {
+    ) -> CacheResult<()> {
         if !C::StageInstance::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = StageInstanceSerializer::<C>::default();
@@ -587,14 +726,17 @@ impl<C: CacheConfig> RedisCache<C> {
                 let id = stage_instance.id;
                 let key = RedisKey::StageInstance { id };
                 let stage_instance = C::StageInstance::from_stage_instance(stage_instance);
-                let bytes = stage_instance.serialize_with(&mut serializer).unwrap();
+                let bytes = stage_instance
+                    .serialize_with(&mut serializer)
+                    .map_err(|e| SerializeError::StageInstance(Box::new(e)))?;
 
-                ((key, BytesRedisArgs(bytes)), id.get())
+                Ok(((key, BytesArg(bytes)), id.get()))
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if stage_instances.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&stage_instances).ignore();
@@ -604,6 +746,8 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::StageInstances;
         pipe.sadd(key, stage_instance_ids).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_stickers(
@@ -611,27 +755,31 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         stickers: &[Sticker],
-    ) {
+    ) -> CacheResult<()> {
         if !C::Sticker::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = StickerSerializer::<C>::default();
 
-        let (stickers, sticker_ids): (Vec<_>, Vec<_>) = stickers
+        let (stickers, sticker_ids) = stickers
             .iter()
             .map(|sticker| {
                 let id = sticker.id;
                 let key = RedisKey::Sticker { id };
                 let sticker = C::Sticker::from_sticker(sticker);
-                let bytes = sticker.serialize_with(&mut serializer).unwrap();
 
-                ((key, BytesRedisArgs(bytes)), id.get())
+                let bytes = sticker
+                    .serialize_with(&mut serializer)
+                    .map_err(|e| SerializeError::Sticker(Box::new(e)))?;
+
+                Ok(((key, BytesArg(bytes)), id.get()))
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if stickers.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&stickers).ignore();
@@ -641,6 +789,8 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Stickers;
         pipe.sadd(key, sticker_ids).ignore();
+
+        Ok(())
     }
 
     pub(crate) async fn store_unavailable_guild(
@@ -674,51 +824,63 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_user(&self, pipe: &mut Pipe<'_, C>, user: &User) {
+    pub(crate) fn store_user(&self, pipe: &mut Pipe<'_, C>, user: &User) -> CacheResult<()> {
         if !C::User::WANTED {
-            return;
+            return Ok(());
         }
 
         let id = user.id;
         let key = RedisKey::User { id };
         let user = C::User::from_user(user);
-        let bytes = user.serialize().unwrap();
+
+        let bytes = user
+            .serialize()
+            .map_err(|e| SerializeError::User(Box::new(e)))?;
+
         pipe.set(key, bytes.as_ref()).ignore();
 
         let key = RedisKey::Users;
         pipe.sadd(key, id.get()).ignore();
+
+        Ok(())
     }
 
-    pub(crate) fn store_users<'a, I>(&self, pipe: &mut Pipe<'_, C>, users: I)
+    pub(crate) fn store_users<'a, I>(&self, pipe: &mut Pipe<'_, C>, users: I) -> CacheResult<()>
     where
         I: IntoIterator<Item = &'a User>,
     {
         if !C::User::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = UserSerializer::<C>::default();
 
-        let (users, user_ids): (Vec<_>, Vec<_>) = users
+        let (users, user_ids) = users
             .into_iter()
             .map(|user| {
                 let id = user.id;
                 let key = RedisKey::User { id };
                 let user = C::User::from_user(user);
-                let bytes = user.serialize_with(&mut serializer).unwrap();
 
-                ((key, BytesRedisArgs(bytes)), id.get())
+                let bytes = user
+                    .serialize_with(&mut serializer)
+                    .map_err(|e| SerializeError::User(Box::new(e)))?;
+
+                Ok(((key, BytesArg(bytes)), id.get()))
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if users.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&users).ignore();
 
         let key = RedisKey::Users;
         pipe.sadd(key, user_ids).ignore();
+
+        Ok(())
     }
 
     pub(crate) fn store_voice_state(
@@ -726,9 +888,9 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         channel_id: Id<ChannelMarker>,
         voice_state: &VoiceState,
-    ) {
+    ) -> CacheResult<()> {
         let Some(guild_id) = voice_state.guild_id else {
-            return;
+            return Ok(());
         };
 
         if C::VoiceState::WANTED {
@@ -738,7 +900,11 @@ impl<C: CacheConfig> RedisCache<C> {
                 user: user_id,
             };
             let voice_state = C::VoiceState::from_voice_state(channel_id, guild_id, voice_state);
-            let bytes = voice_state.serialize().unwrap();
+
+            let bytes = voice_state
+                .serialize()
+                .map_err(|e| SerializeError::VoiceState(Box::new(e)))?;
+
             pipe.set(key, bytes.as_ref()).ignore();
 
             let key = RedisKey::GuildVoiceStates { id: guild_id };
@@ -746,8 +912,10 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let Some(ref member) = voice_state.member {
-            self.store_member(pipe, guild_id, member);
+            self.store_member(pipe, guild_id, member)?;
         }
+
+        Ok(())
     }
 
     pub(crate) fn store_voice_states(
@@ -755,17 +923,18 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
         voice_states: &[VoiceState],
-    ) {
+    ) -> CacheResult<()> {
         if !C::VoiceState::WANTED {
-            return;
+            return Ok(());
         }
 
         let mut serializer = VoiceStateSerializer::<C>::default();
 
-        let (voice_states, user_ids): (Vec<_>, Vec<_>) = voice_states
+        let (voice_states, user_ids) = voice_states
             .iter()
             .filter_map(|voice_state| {
                 let channel_id = voice_state.channel_id?;
+
                 let user_id = voice_state.user_id;
                 let key = RedisKey::VoiceState {
                     guild: guild_id,
@@ -773,19 +942,28 @@ impl<C: CacheConfig> RedisCache<C> {
                 };
                 let voice_state =
                     C::VoiceState::from_voice_state(channel_id, guild_id, voice_state);
-                let bytes = voice_state.serialize_with(&mut serializer).unwrap();
 
-                Some(((key, BytesRedisArgs(bytes)), user_id.get()))
+                let res = voice_state
+                    .serialize_with(&mut serializer)
+                    .map(|bytes| ((key, BytesArg(bytes)), user_id.get()))
+                    .map_err(|e| {
+                        CacheError::Serialization(SerializeError::VoiceState(Box::new(e)))
+                    });
+
+                Some(res)
             })
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
             .unzip();
 
         if voice_states.is_empty() {
-            return;
+            return Ok(());
         }
 
         pipe.mset(&voice_states).ignore();
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
         pipe.sadd(key, user_ids.as_slice()).ignore();
+
+        Ok(())
     }
 }

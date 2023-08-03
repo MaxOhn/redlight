@@ -9,18 +9,32 @@ use twilight_model::id::{
 };
 
 use crate::{
-    config::{CacheConfig, Cacheable},
-    key::RedisKey,
-    redis::AsyncCommands,
-    CacheResult, CachedValue, RedisCache,
+    config::CacheConfig, key::RedisKey, redis::AsyncCommands, CacheResult, CachedValue, RedisCache,
 };
+
+#[cfg(feature = "validation")]
+macro_rules! get_single {
+    ($self:ident, $id:expr) => {
+        $self
+            .get_single($id)
+            .await?
+            .map_err(crate::CacheError::Validation)
+    };
+}
+
+#[cfg(not(feature = "validation"))]
+macro_rules! get_single {
+    ($self:ident, $id:expr) => {
+        $self.get_single($id).await
+    };
+}
 
 impl<C: CacheConfig> RedisCache<C> {
     pub async fn channel(
         &self,
         channel_id: Id<ChannelMarker>,
     ) -> CacheResult<Option<CachedValue<C::Channel<'static>>>> {
-        self.get_single(channel_id).await
+        get_single!(self, channel_id)
     }
 
     pub async fn channel_ids(&self) -> CacheResult<HashSet<Id<ChannelMarker>>> {
@@ -35,21 +49,21 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     pub async fn current_user(&self) -> CacheResult<Option<CachedValue<C::CurrentUser<'static>>>> {
-        self.get_single(RedisKey::CurrentUser).await
+        get_single!(self, RedisKey::CurrentUser)
     }
 
     pub async fn emoji(
         &self,
         emoji_id: Id<EmojiMarker>,
     ) -> CacheResult<Option<CachedValue<C::Emoji<'static>>>> {
-        self.get_single(emoji_id).await
+        get_single!(self, emoji_id)
     }
 
     pub async fn guild(
         &self,
         guild_id: Id<GuildMarker>,
     ) -> CacheResult<Option<CachedValue<C::Guild<'static>>>> {
-        self.get_single(guild_id).await
+        get_single!(self, guild_id)
     }
 
     pub async fn guild_channel_ids(
@@ -133,7 +147,7 @@ impl<C: CacheConfig> RedisCache<C> {
             id: integration_id,
         };
 
-        self.get_single(key).await
+        get_single!(self, key)
     }
 
     pub async fn member(
@@ -146,14 +160,14 @@ impl<C: CacheConfig> RedisCache<C> {
             user: user_id,
         };
 
-        self.get_single(key).await
+        get_single!(self, key)
     }
 
     pub async fn message(
         &self,
         msg_id: Id<MessageMarker>,
     ) -> CacheResult<Option<CachedValue<C::Message<'static>>>> {
-        self.get_single(msg_id).await
+        get_single!(self, msg_id)
     }
 
     pub async fn presence(
@@ -166,14 +180,14 @@ impl<C: CacheConfig> RedisCache<C> {
             user: user_id,
         };
 
-        self.get_single(key).await
+        get_single!(self, key)
     }
 
     pub async fn role(
         &self,
         role_id: Id<RoleMarker>,
     ) -> CacheResult<Option<CachedValue<C::Role<'static>>>> {
-        self.get_single(role_id).await
+        get_single!(self, role_id)
     }
 
     pub async fn role_ids(&self) -> CacheResult<HashSet<Id<RoleMarker>>> {
@@ -184,14 +198,14 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         stage_instance_id: Id<StageMarker>,
     ) -> CacheResult<Option<CachedValue<C::StageInstance<'static>>>> {
-        self.get_single(stage_instance_id).await
+        get_single!(self, stage_instance_id)
     }
 
     pub async fn sticker(
         &self,
         sticker_id: Id<StickerMarker>,
     ) -> CacheResult<Option<CachedValue<C::Sticker<'static>>>> {
-        self.get_single(sticker_id).await
+        get_single!(self, sticker_id)
     }
 
     pub async fn unavailable_guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
@@ -210,7 +224,7 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         user_id: Id<UserMarker>,
     ) -> CacheResult<Option<CachedValue<C::User<'static>>>> {
-        self.get_single(user_id).await
+        get_single!(self, user_id)
     }
 
     pub async fn user_ids(&self) -> CacheResult<HashSet<Id<UserMarker>>> {
@@ -227,13 +241,32 @@ impl<C: CacheConfig> RedisCache<C> {
             user: user_id,
         };
 
-        self.get_single(key).await
+        get_single!(self, key)
     }
 
+    #[cfg(feature = "validation")]
+    async fn get_single<K, V>(
+        &self,
+        key: K,
+    ) -> CacheResult<Result<Option<CachedValue<V>>, Box<dyn std::error::Error>>>
+    where
+        RedisKey: From<K>,
+        V: crate::config::Cacheable,
+    {
+        let mut conn = self.connection().await?;
+        let bytes: Vec<u8> = conn.get(RedisKey::from(key)).await?;
+
+        if bytes.is_empty() {
+            return Ok(Ok(None));
+        }
+
+        Ok(CachedValue::new(bytes).map(Some))
+    }
+
+    #[cfg(not(feature = "validation"))]
     async fn get_single<K, V>(&self, key: K) -> CacheResult<Option<CachedValue<V>>>
     where
         RedisKey: From<K>,
-        V: Cacheable,
     {
         let mut conn = self.connection().await?;
         let bytes: Vec<u8> = conn.get(RedisKey::from(key)).await?;
@@ -242,7 +275,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(None);
         }
 
-        CachedValue::new(bytes).map(Some)
+        Ok(Some(CachedValue::new_unchecked(bytes)))
     }
 
     async fn get_ids<T>(&self, key: RedisKey) -> CacheResult<HashSet<Id<T>>> {

@@ -2,14 +2,25 @@ use std::{marker::PhantomData, ops::Deref};
 
 use rkyv::Archive;
 
-use crate::CacheResult;
-
 /// Archived form of a cache entry.
 ///
 /// Implements [`Deref<T>`] so fields and methods of the archived type are easily accessible.
 pub struct CachedValue<T> {
-    pub(crate) bytes: Vec<u8>,
+    bytes: Vec<u8>,
     phantom: PhantomData<T>,
+}
+
+impl<T> CachedValue<T> {
+    pub(crate) fn new_unchecked(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes,
+            phantom: PhantomData,
+        }
+    }
+
+    pub(crate) fn into_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
 }
 
 #[cfg(feature = "validation")]
@@ -19,25 +30,10 @@ where
     <T as Archive>::Archived:
         for<'a> rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
 {
-    pub(crate) fn new(bytes: Vec<u8>) -> CacheResult<Self> {
-        if let Err(err) = rkyv::check_archived_root::<T>(bytes.as_slice()) {
-            return Err(crate::CacheError::Validation(Box::new(err)));
-        }
+    pub(crate) fn new(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
+        rkyv::check_archived_root::<T>(bytes.as_slice())?;
 
-        Ok(Self {
-            bytes,
-            phantom: PhantomData,
-        })
-    }
-}
-
-#[cfg(not(feature = "validation"))]
-impl<T> CachedValue<T> {
-    pub(crate) fn new(bytes: Vec<u8>) -> CacheResult<Self> {
-        Ok(Self {
-            bytes,
-            phantom: PhantomData,
-        })
+        Ok(Self::new_unchecked(bytes))
     }
 }
 

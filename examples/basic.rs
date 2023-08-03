@@ -1,7 +1,7 @@
-use rkyv::{ser::serializers::AllocSerializer, with::RefAsBox, Archive, Fallible, Serialize};
+use rkyv::{ser::serializers::AllocSerializer, with::RefAsBox, Archive, Serialize};
 use twilight_model::{guild::Role, id::Id};
 use twilight_redis::{
-    config::{CacheConfig, Cacheable, FromRole, Ignore},
+    config::{CacheConfig, Cacheable, ICachedRole, Ignore},
     RedisCache,
 };
 
@@ -30,7 +30,7 @@ struct CachedRole<'a> {
     name: &'a str,
 }
 
-impl<'a> FromRole<'a> for CachedRole<'a> {
+impl<'a> ICachedRole<'a> for CachedRole<'a> {
     fn from_role(role: &'a Role) -> Self {
         Self {
             name: role.name.as_str(),
@@ -40,7 +40,6 @@ impl<'a> FromRole<'a> for CachedRole<'a> {
 
 impl Cacheable for CachedRole<'_> {
     type Serializer = AllocSerializer<0>;
-    type SerializeError = <Self::Serializer as Fallible>::Error;
 }
 
 #[tokio::main]
