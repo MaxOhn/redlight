@@ -20,7 +20,7 @@ use twilight_model::{
 
 use crate::{
     config::{
-        Cacheable, Expirable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
+        Cacheable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
         ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
@@ -134,16 +134,14 @@ impl ICachedVoiceState<'_> for Ignore {
     }
 }
 
-impl Expirable for Ignore {
+impl Cacheable for Ignore {
+    type Serializer = NoopSerializer;
+
+    const WANTED: bool = false;
+
     fn expire_seconds() -> Option<usize> {
         None
     }
-}
-
-impl Cacheable for Ignore {
-    const WANTED: bool = false;
-
-    type Serializer = NoopSerializer;
 }
 
 impl Archive for Ignore {

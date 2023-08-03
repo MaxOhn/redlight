@@ -40,6 +40,10 @@ impl<'a> ICachedRole<'a> for CachedRole<'a> {
 
 impl Cacheable for CachedRole<'_> {
     type Serializer = AllocSerializer<0>;
+
+    fn expire_seconds() -> Option<usize> {
+        None
+    }
 }
 
 #[tokio::main]

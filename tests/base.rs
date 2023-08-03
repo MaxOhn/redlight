@@ -151,6 +151,10 @@ async fn test_channel() -> Result<(), CacheError> {
 
     impl Cacheable for CachedChannel<'_> {
         type Serializer = AllocSerializer<0>;
+
+        fn expire_seconds() -> Option<usize> {
+            None
+        }
     }
 
     impl PartialEq<Channel> for ArchivedCachedChannel<'_> {
@@ -240,6 +244,10 @@ async fn test_current_user() -> Result<(), CacheError> {
 
     impl Cacheable for CachedCurrentUser<'_> {
         type Serializer = AllocSerializer<0>;
+
+        fn expire_seconds() -> Option<usize> {
+            None
+        }
     }
 
     let cache = RedisCache::<Config>::with_pool(pool());

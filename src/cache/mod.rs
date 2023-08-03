@@ -9,7 +9,7 @@ use twilight_model::{application::interaction::InteractionData, gateway::event::
 
 use crate::{
     cache::pipe::Pipe,
-    config::{CacheConfig, ICachedChannel},
+    config::{CacheConfig, Cacheable, ICachedChannel},
     key::RedisKey,
     CacheError, CacheResult,
 };
@@ -104,7 +104,9 @@ impl<C: CacheConfig> RedisCache<C> {
                         let key = RedisKey::Channel {
                             id: event.channel_id,
                         };
-                        pipe.set(key, bytes.as_ref()).ignore();
+
+                        pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
+                            .ignore();
                     }
                 }
             }

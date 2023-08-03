@@ -34,6 +34,10 @@ pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {
     /// This should always be set to `true`. Otherwise, you should use [`Ignore`](crate::config::Ignore).
     const WANTED: bool = true;
 
+    /// Amount of seconds until the cache entry expires and is removed.
+    /// `None` indicates that it will never expire.
+    fn expire_seconds() -> Option<usize>;
+
     /// Serialize `self` with a new default serializer.
     fn serialize(&self) -> SerializeResult<Self> {
         let mut serializer = Self::Serializer::default();

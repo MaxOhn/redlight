@@ -49,8 +49,18 @@ impl<'c, C> Pipe<'c, C> {
         self.pipe.cmd_iter().next().is_none()
     }
 
-    pub(crate) fn mset<V: ToRedisArgs>(&mut self, items: &[(RedisKey, V)]) -> &mut Self {
+    pub(crate) fn mset<V: ToRedisArgs>(
+        &mut self,
+        items: &[(RedisKey, V)],
+        expire_seconds: Option<usize>,
+    ) -> &mut Self {
         self.pipe.mset(items);
+
+        if let Some(seconds) = expire_seconds {
+            for (key, _) in items {
+                self.pipe.expire(key, seconds).ignore();
+            }
+        }
 
         self
     }
@@ -65,14 +75,17 @@ impl<'c, C> Pipe<'c, C> {
         self.pipe.scard(key);
     }
 
-    pub(crate) fn set(&mut self, key: RedisKey, bytes: &[u8]) -> &mut Self {
-        self.pipe.set(key, bytes);
-
-        self
-    }
-
-    pub(crate) fn set_ex(&mut self, key: RedisKey, bytes: &[u8], seconds: usize) -> &mut Self {
-        self.pipe.set_ex(key, bytes, seconds);
+    pub(crate) fn set(
+        &mut self,
+        key: RedisKey,
+        bytes: &[u8],
+        expire_seconds: Option<usize>,
+    ) -> &mut Self {
+        if let Some(seconds) = expire_seconds {
+            self.pipe.set_ex(key, bytes, seconds);
+        } else {
+            self.pipe.set(key, bytes);
+        }
 
         self
     }

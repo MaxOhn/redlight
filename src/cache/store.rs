@@ -14,9 +14,9 @@ use twilight_model::voice::VoiceState;
 use crate::CacheError;
 use crate::{
     config::{
-        CacheConfig, Cacheable, Expirable, ICachedChannel, ICachedCurrentUser, ICachedEmoji,
-        ICachedGuild, ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence,
-        ICachedRole, ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
+        CacheConfig, Cacheable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
+        ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
+        ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     error::SerializeError,
     key::RedisKey,
@@ -53,7 +53,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Channel(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
+                .ignore();
 
             if let Some(guild_id) = guild_id {
                 let key = RedisKey::GuildChannels { id: guild_id };
@@ -107,7 +108,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !channels.is_empty() {
-                pipe.mset(&channels).ignore();
+                pipe.mset(&channels, C::Channel::expire_seconds()).ignore();
 
                 let key = RedisKey::GuildChannels { id: guild_id };
                 pipe.sadd(key, channel_ids.as_slice()).ignore();
@@ -143,7 +144,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::CurrentUser(Box::new(e)))?;
 
-        pipe.set(key, bytes.as_ref()).ignore();
+        pipe.set(key, bytes.as_ref(), C::CurrentUser::expire_seconds())
+            .ignore();
 
         Ok(())
     }
@@ -180,7 +182,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&emojis).ignore();
+        pipe.mset(&emojis, C::Emoji::expire_seconds()).ignore();
 
         let key = RedisKey::GuildEmojis { id: guild_id };
         pipe.sadd(key, emoji_ids.as_slice()).ignore();
@@ -201,7 +203,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Guild(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
+                .ignore();
 
             let key = RedisKey::Guilds;
             pipe.sadd(key, guild_id.get()).ignore();
@@ -241,7 +244,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Integration(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Integration::expire_seconds())
+                .ignore();
 
             let key = RedisKey::GuildIntegrations { id: guild_id };
             pipe.sadd(key, integration_id.get()).ignore();
@@ -272,7 +276,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Member(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
+                .ignore();
 
             let key = RedisKey::GuildMembers { id: guild_id };
             pipe.sadd(key, user_id.get()).ignore();
@@ -304,7 +309,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     .serialize()
                     .map_err(|e| SerializeError::Member(Box::new(e)))?;
 
-                pipe.set(key, bytes.as_ref()).ignore();
+                pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
+                    .ignore();
             }
 
             let key = RedisKey::GuildMembers {
@@ -352,7 +358,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !member_tuples.is_empty() {
-                pipe.mset(&member_tuples).ignore();
+                pipe.mset(&member_tuples, C::Member::expire_seconds())
+                    .ignore();
 
                 let key = RedisKey::GuildMembers { id: guild_id };
                 pipe.sadd(key, user_ids.as_slice()).ignore();
@@ -381,11 +388,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Message(Box::new(e)))?;
 
-            if let Some(seconds) = C::Message::expire_seconds() {
-                pipe.set_ex(key, bytes.as_ref(), seconds).ignore();
-            } else {
-                pipe.set(key, bytes.as_ref()).ignore();
-            }
+            pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
+                .ignore();
         }
 
         self.store_user(pipe, &msg.author)?;
@@ -414,11 +418,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     .serialize()
                     .map_err(|e| SerializeError::Message(Box::new(e)))?;
 
-                if let Some(seconds) = C::Message::expire_seconds() {
-                    pipe.set_ex(key, bytes.as_ref(), seconds).ignore();
-                } else {
-                    pipe.set(key, bytes.as_ref()).ignore();
-                }
+                pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
+                    .ignore();
             }
         }
 
@@ -444,7 +445,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     .serialize()
                     .map_err(|e| SerializeError::Guild(Box::new(e)))?;
 
-                pipe.set(key, bytes.as_ref()).ignore();
+                pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
+                    .ignore();
             }
 
             let key = RedisKey::Guilds;
@@ -478,7 +480,8 @@ impl<C: CacheConfig> RedisCache<C> {
                         .serialize()
                         .map_err(|e| SerializeError::Member(Box::new(e)))?;
 
-                    pipe.set(key, bytes.as_ref()).ignore();
+                    pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
+                        .ignore();
                 }
 
                 let key = RedisKey::GuildMembers { id: guild_id };
@@ -515,7 +518,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::User(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::User::expire_seconds())
+                .ignore();
         }
 
         let key = RedisKey::Users;
@@ -542,7 +546,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Presence(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Presence::expire_seconds())
+                .ignore();
 
             let key = RedisKey::GuildPresences { id: guild_id };
             pipe.sadd(key, user_id.get()).ignore();
@@ -585,7 +590,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !presences.is_empty() {
-                pipe.mset(&presences).ignore();
+                pipe.mset(&presences, C::Presence::expire_seconds())
+                    .ignore();
 
                 let key = RedisKey::GuildPresences { id: guild_id };
                 pipe.sadd(key, user_ids.as_slice()).ignore();
@@ -620,7 +626,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::Role(Box::new(e)))?;
 
-        pipe.set(key, bytes.as_ref()).ignore();
+        pipe.set(key, bytes.as_ref(), C::Role::expire_seconds())
+            .ignore();
 
         let key = RedisKey::GuildRoles { id: guild_id };
         pipe.sadd(key, id.get()).ignore();
@@ -666,7 +673,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&roles).ignore();
+        pipe.mset(&roles, C::Role::expire_seconds()).ignore();
 
         let key = RedisKey::GuildRoles { id: guild_id };
         pipe.sadd(key, role_ids.as_slice()).ignore();
@@ -697,7 +704,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::StageInstance(Box::new(e)))?;
 
-        pipe.set(key, bytes.as_ref()).ignore();
+        pipe.set(key, bytes.as_ref(), C::StageInstance::expire_seconds())
+            .ignore();
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
         pipe.sadd(key, stage_instance_id.get()).ignore();
@@ -739,7 +747,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&stage_instances).ignore();
+        pipe.mset(&stage_instances, C::StageInstance::expire_seconds())
+            .ignore();
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
         pipe.sadd(key, stage_instance_ids.as_slice()).ignore();
@@ -782,7 +791,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&stickers).ignore();
+        pipe.mset(&stickers, C::Sticker::expire_seconds()).ignore();
 
         let key = RedisKey::GuildStickers { id: guild_id };
         pipe.sadd(key, sticker_ids.as_slice()).ignore();
@@ -837,7 +846,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::User(Box::new(e)))?;
 
-        pipe.set(key, bytes.as_ref()).ignore();
+        pipe.set(key, bytes.as_ref(), C::User::expire_seconds())
+            .ignore();
 
         let key = RedisKey::Users;
         pipe.sadd(key, id.get()).ignore();
@@ -875,7 +885,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&users).ignore();
+        pipe.mset(&users, C::User::expire_seconds()).ignore();
 
         let key = RedisKey::Users;
         pipe.sadd(key, user_ids).ignore();
@@ -905,7 +915,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::VoiceState(Box::new(e)))?;
 
-            pipe.set(key, bytes.as_ref()).ignore();
+            pipe.set(key, bytes.as_ref(), C::VoiceState::expire_seconds())
+                .ignore();
 
             let key = RedisKey::GuildVoiceStates { id: guild_id };
             pipe.sadd(key, user_id.get()).ignore();
@@ -959,7 +970,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&voice_states).ignore();
+        pipe.mset(&voice_states, C::VoiceState::expire_seconds())
+            .ignore();
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
         pipe.sadd(key, user_ids.as_slice()).ignore();

@@ -1,12 +1,10 @@
 mod cacheable;
 mod checked;
-mod expirable;
 mod from;
 mod ignore;
 
 pub use self::{
     cacheable::Cacheable,
-    expirable::Expirable,
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
         ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedStageInstance,

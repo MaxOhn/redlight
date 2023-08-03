@@ -17,7 +17,7 @@ use twilight_model::{
     voice::VoiceState,
 };
 
-use super::{Cacheable, Expirable};
+use super::Cacheable;
 
 /// Create a type from a [`Channel`] reference.
 pub trait ICachedChannel<'a>: Cacheable {
@@ -77,7 +77,7 @@ pub trait ICachedMember<'a>: Cacheable {
 }
 
 /// Create a type from a [`Message`] or [`MessageUpdate`] reference.
-pub trait ICachedMessage<'a>: Cacheable + Expirable {
+pub trait ICachedMessage<'a>: Cacheable {
     /// Create an instance from a [`Message`] reference.
     fn from_message(message: &'a Message) -> Self;
 
