@@ -30,8 +30,9 @@ where
     <T as Archive>::Archived:
         for<'a> rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
 {
-    pub(crate) fn new(bytes: Box<[u8]>) -> Result<Self, Box<dyn std::error::Error>> {
-        rkyv::check_archived_root::<T>(bytes.as_ref())?;
+    pub(crate) fn new(bytes: Box<[u8]>) -> crate::CacheResult<Self> {
+        rkyv::check_archived_root::<T>(bytes.as_ref())
+            .map_err(|e| crate::CacheError::Validation(Box::new(e)))?;
 
         Ok(Self::new_unchecked(bytes))
     }

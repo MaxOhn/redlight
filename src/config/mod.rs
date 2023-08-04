@@ -18,7 +18,7 @@ pub use self::{
 /// If an associated type should be cached, create a new type and implement the required traits for it.
 ///
 /// If an associated type should not be cached, use [`Ignore`].
-pub trait CacheConfig: 'static {
+pub trait CacheConfig {
     type Channel<'a>: ICachedChannel<'a>;
     type CurrentUser<'a>: ICachedCurrentUser<'a>;
     type Emoji<'a>: ICachedEmoji<'a>;

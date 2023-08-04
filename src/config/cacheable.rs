@@ -5,7 +5,7 @@ use super::checked::CheckedArchive;
 
 type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fallible>::Error>;
 
-/// Trait to configure the serialization of cached entries.
+/// Trait to configure the serialization and handling of cached entries.
 ///
 /// # Example
 /// ```
@@ -21,6 +21,8 @@ type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fa
 ///
 /// impl Cacheable for CachedRole<'_> {
 ///     type Serializer = AlignedSerializer;
+///
+///     fn expire_seconds() -> Option<usize> { None }
 /// }
 /// ```
 pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {

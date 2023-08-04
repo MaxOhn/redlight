@@ -7,6 +7,9 @@ mod value;
 /// Types and traits to configure the cache.
 pub mod config;
 
+/// Types related to iteration of cache entries.
+pub mod iter;
+
 /// Types to help implement rkyv traits.
 pub mod rkyv_util;
 

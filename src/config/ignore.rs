@@ -27,7 +27,7 @@ use crate::{
     ser::NoopSerializer,
 };
 
-/// Struct to indicate that a cache entry should not be cached.
+/// Struct to indicate that a type should not be cached.
 ///
 /// Used by specifying [`Ignore`] for associated types of [`CacheConfig`](crate::config::CacheConfig).
 pub struct Ignore;

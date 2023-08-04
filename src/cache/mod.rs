@@ -1,6 +1,6 @@
 mod delete;
 mod get;
-pub mod pipe;
+mod pipe;
 mod store;
 
 use std::{marker::PhantomData, pin::Pin};
@@ -10,6 +10,7 @@ use twilight_model::{application::interaction::InteractionData, gateway::event::
 use crate::{
     cache::pipe::Pipe,
     config::{CacheConfig, Cacheable, ICachedChannel},
+    iter::RedisCacheIter,
     key::RedisKey,
     CacheError, CacheResult,
 };
@@ -18,13 +19,14 @@ use crate::{
 type Pool = bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>;
 
 #[cfg(feature = "bb8")]
-type Connection<'a> = bb8_redis::bb8::PooledConnection<'a, bb8_redis::RedisConnectionManager>;
+pub(crate) type Connection<'a> =
+    bb8_redis::bb8::PooledConnection<'a, bb8_redis::RedisConnectionManager>;
 
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 type Pool = deadpool_redis::Pool;
 
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-type Connection<'a> = deadpool_redis::Connection;
+pub(crate) type Connection<'a> = deadpool_redis::Connection;
 
 /// Redis-based cache for data of twilight's gateway [`Event`]s.
 pub struct RedisCache<C> {
@@ -65,7 +67,11 @@ impl<C> RedisCache<C> {
         }
     }
 
-    async fn connection(&self) -> CacheResult<Connection<'_>> {
+    pub fn iter(&self) -> RedisCacheIter<'_, C> {
+        RedisCacheIter::new(self)
+    }
+
+    pub(crate) async fn connection(&self) -> CacheResult<Connection<'_>> {
         self.pool.get().await.map_err(CacheError::GetConnection)
     }
 }
