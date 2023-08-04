@@ -1,17 +1,25 @@
-use twilight_model::channel::message::Sticker;
-use twilight_model::channel::{Channel, Message, StageInstance};
-use twilight_model::gateway::payload::incoming::invite_create::PartialUser;
-use twilight_model::gateway::payload::incoming::{MemberUpdate, MessageUpdate};
-use twilight_model::gateway::presence::{Presence, UserOrId};
-use twilight_model::guild::{
-    Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role, UnavailableGuild,
-};
-use twilight_model::id::marker::{ChannelMarker, GuildMarker};
-use twilight_model::id::Id;
-use twilight_model::user::{CurrentUser, User};
-use twilight_model::voice::VoiceState;
+use std::pin::Pin;
 
-use crate::CacheError;
+use twilight_model::{
+    application::interaction::{Interaction, InteractionData},
+    channel::{message::Sticker, Channel, Message, StageInstance},
+    gateway::{
+        payload::incoming::{
+            invite_create::PartialUser, ChannelPinsUpdate, MemberUpdate, MessageUpdate,
+        },
+        presence::{Presence, UserOrId},
+    },
+    guild::{
+        Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role, UnavailableGuild,
+    },
+    id::{
+        marker::{ChannelMarker, GuildMarker},
+        Id,
+    },
+    user::{CurrentUser, User},
+    voice::VoiceState,
+};
+
 use crate::{
     config::{
         CacheConfig, Cacheable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
@@ -21,7 +29,7 @@ use crate::{
     error::SerializeError,
     key::RedisKey,
     util::{BytesArg, ZippedVecs},
-    CacheResult, RedisCache,
+    CacheError, CacheResult, RedisCache,
 };
 
 use super::pipe::Pipe;
@@ -78,6 +86,47 @@ impl<C: CacheConfig> RedisCache<C> {
         if let Some(ref users) = channel.recipients {
             self.store_users(pipe, users)?;
         }
+
+        Ok(())
+    }
+
+    pub(crate) async fn store_channel_pins_update(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        update: &ChannelPinsUpdate,
+    ) -> CacheResult<()> {
+        if !C::Channel::WANTED {
+            return Ok(());
+        }
+
+        let Some(f) = C::Channel::on_pins_update() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Channel {
+            id: update.channel_id,
+        };
+        let channel_fut = pipe.get::<C::Channel<'static>>(key);
+
+        let Some(channel) = channel_fut.await? else {
+            return Ok(());
+        };
+
+        let mut bytes = channel.into_bytes();
+        let bytes_mut = bytes.as_mut();
+
+        // SAFETY: if "validation" is enabled, CachedValue will handle validation
+        let archived_mut =
+            unsafe { rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut)) };
+
+        f(archived_mut, update);
+
+        let key = RedisKey::Channel {
+            id: update.channel_id,
+        };
+
+        pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
+            .ignore();
 
         Ok(())
     }
@@ -258,6 +307,42 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    pub(crate) async fn store_interaction(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        interaction: &Interaction,
+    ) -> CacheResult<()> {
+        if let Some(ref channel) = interaction.channel {
+            self.store_channel(pipe, channel)?;
+        }
+
+        if let Some(InteractionData::ApplicationCommand(ref data)) = interaction.data {
+            if let Some(ref resolved) = data.resolved {
+                if let Some(guild_id) = interaction.guild_id {
+                    let roles = resolved.roles.values();
+                    self.store_roles(pipe, guild_id, roles)?;
+                }
+
+                let users = resolved.users.values();
+                self.store_users(pipe, users)?;
+            }
+        }
+
+        if let (Some(guild_id), Some(member)) = (interaction.guild_id, &interaction.member) {
+            self.store_partial_member(pipe, guild_id, member)?;
+        }
+
+        if let Some(ref msg) = interaction.message {
+            self.store_message(pipe, msg)?;
+        }
+
+        if let Some(ref user) = interaction.user {
+            self.store_user(pipe, user)?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn store_member(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -430,15 +515,15 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_partial_guild(
+    pub(crate) async fn store_partial_guild(
         &self,
         pipe: &mut Pipe<'_, C>,
-        guild: &PartialGuild,
+        partial_guild: &PartialGuild,
     ) -> CacheResult<()> {
         if C::Guild::WANTED {
-            let guild_id = guild.id;
+            let guild_id = partial_guild.id;
 
-            if let Some(guild) = C::Guild::from_partial_guild(guild) {
+            if let Some(guild) = C::Guild::from_partial_guild(partial_guild) {
                 let key = RedisKey::Guild { id: guild_id };
 
                 let bytes = guild
@@ -456,8 +541,8 @@ impl<C: CacheConfig> RedisCache<C> {
             pipe.srem(key, guild_id.get()).ignore();
         }
 
-        self.store_emojis(pipe, guild.id, &guild.emojis)?;
-        self.store_roles(pipe, guild.id, &guild.roles)?;
+        self.store_emojis(pipe, partial_guild.id, &partial_guild.emojis)?;
+        self.store_roles(pipe, partial_guild.id, &partial_guild.roles)?;
 
         Ok(())
     }

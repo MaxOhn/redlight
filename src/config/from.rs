@@ -24,7 +24,7 @@ pub trait ICachedChannel<'a>: Cacheable {
     /// Create an instance from a [`Channel`] reference.
     fn from_channel(channel: &'a Channel) -> Self;
 
-    /// What happens on a [`ChannelPinsUpdate`] event.
+    /// Specify how [`ChannelPinsUpdate`] events are handled.
     ///
     /// If the event is not of interest, return `None`.
     /// Otherwise, return a function that updates the currently cached channel.

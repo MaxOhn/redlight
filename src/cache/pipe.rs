@@ -1,9 +1,10 @@
 use std::ops::DerefMut;
 
 use crate::{
+    config::{CacheConfig, Cacheable},
     key::RedisKey,
-    redis::{FromRedisValue, Pipeline, ToRedisArgs},
-    CacheResult, RedisCache,
+    redis::{AsyncCommands, FromRedisValue, Pipeline, ToRedisArgs},
+    CacheResult, CachedValue, RedisCache,
 };
 
 use super::Connection;
@@ -98,5 +99,31 @@ impl<'c, C> Pipe<'c, C> {
         self.pipe.srem(key, member);
 
         self
+    }
+}
+
+impl<'c, C: CacheConfig> Pipe<'c, C> {
+    pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedValue<T>>>
+    where
+        T: Cacheable,
+    {
+        let conn = match self.conn.as_mut() {
+            Some(conn) => conn,
+            None => self.conn.insert(self.cache.connection().await?),
+        };
+
+        let bytes: Vec<u8> = conn.get(key).await?;
+
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+
+        #[cfg(feature = "validation")]
+        let res = CachedValue::new(bytes.into_boxed_slice());
+
+        #[cfg(not(feature = "validation"))]
+        let res = Ok(CachedValue::new_unchecked(bytes.into_boxed_slice));
+
+        res.map(Some)
     }
 }

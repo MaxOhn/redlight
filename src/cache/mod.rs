@@ -3,16 +3,12 @@ mod get;
 mod pipe;
 mod store;
 
-use std::{marker::PhantomData, pin::Pin};
+use std::marker::PhantomData;
 
-use twilight_model::{application::interaction::InteractionData, gateway::event::Event};
+use twilight_model::gateway::event::Event;
 
 use crate::{
-    cache::pipe::Pipe,
-    config::{CacheConfig, Cacheable, ICachedChannel},
-    iter::RedisCacheIter,
-    key::RedisKey,
-    CacheError, CacheResult,
+    cache::pipe::Pipe, config::CacheConfig, iter::RedisCacheIter, CacheError, CacheResult,
 };
 
 #[cfg(feature = "bb8")]
@@ -92,29 +88,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::ChannelCreate(event) => self.store_channel(&mut pipe, event)?,
             Event::ChannelDelete(event) => self.delete_channel(&mut pipe, event.guild_id, event.id),
             Event::ChannelPinsUpdate(event) => {
-                if let Some(f) = C::Channel::on_pins_update() {
-                    if let Some(channel) = self.channel(event.channel_id).await? {
-                        let mut bytes = channel.into_bytes();
-                        let bytes_mut = bytes.as_mut();
-
-                        #[cfg(feature = "validation")]
-                        rkyv::check_archived_root::<C::Channel<'static>>(bytes_mut)
-                            .map_err(|e| CacheError::Validation(Box::new(e)))?;
-
-                        let archived_mut = unsafe {
-                            rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut))
-                        };
-
-                        f(archived_mut, event);
-
-                        let key = RedisKey::Channel {
-                            id: event.channel_id,
-                        };
-
-                        pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
-                            .ignore();
-                    }
-                }
+                self.store_channel_pins_update(&mut pipe, event).await?
             }
             Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event)?,
             Event::CommandPermissionsUpdate(_) => {}
@@ -158,7 +132,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::GuildStickersUpdate(event) => {
                 self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?
             }
-            Event::GuildUpdate(event) => self.store_partial_guild(&mut pipe, event)?,
+            Event::GuildUpdate(event) => self.store_partial_guild(&mut pipe, event).await?,
             Event::IntegrationCreate(event) => {
                 if let Some(guild_id) = event.guild_id {
                     self.store_integration(&mut pipe, guild_id, event)?;
@@ -172,35 +146,7 @@ impl<C: CacheConfig> RedisCache<C> {
                     self.store_integration(&mut pipe, guild_id, event)?;
                 }
             }
-            Event::InteractionCreate(event) => {
-                if let Some(ref channel) = event.channel {
-                    self.store_channel(&mut pipe, channel)?;
-                }
-
-                if let Some(InteractionData::ApplicationCommand(ref data)) = event.data {
-                    if let Some(ref resolved) = data.resolved {
-                        if let Some(guild_id) = event.guild_id {
-                            let roles = resolved.roles.values();
-                            self.store_roles(&mut pipe, guild_id, roles)?;
-                        }
-
-                        let users = resolved.users.values();
-                        self.store_users(&mut pipe, users)?;
-                    }
-                }
-
-                if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
-                    self.store_partial_member(&mut pipe, guild_id, member)?;
-                }
-
-                if let Some(ref msg) = event.message {
-                    self.store_message(&mut pipe, msg)?;
-                }
-
-                if let Some(ref user) = event.user {
-                    self.store_user(&mut pipe, user)?;
-                }
-            }
+            Event::InteractionCreate(event) => self.store_interaction(&mut pipe, event).await?,
             Event::InviteCreate(event) => {
                 if let Some(ref user) = event.inviter {
                     self.store_user(&mut pipe, user)?;
