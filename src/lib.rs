@@ -22,6 +22,6 @@ use bb8_redis::redis;
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 use deadpool_redis::redis;
 
-pub use self::{cache::RedisCache, error::CacheError, value::CachedValue};
+pub use self::{cache::RedisCache, error::CacheError, value::CachedArchive};
 
 type CacheResult<T> = Result<T, CacheError>;

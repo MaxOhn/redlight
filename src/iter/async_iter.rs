@@ -4,7 +4,7 @@ use itoa::Buffer;
 
 use crate::{
     cache::Connection, config::Cacheable, redis::AsyncCommands, CacheError, CacheResult,
-    CachedValue,
+    CachedArchive,
 };
 
 pub struct AsyncIter<'c, T> {
@@ -28,7 +28,7 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
         }
     }
 
-    pub async fn next_item(&mut self) -> Option<CacheResult<CachedValue<T>>> {
+    pub async fn next_item(&mut self) -> Option<CacheResult<CachedArchive<T>>> {
         let id = self.ids.next()?;
 
         self.key_buf.truncate(self.key_prefix_len);
@@ -37,9 +37,9 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
 
         let res = match self.conn.get::<_, Vec<u8>>(self.key_buf.as_slice()).await {
             #[cfg(feature = "validation")]
-            Ok(bytes) => CachedValue::new(bytes.into_boxed_slice()),
+            Ok(bytes) => CachedArchive::new(bytes.into_boxed_slice()),
             #[cfg(not(feature = "validation"))]
-            Ok(bytes) => Ok(CachedValue::new_unchecked(bytes.into_boxed_slice())),
+            Ok(bytes) => Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice())),
             Err(err) => Err(CacheError::Redis(err)),
         };
 

@@ -25,7 +25,7 @@ use crate::{
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     ser::NoopSerializer,
-    CachedValue,
+    CachedArchive,
 };
 
 /// Struct to indicate that a type should not be cached.
@@ -39,7 +39,7 @@ impl ICachedChannel<'_> for Ignore {
     }
 
     fn on_pins_update(
-    ) -> Option<fn(&mut CachedValue<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
     {
         None
     }
@@ -69,7 +69,7 @@ impl ICachedGuild<'_> for Ignore {
     }
 
     fn on_guild_update(
-    ) -> Option<fn(&mut CachedValue<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -80,12 +80,12 @@ impl ICachedMember<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedValue<Self>, &PartialMember) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn StdError>>> {
         None
     }
 
     fn on_member_update(
-    ) -> Option<fn(&mut CachedValue<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -96,7 +96,7 @@ impl ICachedMessage<'_> for Ignore {
     }
 
     fn on_message_update(
-    ) -> Option<fn(&mut CachedValue<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -131,7 +131,7 @@ impl ICachedUser<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedValue<Self>, &PartialUser) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }

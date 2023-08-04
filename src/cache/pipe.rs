@@ -4,7 +4,7 @@ use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
     redis::{AsyncCommands, FromRedisValue, Pipeline, ToRedisArgs},
-    CacheResult, CachedValue, RedisCache,
+    CacheResult, CachedArchive, RedisCache,
 };
 
 use super::Connection;
@@ -103,7 +103,7 @@ impl<'c, C> Pipe<'c, C> {
 }
 
 impl<'c, C: CacheConfig> Pipe<'c, C> {
-    pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedValue<T>>>
+    pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedArchive<T>>>
     where
         T: Cacheable,
     {
@@ -119,10 +119,10 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
         }
 
         #[cfg(feature = "validation")]
-        let res = CachedValue::new(bytes.into_boxed_slice());
+        let res = CachedArchive::new(bytes.into_boxed_slice());
 
         #[cfg(not(feature = "validation"))]
-        let res = Ok(CachedValue::new_unchecked(bytes.into_boxed_slice()));
+        let res = Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice()));
 
         res.map(Some)
     }

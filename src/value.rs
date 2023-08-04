@@ -7,12 +7,12 @@ use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 /// Archived form of a cache entry.
 ///
 /// Implements [`Deref`] to `T::Archived` so fields and methods of the archived type are easily accessible.
-pub struct CachedValue<T> {
+pub struct CachedArchive<T> {
     bytes: Box<[u8]>,
     phantom: PhantomData<T>,
 }
 
-impl<T> CachedValue<T> {
+impl<T> CachedArchive<T> {
     pub(crate) fn new_unchecked(bytes: Box<[u8]>) -> Self {
         Self {
             bytes,
@@ -26,13 +26,13 @@ impl<T> CachedValue<T> {
     }
 }
 
-impl<T: Archive> CachedValue<T> {
+impl<T: Archive> CachedArchive<T> {
     /// Update the contained value by mutating the archive itself.
     ///
     /// This should be preferred over [`update_by_deserializing`] when possible
     /// as it is much more performant.
     ///
-    /// [`update_by_deserializing`]: CachedValue::update_by_deserializing
+    /// [`update_by_deserializing`]: CachedArchive::update_by_deserializing
     pub fn update_archive(&mut self, f: impl FnOnce(Pin<&mut T::Archived>)) {
         let bytes = self.bytes.as_mut();
         let pin = unsafe { rkyv::archived_root_mut::<T>(Pin::new(bytes)) };
@@ -40,13 +40,13 @@ impl<T: Archive> CachedValue<T> {
     }
 }
 
-impl<T: Cacheable> CachedValue<T> {
+impl<T: Cacheable> CachedArchive<T> {
     /// Update the contained value by deserializing the archive,
     /// mutating it, and then serializing again.
     ///
     /// If possible, [`update_archive`] should be used instead as it is much more performant.
     ///
-    /// [`update_archive`]: CachedValue::update_archive
+    /// [`update_archive`]: CachedArchive::update_archive
     pub fn update_by_deserializing<D>(
         &mut self,
         f: impl FnOnce(&mut T),
@@ -78,7 +78,7 @@ impl<T: Cacheable> CachedValue<T> {
 }
 
 #[cfg(feature = "validation")]
-impl<T> CachedValue<T>
+impl<T> CachedArchive<T>
 where
     T: Archive,
     <T as Archive>::Archived:
@@ -92,7 +92,7 @@ where
     }
 }
 
-impl<T: Archive> Deref for CachedValue<T> {
+impl<T: Archive> Deref for CachedArchive<T> {
     type Target = <T as Archive>::Archived;
 
     fn deref(&self) -> &Self::Target {

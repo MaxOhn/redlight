@@ -33,7 +33,7 @@ use twilight_redis::{
         id::{IdRkyv, IdRkyvMap},
         util::TimestampRkyv,
     },
-    CacheError, CachedValue, RedisCache,
+    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::events::*;
@@ -134,9 +134,9 @@ async fn test_channel() -> Result<(), CacheError> {
         }
 
         fn on_pins_update(
-        ) -> Option<fn(&mut CachedValue<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
         {
-            let update_fn = |value: &mut CachedValue<Self>, update: &ChannelPinsUpdate| {
+            let update_fn = |value: &mut CachedArchive<Self>, update: &ChannelPinsUpdate| {
                 value.update_archive(|pinned| {
                     let last_pin_timestamp =
                         unsafe { &mut pinned.get_unchecked_mut().last_pin_timestamp };
