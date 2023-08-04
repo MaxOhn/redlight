@@ -56,7 +56,6 @@ impl<'c, C> RedisCacheIter<'c, C> {
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     // TODO: messages, channel_messages, channel_voice_states
     // TODO: docs
-    // FIXME: if entries expire, their ids might be present but not the actual entries
 
     def_getter!(channels, Channel, Channels, CHANNEL_PREFIX);
     def_getter!(emojis, Emoji, Emojis, EMOJI_PREFIX);

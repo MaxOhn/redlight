@@ -30,21 +30,26 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
     }
 
     pub async fn next_item(&mut self) -> Option<CacheResult<CachedArchive<T>>> {
-        let id = self.ids.next()?;
+        loop {
+            let id = self.ids.next()?;
 
-        self.key_buf.truncate(self.key_prefix_len);
-        let id = self.itoa_buf.format(id);
-        self.key_buf.extend_from_slice(id.as_bytes());
+            self.key_buf.truncate(self.key_prefix_len);
+            let id = self.itoa_buf.format(id);
+            self.key_buf.extend_from_slice(id.as_bytes());
 
-        let res = match self.conn.get::<_, Vec<u8>>(self.key_buf.as_slice()).await {
-            #[cfg(feature = "validation")]
-            Ok(bytes) => CachedArchive::new(bytes.into_boxed_slice()),
-            #[cfg(not(feature = "validation"))]
-            Ok(bytes) => Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice())),
-            Err(err) => Err(CacheError::Redis(err)),
-        };
+            let key = self.key_buf.as_slice();
 
-        Some(res)
+            let res = match self.conn.get::<_, Option<Vec<u8>>>(key).await {
+                #[cfg(feature = "validation")]
+                Ok(Some(bytes)) => CachedArchive::new(bytes.into_boxed_slice()),
+                #[cfg(not(feature = "validation"))]
+                Ok(Some(bytes)) => Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice())),
+                Ok(None) => continue,
+                Err(err) => Err(CacheError::Redis(err)),
+            };
+
+            return Some(res);
+        }
     }
 
     // TODO: implement .nth, .skip, ... efficiently
