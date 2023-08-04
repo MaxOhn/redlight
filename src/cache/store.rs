@@ -1,17 +1,13 @@
-use std::pin::Pin;
-
 use twilight_model::{
     application::interaction::{Interaction, InteractionData},
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
         payload::incoming::{
-            invite_create::PartialUser, ChannelPinsUpdate, MemberUpdate, MessageUpdate,
+            invite_create::PartialUser, ChannelPinsUpdate, GuildUpdate, MemberUpdate, MessageUpdate,
         },
         presence::{Presence, UserOrId},
     },
-    guild::{
-        Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role, UnavailableGuild,
-    },
+    guild::{Emoji, Guild, GuildIntegration, Member, PartialMember, Role, UnavailableGuild},
     id::{
         marker::{ChannelMarker, GuildMarker},
         Id,
@@ -26,7 +22,7 @@ use crate::{
         ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
-    error::SerializeError,
+    error::{SerializeError, UpdateError},
     key::RedisKey,
     util::{BytesArg, ZippedVecs},
     CacheError, CacheResult, RedisCache,
@@ -99,34 +95,25 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let Some(f) = C::Channel::on_pins_update() else {
+        let Some(update_fn) = C::Channel::on_pins_update() else {
             return Ok(());
         };
 
         let key = RedisKey::Channel {
             id: update.channel_id,
         };
-        let channel_fut = pipe.get::<C::Channel<'static>>(key);
 
-        let Some(channel) = channel_fut.await? else {
+        let Some(mut channel) = pipe.get::<C::Channel<'static>>(key).await? else {
             return Ok(());
         };
 
-        let mut bytes = channel.into_bytes();
-        let bytes_mut = bytes.as_mut();
-
-        // SAFETY: if "validation" is enabled, CachedValue will handle validation
-        let archived_mut =
-            unsafe { rkyv::archived_root_mut::<C::Channel<'static>>(Pin::new(bytes_mut)) };
-
-        f(archived_mut, update);
+        update_fn(&mut channel, update).map_err(UpdateError::ChannelPins)?;
 
         let key = RedisKey::Channel {
             id: update.channel_id,
         };
-
-        pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
-            .ignore();
+        let bytes = channel.into_bytes();
+        pipe.set(key, &bytes, C::Channel::expire_seconds()).ignore();
 
         Ok(())
     }
@@ -275,6 +262,45 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    pub(crate) async fn store_guild_update(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        update: &GuildUpdate,
+    ) -> CacheResult<()> {
+        let guild_id = update.id;
+
+        self.store_emojis(pipe, guild_id, &update.emojis)?;
+        self.store_roles(pipe, guild_id, &update.roles)?;
+
+        if !C::Guild::WANTED {
+            return Ok(());
+        }
+
+        let key = RedisKey::Guilds;
+        pipe.sadd(key, guild_id.get()).ignore();
+
+        let key = RedisKey::UnavailableGuilds;
+        pipe.srem(key, guild_id.get()).ignore();
+
+        let Some(update_fn) = C::Guild::on_guild_update() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Guild { id: guild_id };
+
+        let Some(mut guild) = pipe.get::<C::Guild<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut guild, update).map_err(UpdateError::Guild)?;
+
+        let key = RedisKey::Guild { id: guild_id };
+        let bytes = guild.into_bytes();
+        pipe.set(key, &bytes, C::Guild::expire_seconds()).ignore();
+
+        Ok(())
+    }
+
     pub(crate) fn store_integration(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -329,11 +355,11 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         if let (Some(guild_id), Some(member)) = (interaction.guild_id, &interaction.member) {
-            self.store_partial_member(pipe, guild_id, member)?;
+            self.store_partial_member(pipe, guild_id, member).await?;
         }
 
         if let Some(ref msg) = interaction.message {
-            self.store_message(pipe, msg)?;
+            self.store_message(pipe, msg).await?;
         }
 
         if let Some(ref user) = interaction.user {
@@ -378,38 +404,52 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_member_update(
+    pub(crate) async fn store_member_update(
         &self,
         pipe: &mut Pipe<'_, C>,
         update: &MemberUpdate,
     ) -> CacheResult<()> {
-        if C::Member::WANTED {
-            let user_id = update.user.id;
-            let key = RedisKey::Member {
-                guild: update.guild_id,
-                user: user_id,
-            };
-            if let Some(member) = C::Member::from_member_update(update) {
-                let bytes = member
-                    .serialize()
-                    .map_err(|e| SerializeError::Member(Box::new(e)))?;
+        self.store_user(pipe, &update.user)?;
 
-                pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
-                    .ignore();
-            }
-
-            let key = RedisKey::GuildMembers {
-                id: update.guild_id,
-            };
-            pipe.sadd(key, user_id.get()).ignore();
-
-            if C::User::WANTED {
-                let key = RedisKey::UserGuilds { id: user_id };
-                pipe.sadd(key, update.guild_id.get()).ignore();
-            }
+        if !C::Member::WANTED {
+            return Ok(());
         }
 
-        self.store_user(pipe, &update.user)?;
+        let user_id = update.user.id;
+
+        let key = RedisKey::GuildMembers {
+            id: update.guild_id,
+        };
+
+        pipe.sadd(key, user_id.get()).ignore();
+
+        if C::User::WANTED {
+            let key = RedisKey::UserGuilds { id: user_id };
+            pipe.sadd(key, update.guild_id.get()).ignore();
+        }
+
+        let Some(update_fn) = C::Member::on_member_update() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Member {
+            guild: update.guild_id,
+            user: user_id,
+        };
+
+        let Some(mut member) = pipe.get::<C::Member<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut member, update).map_err(UpdateError::Member)?;
+
+        let key = RedisKey::Member {
+            guild: update.guild_id,
+            user: user_id,
+        };
+
+        let bytes = member.into_bytes();
+        pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
 
         Ok(())
     }
@@ -464,7 +504,11 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_message(&self, pipe: &mut Pipe<'_, C>, msg: &Message) -> CacheResult<()> {
+    pub(crate) async fn store_message(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        msg: &Message,
+    ) -> CacheResult<()> {
         if C::Message::WANTED {
             let key = RedisKey::Message { id: msg.id };
             let msg = C::Message::from_message(msg);
@@ -480,7 +524,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_user(pipe, &msg.author)?;
 
         if let (Some(guild_id), Some(member)) = (msg.guild_id, &msg.member) {
-            self.store_partial_member(pipe, guild_id, member)?;
+            self.store_partial_member(pipe, guild_id, member).await?;
         }
 
         if let Some(ref channel) = msg.thread {
@@ -490,125 +534,119 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
-    pub(crate) fn store_message_update(
+    pub(crate) async fn store_message_update(
         &self,
         pipe: &mut Pipe<'_, C>,
         update: &MessageUpdate,
     ) -> CacheResult<()> {
-        if C::Message::WANTED {
-            if let Some(msg) = C::Message::from_message_update(update) {
-                let key = RedisKey::Message { id: update.id };
-
-                let bytes = msg
-                    .serialize()
-                    .map_err(|e| SerializeError::Message(Box::new(e)))?;
-
-                pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
-                    .ignore();
-            }
-        }
-
         if let Some(ref user) = update.author {
             self.store_user(pipe, user)?;
         }
 
-        Ok(())
-    }
-
-    pub(crate) async fn store_partial_guild(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        partial_guild: &PartialGuild,
-    ) -> CacheResult<()> {
-        if C::Guild::WANTED {
-            let guild_id = partial_guild.id;
-
-            if let Some(guild) = C::Guild::from_partial_guild(partial_guild) {
-                let key = RedisKey::Guild { id: guild_id };
-
-                let bytes = guild
-                    .serialize()
-                    .map_err(|e| SerializeError::Guild(Box::new(e)))?;
-
-                pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
-                    .ignore();
-            }
-
-            let key = RedisKey::Guilds;
-            pipe.sadd(key, guild_id.get()).ignore();
-
-            let key = RedisKey::UnavailableGuilds;
-            pipe.srem(key, guild_id.get()).ignore();
+        if !C::Message::WANTED {
+            return Ok(());
         }
 
-        self.store_emojis(pipe, partial_guild.id, &partial_guild.emojis)?;
-        self.store_roles(pipe, partial_guild.id, &partial_guild.roles)?;
+        let Some(update_fn) = C::Message::on_message_update() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Message { id: update.id };
+
+        let Some(mut message) = pipe.get::<C::Message<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut message, update).map_err(UpdateError::Message)?;
+
+        let key = RedisKey::Message { id: update.id };
+        let bytes = message.into_bytes();
+        pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 
         Ok(())
     }
 
-    pub(crate) fn store_partial_member(
+    pub(crate) async fn store_partial_member(
         &self,
         pipe: &mut Pipe<'_, C>,
         guild_id: Id<GuildMarker>,
-        member: &PartialMember,
+        partial_member: &PartialMember,
     ) -> CacheResult<()> {
-        if C::Member::WANTED {
-            if let Some(ref user) = member.user {
-                if let Some(member) = C::Member::from_partial_member(guild_id, member) {
-                    let key = RedisKey::Member {
-                        guild: guild_id,
-                        user: user.id,
-                    };
-
-                    let bytes = member
-                        .serialize()
-                        .map_err(|e| SerializeError::Member(Box::new(e)))?;
-
-                    pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
-                        .ignore();
-                }
-
-                let key = RedisKey::GuildMembers { id: guild_id };
-                pipe.sadd(key, user.id.get()).ignore();
-
-                if C::User::WANTED {
-                    let key = RedisKey::UserGuilds { id: user.id };
-                    pipe.sadd(key, guild_id.get()).ignore();
-                }
-            }
-        }
-
-        if let Some(ref user) = member.user {
+        if let Some(ref user) = partial_member.user {
             self.store_user(pipe, user)?;
         }
+
+        if !C::Member::WANTED {
+            return Ok(());
+        }
+
+        let Some(ref user) = partial_member.user else {
+            return Ok(());
+        };
+
+        let key = RedisKey::GuildMembers { id: guild_id };
+        pipe.sadd(key, user.id.get()).ignore();
+
+        if C::User::WANTED {
+            let key = RedisKey::UserGuilds { id: user.id };
+            pipe.sadd(key, guild_id.get()).ignore();
+        }
+
+        let Some(update_fn) = C::Member::update_via_partial() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Member {
+            guild: guild_id,
+            user: user.id,
+        };
+
+        let Some(mut member) = pipe.get::<C::Member<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut member, partial_member).map_err(UpdateError::PartialMember)?;
+
+        let key = RedisKey::Member {
+            guild: guild_id,
+            user: user.id,
+        };
+
+        let bytes = member.into_bytes();
+        pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
 
         Ok(())
     }
 
-    pub(crate) fn store_partial_user(
+    pub(crate) async fn store_partial_user(
         &self,
         pipe: &mut Pipe<'_, C>,
-        user: &PartialUser,
+        partial_user: &PartialUser,
     ) -> CacheResult<()> {
         if !C::User::WANTED {
             return Ok(());
         }
 
-        let id = user.id;
-        let key = RedisKey::User { id };
-
-        if let Some(user) = C::User::from_partial_user(user) {
-            let bytes = user
-                .serialize()
-                .map_err(|e| SerializeError::User(Box::new(e)))?;
-
-            pipe.set(key, bytes.as_ref(), C::User::expire_seconds())
-                .ignore();
-        }
+        let id = partial_user.id;
 
         let key = RedisKey::Users;
         pipe.sadd(key, id.get()).ignore();
+
+        let Some(update_fn) = C::User::update_via_partial() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::User { id };
+
+        let Some(mut user) = pipe.get::<C::User<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut user, partial_user).map_err(UpdateError::PartialUser)?;
+
+        let key = RedisKey::User { id };
+        let bytes = user.into_bytes();
+        pipe.set(key, &bytes, C::Guild::expire_seconds()).ignore();
 
         Ok(())
     }

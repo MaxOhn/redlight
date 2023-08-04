@@ -132,7 +132,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::GuildStickersUpdate(event) => {
                 self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?
             }
-            Event::GuildUpdate(event) => self.store_partial_guild(&mut pipe, event).await?,
+            Event::GuildUpdate(event) => self.store_guild_update(&mut pipe, event).await?,
             Event::IntegrationCreate(event) => {
                 if let Some(guild_id) = event.guild_id {
                     self.store_integration(&mut pipe, guild_id, event)?;
@@ -153,7 +153,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 }
 
                 if let Some(ref user) = event.target_user {
-                    self.store_partial_user(&mut pipe, user)?;
+                    self.store_partial_user(&mut pipe, user).await?;
                 }
             }
             Event::InviteDelete(_) => {}
@@ -164,15 +164,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 self.delete_member(&mut pipe, event.guild_id, event.user.id)
                     .await?
             }
-            Event::MemberUpdate(event) => self.store_member_update(&mut pipe, event)?,
+            Event::MemberUpdate(event) => self.store_member_update(&mut pipe, event).await?,
             Event::MemberChunk(event) => {
                 self.store_members(&mut pipe, event.guild_id, &event.members)?;
                 self.store_presences(&mut pipe, event.guild_id, &event.presences)?;
             }
-            Event::MessageCreate(event) => self.store_message(&mut pipe, event)?,
+            Event::MessageCreate(event) => self.store_message(&mut pipe, event).await?,
             Event::MessageDelete(event) => self.delete_message(&mut pipe, event.id),
             Event::MessageDeleteBulk(event) => self.delete_messages(&mut pipe, &event.ids),
-            Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event)?,
+            Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event).await?,
             Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event)?,
             Event::PresencesReplace => {}
             Event::ReactionAdd(event) => {

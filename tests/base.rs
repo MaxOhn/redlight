@@ -2,9 +2,9 @@ mod events;
 
 use std::{
     env,
+    error::Error as StdError,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
-    pin::Pin,
     sync::OnceLock,
 };
 
@@ -33,7 +33,7 @@ use twilight_redis::{
         id::{IdRkyv, IdRkyvMap},
         util::TimestampRkyv,
     },
-    CacheError, RedisCache,
+    CacheError, CachedValue, RedisCache,
 };
 
 use crate::events::*;
@@ -133,19 +133,26 @@ async fn test_channel() -> Result<(), CacheError> {
             }
         }
 
-        fn on_pins_update() -> Option<fn(Pin<&mut <Self as Archive>::Archived>, &ChannelPinsUpdate)>
+        fn on_pins_update(
+        ) -> Option<fn(&mut CachedValue<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
         {
-            Some(|archived_mut, update| {
-                let last_pin_timestamp =
-                    unsafe { &mut archived_mut.get_unchecked_mut().last_pin_timestamp };
+            let update_fn = |value: &mut CachedValue<Self>, update: &ChannelPinsUpdate| {
+                value.update_archive(|pinned| {
+                    let last_pin_timestamp =
+                        unsafe { &mut pinned.get_unchecked_mut().last_pin_timestamp };
 
-                *last_pin_timestamp = match update.last_pin_timestamp {
-                    Some(new_timestamp) => {
-                        ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp))
-                    }
-                    None => ArchivedOption::None,
-                };
-            })
+                    *last_pin_timestamp = match update.last_pin_timestamp {
+                        Some(new_timestamp) => {
+                            ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp))
+                        }
+                        None => ArchivedOption::None,
+                    };
+                });
+
+                Ok(())
+            };
+
+            Some(update_fn)
         }
     }
 

@@ -12,10 +12,12 @@ use rkyv::{
 };
 
 /// Trait that provides the option to pick and choose a custom serializer.
-pub trait CacheSerializer: Default + Fallible + Serializer + CacheSerializerExt {
+pub trait CacheSerializer: Default + Serializer + CacheSerializerExt {
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer
     /// and resetting the serializer so that it can be used again.
     fn finish(&mut self) -> AlignedVec;
+
+    // TODO: add finish_once method
 }
 
 /// Auxiliary trait to circumvent the fact that rust currently won't let

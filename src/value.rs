@@ -1,10 +1,12 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{error::Error as StdError, marker::PhantomData, ops::Deref, pin::Pin};
 
-use rkyv::Archive;
+use rkyv::{ser::Serializer, Archive, Deserialize, Fallible};
+
+use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 
 /// Archived form of a cache entry.
 ///
-/// Implements [`Deref<T>`] so fields and methods of the archived type are easily accessible.
+/// Implements [`Deref`] to `T::Archived` so fields and methods of the archived type are easily accessible.
 pub struct CachedValue<T> {
     bytes: Box<[u8]>,
     phantom: PhantomData<T>,
@@ -18,8 +20,60 @@ impl<T> CachedValue<T> {
         }
     }
 
-    pub(crate) fn into_bytes(self) -> Box<[u8]> {
+    /// Consume `self` and return the contained bytes.
+    pub fn into_bytes(self) -> Box<[u8]> {
         self.bytes
+    }
+}
+
+impl<T: Archive> CachedValue<T> {
+    /// Update the contained value by mutating the archive itself.
+    ///
+    /// This should be preferred over [`update_by_deserializing`] when possible
+    /// as it is much more performant.
+    ///
+    /// [`update_by_deserializing`]: CachedValue::update_by_deserializing
+    pub fn update_archive(&mut self, f: impl FnOnce(Pin<&mut T::Archived>)) {
+        let bytes = self.bytes.as_mut();
+        let pin = unsafe { rkyv::archived_root_mut::<T>(Pin::new(bytes)) };
+        f(pin);
+    }
+}
+
+impl<T: Cacheable> CachedValue<T> {
+    /// Update the contained value by deserializing the archive,
+    /// mutating it, and then serializing again.
+    ///
+    /// If possible, [`update_archive`] should be used instead as it is much more performant.
+    ///
+    /// [`update_archive`]: CachedValue::update_archive
+    pub fn update_by_deserializing<D>(
+        &mut self,
+        f: impl FnOnce(&mut T),
+        deserializer: &mut D,
+    ) -> Result<(), UpdateArchiveError<<D as Fallible>::Error, <T::Serializer as Fallible>::Error>>
+    where
+        D: Fallible,
+        D::Error: StdError,
+        T::Archived: Deserialize<T, D>,
+    {
+        let archived: &T::Archived = &*self;
+
+        let mut deserialized: T = archived
+            .deserialize(deserializer)
+            .map_err(UpdateArchiveError::Deserialization)?;
+
+        f(&mut deserialized);
+        let mut serializer = T::Serializer::default();
+
+        serializer
+            .serialize_value(&deserialized)
+            .map_err(UpdateArchiveError::Serialization)?;
+
+        let bytes = serializer.finish();
+        self.bytes = bytes.into_boxed_slice();
+
+        Ok(())
     }
 }
 

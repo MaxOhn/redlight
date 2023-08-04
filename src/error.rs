@@ -29,6 +29,8 @@ pub enum CacheError {
     Redis(#[from] crate::redis::RedisError),
     #[error(transparent)]
     Serialization(#[from] SerializeError),
+    #[error("failed to update entry")]
+    Update(#[from] UpdateError),
 }
 
 #[derive(Debug, ThisError)]
@@ -59,4 +61,38 @@ pub enum SerializeError {
     User(#[source] Box<dyn StdError>),
     #[error("failed to serialize voice state")]
     VoiceState(#[source] Box<dyn StdError>),
+}
+
+#[derive(Debug, ThisError)]
+pub enum UpdateError {
+    #[error("failed to update through ChannelPinsUpdate")]
+    ChannelPins(#[source] Box<dyn StdError>),
+    #[error("failed to update through GuildUpdate")]
+    Guild(#[source] Box<dyn StdError>),
+    #[error("failed to update through MemberUpdate")]
+    Member(#[source] Box<dyn StdError>),
+    #[error("failed to update through MessageUpdate")]
+    Message(#[source] Box<dyn StdError>),
+    #[error("failed to update through PartialMember")]
+    PartialMember(#[source] Box<dyn StdError>),
+    #[error("failed to update through PartialUser")]
+    PartialUser(#[source] Box<dyn StdError>),
+}
+
+#[derive(Debug, ThisError)]
+pub enum UpdateArchiveError<D: StdError, S: StdError> {
+    #[error("failed to deserialize")]
+    Deserialization(#[source] D),
+    #[error("failed to serialize")]
+    Serialization(#[source] S),
+}
+
+impl<D, S> UpdateArchiveError<D, S>
+where
+    D: StdError + 'static,
+    S: StdError + 'static,
+{
+    pub fn boxed(self) -> Box<dyn StdError> {
+        Box::from(self)
+    }
 }

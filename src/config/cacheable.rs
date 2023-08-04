@@ -9,7 +9,10 @@ type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fa
 ///
 /// # Example
 /// ```
-/// use rkyv::{ser::serializers::AlignedSerializer, with::RefAsBox, Archive, Fallible, Serialize};
+/// use rkyv::{Archive, Fallible, Serialize};
+/// use rkyv::ser::serializers::AlignedSerializer;
+/// use rkyv::with::RefAsBox;
+/// use rkyv::util::AlignedVec;
 /// use twilight_redis::config::Cacheable;
 ///
 /// #[derive(Archive, Serialize)]
@@ -20,7 +23,7 @@ type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fa
 /// }
 ///
 /// impl Cacheable for CachedRole<'_> {
-///     type Serializer = AlignedSerializer;
+///     type Serializer = AlignedSerializer<AlignedVec>;
 ///
 ///     fn expire_seconds() -> Option<usize> { None }
 /// }

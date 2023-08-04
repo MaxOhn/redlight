@@ -1,15 +1,15 @@
-use std::{convert::Infallible, pin::Pin};
+use std::{convert::Infallible, error::Error as StdError};
 
 use rkyv::{Archive, Deserialize, Fallible, Serialize};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
         payload::incoming::{
-            invite_create::PartialUser, ChannelPinsUpdate, MemberUpdate, MessageUpdate,
+            invite_create::PartialUser, ChannelPinsUpdate, GuildUpdate, MemberUpdate, MessageUpdate,
         },
         presence::Presence,
     },
-    guild::{Emoji, Guild, GuildIntegration, Member, PartialGuild, PartialMember, Role},
+    guild::{Emoji, Guild, GuildIntegration, Member, PartialMember, Role},
     id::{
         marker::{ChannelMarker, GuildMarker},
         Id,
@@ -25,6 +25,7 @@ use crate::{
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     ser::NoopSerializer,
+    CachedValue,
 };
 
 /// Struct to indicate that a type should not be cached.
@@ -37,7 +38,9 @@ impl ICachedChannel<'_> for Ignore {
         Self
     }
 
-    fn on_pins_update() -> Option<fn(Pin<&mut Self::Archived>, &ChannelPinsUpdate)> {
+    fn on_pins_update(
+    ) -> Option<fn(&mut CachedValue<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
+    {
         None
     }
 }
@@ -65,7 +68,8 @@ impl ICachedGuild<'_> for Ignore {
         Self
     }
 
-    fn from_partial_guild(_: &'_ PartialGuild) -> Option<Self> {
+    fn on_guild_update(
+    ) -> Option<fn(&mut CachedValue<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -75,11 +79,13 @@ impl ICachedMember<'_> for Ignore {
         Self
     }
 
-    fn from_partial_member(_: Id<GuildMarker>, _: &'_ PartialMember) -> Option<Self> {
+    fn update_via_partial(
+    ) -> Option<fn(&mut CachedValue<Self>, &PartialMember) -> Result<(), Box<dyn StdError>>> {
         None
     }
 
-    fn from_member_update(_: &'_ MemberUpdate) -> Option<Self> {
+    fn on_member_update(
+    ) -> Option<fn(&mut CachedValue<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -89,7 +95,8 @@ impl ICachedMessage<'_> for Ignore {
         Self
     }
 
-    fn from_message_update(_: &'_ MessageUpdate) -> Option<Self> {
+    fn on_message_update(
+    ) -> Option<fn(&mut CachedValue<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
@@ -123,7 +130,8 @@ impl ICachedUser<'_> for Ignore {
         Self
     }
 
-    fn from_partial_user(_: &PartialUser) -> Option<Self> {
+    fn update_via_partial(
+    ) -> Option<fn(&mut CachedValue<Self>, &PartialUser) -> Result<(), Box<dyn StdError>>> {
         None
     }
 }
