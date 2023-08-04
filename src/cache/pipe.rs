@@ -1,5 +1,3 @@
-use std::ops::DerefMut;
-
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
@@ -30,7 +28,7 @@ impl<'c, C> Pipe<'c, C> {
             None => self.conn.insert(self.cache.connection().await?),
         };
 
-        let res = self.pipe.query_async(conn.deref_mut()).await?;
+        let res = self.pipe.query_async(conn).await?;
         self.pipe.clear();
 
         Ok(res)

@@ -16,11 +16,8 @@ pub mod rkyv_util;
 /// Types and traits related to serialization.
 pub mod ser;
 
-#[cfg(feature = "bb8")]
-use bb8_redis::redis;
-
-#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-use deadpool_redis::redis;
+/// Re-export of redis types and traits.
+pub(crate) mod redis;
 
 pub use self::{cache::RedisCache, error::CacheError, value::CachedArchive};
 

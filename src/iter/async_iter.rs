@@ -3,8 +3,9 @@ use std::{marker::PhantomData, vec::IntoIter};
 use itoa::Buffer;
 
 use crate::{
-    cache::Connection, config::Cacheable, redis::AsyncCommands, CacheError, CacheResult,
-    CachedArchive,
+    config::Cacheable,
+    redis::{AsyncCommands, Connection},
+    CacheError, CacheResult, CachedArchive,
 };
 
 pub struct AsyncIter<'c, T> {

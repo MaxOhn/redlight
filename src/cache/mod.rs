@@ -8,21 +8,12 @@ use std::marker::PhantomData;
 use twilight_model::gateway::event::Event;
 
 use crate::{
-    cache::pipe::Pipe, config::CacheConfig, iter::RedisCacheIter, CacheError, CacheResult,
+    cache::pipe::Pipe,
+    config::CacheConfig,
+    iter::RedisCacheIter,
+    redis::{Connection, Pool},
+    CacheError, CacheResult,
 };
-
-#[cfg(feature = "bb8")]
-type Pool = bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>;
-
-#[cfg(feature = "bb8")]
-pub(crate) type Connection<'a> =
-    bb8_redis::bb8::PooledConnection<'a, bb8_redis::RedisConnectionManager>;
-
-#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-type Pool = deadpool_redis::Pool;
-
-#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-pub(crate) type Connection<'a> = deadpool_redis::Connection;
 
 /// Redis-based cache for data of twilight's gateway [`Event`]s.
 pub struct RedisCache<C> {
@@ -68,7 +59,9 @@ impl<C> RedisCache<C> {
     }
 
     pub(crate) async fn connection(&self) -> CacheResult<Connection<'_>> {
-        self.pool.get().await.map_err(CacheError::GetConnection)
+        Connection::get(&self.pool)
+            .await
+            .map_err(CacheError::GetConnection)
     }
 }
 
