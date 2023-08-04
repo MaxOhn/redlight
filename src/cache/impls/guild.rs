@@ -1,40 +1,88 @@
-use twilight_model::id::{
-    marker::{
-        ChannelMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker, StageMarker,
-        UserMarker,
-    },
-    Id,
+use twilight_model::{
+    gateway::payload::incoming::GuildUpdate,
+    guild::Guild,
+    id::{marker::GuildMarker, Id},
 };
 
 use crate::{
-    config::{CacheConfig, Cacheable},
+    cache::pipe::Pipe,
+    config::{CacheConfig, Cacheable, ICachedGuild},
+    error::{SerializeError, UpdateError},
     key::RedisKey,
     CacheError, CacheResult, RedisCache,
 };
 
-use super::pipe::Pipe;
-
 impl<C: CacheConfig> RedisCache<C> {
-    pub(crate) fn delete_channel(
+    pub(crate) fn store_guild(&self, pipe: &mut Pipe<'_, C>, guild: &Guild) -> CacheResult<()> {
+        if C::Guild::WANTED {
+            let guild_id = guild.id;
+            let key = RedisKey::Guild { id: guild_id };
+            let guild = C::Guild::from_guild(guild);
+
+            let bytes = guild
+                .serialize()
+                .map_err(|e| SerializeError::Guild(Box::new(e)))?;
+
+            pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
+                .ignore();
+
+            let key = RedisKey::Guilds;
+            pipe.sadd(key, guild_id.get()).ignore();
+
+            let key = RedisKey::UnavailableGuilds;
+            pipe.srem(key, guild_id.get()).ignore();
+        }
+
+        self.store_channels(pipe, guild.id, &guild.channels)?;
+        self.store_emojis(pipe, guild.id, &guild.emojis)?;
+        self.store_members(pipe, guild.id, &guild.members)?;
+        self.store_presences(pipe, guild.id, &guild.presences)?;
+        self.store_roles(pipe, guild.id, &guild.roles)?;
+        self.store_stickers(pipe, guild.id, &guild.stickers)?;
+        self.store_channels(pipe, guild.id, &guild.threads)?;
+        self.store_stage_instances(pipe, guild.id, &guild.stage_instances)?;
+        self.store_voice_states(pipe, guild.id, &guild.voice_states)?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn store_guild_update(
         &self,
         pipe: &mut Pipe<'_, C>,
-        guild_id: Option<Id<GuildMarker>>,
-        channel_id: Id<ChannelMarker>,
-    ) {
-        if !C::Channel::WANTED {
-            return;
+        update: &GuildUpdate,
+    ) -> CacheResult<()> {
+        let guild_id = update.id;
+
+        self.store_emojis(pipe, guild_id, &update.emojis)?;
+        self.store_roles(pipe, guild_id, &update.roles)?;
+
+        if !C::Guild::WANTED {
+            return Ok(());
         }
 
-        let key = RedisKey::Channel { id: channel_id };
-        pipe.del(key).ignore();
+        let key = RedisKey::Guilds;
+        pipe.sadd(key, guild_id.get()).ignore();
 
-        if let Some(guild_id) = guild_id {
-            let key = RedisKey::GuildChannels { id: guild_id };
-            pipe.srem(key, channel_id.get()).ignore();
-        }
+        let key = RedisKey::UnavailableGuilds;
+        pipe.srem(key, guild_id.get()).ignore();
 
-        let key = RedisKey::Channels;
-        pipe.srem(key, channel_id.get()).ignore();
+        let Some(update_fn) = C::Guild::on_guild_update() else {
+            return Ok(());
+        };
+
+        let key = RedisKey::Guild { id: guild_id };
+
+        let Some(mut guild) = pipe.get::<C::Guild<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut guild, update).map_err(UpdateError::Guild)?;
+
+        let key = RedisKey::Guild { id: guild_id };
+        let bytes = guild.into_bytes();
+        pipe.set(key, &bytes, C::Guild::expire_seconds()).ignore();
+
+        Ok(())
     }
 
     pub(crate) async fn delete_guild(
@@ -675,152 +723,5 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         Ok(())
-    }
-
-    pub(crate) fn delete_integration(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        guild_id: Id<GuildMarker>,
-        integration_id: Id<IntegrationMarker>,
-    ) {
-        if !C::Integration::WANTED {
-            return;
-        }
-
-        let key = RedisKey::Integration {
-            guild: guild_id,
-            id: integration_id,
-        };
-        pipe.del(key).ignore();
-
-        let key = RedisKey::GuildIntegrations { id: guild_id };
-        pipe.srem(key, integration_id.get()).ignore();
-    }
-
-    pub(crate) async fn delete_member(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        guild_id: Id<GuildMarker>,
-        user_id: Id<UserMarker>,
-    ) -> CacheResult<()> {
-        if !C::Member::WANTED {
-            return Ok(());
-        }
-
-        if C::User::WANTED {
-            debug_assert!(pipe.is_empty());
-
-            let key = RedisKey::UserGuilds { id: user_id };
-            pipe.srem(key, guild_id.get()).ignore();
-
-            let key = RedisKey::UserGuilds { id: user_id };
-            pipe.scard(key);
-
-            let common_guild_count: usize = pipe.query().await?;
-
-            if common_guild_count == 0 {
-                let key = RedisKey::User { id: user_id };
-                pipe.del(key).ignore();
-
-                let key = RedisKey::Users;
-                pipe.srem(key, user_id.get()).ignore();
-            }
-        }
-
-        let key = RedisKey::Member {
-            guild: guild_id,
-            user: user_id,
-        };
-        pipe.del(key).ignore();
-
-        let key = RedisKey::GuildMembers { id: guild_id };
-        pipe.srem(key, user_id.get()).ignore();
-
-        Ok(())
-    }
-
-    pub(crate) fn delete_message(&self, pipe: &mut Pipe<'_, C>, msg_id: Id<MessageMarker>) {
-        if !C::Message::WANTED {
-            return;
-        }
-
-        let key = RedisKey::Message { id: msg_id };
-        pipe.del(key).ignore();
-    }
-
-    pub(crate) fn delete_messages(&self, pipe: &mut Pipe<'_, C>, msg_ids: &[Id<MessageMarker>]) {
-        if !C::Message::WANTED || msg_ids.is_empty() {
-            return;
-        }
-
-        let keys: Vec<_> = msg_ids
-            .iter()
-            .copied()
-            .map(|id| RedisKey::Message { id })
-            .collect();
-
-        pipe.del(keys).ignore();
-    }
-
-    pub(crate) fn delete_role(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        guild_id: Id<GuildMarker>,
-        role_id: Id<RoleMarker>,
-    ) {
-        if !C::Role::WANTED {
-            return;
-        }
-
-        let key = RedisKey::Role { id: role_id };
-        pipe.del(key).ignore();
-
-        let key = RedisKey::GuildRoles { id: guild_id };
-        pipe.srem(key, role_id.get()).ignore();
-
-        let key = RedisKey::Roles;
-        pipe.srem(key, role_id.get()).ignore();
-    }
-
-    pub(crate) fn delete_stage_instance(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        guild_id: Id<GuildMarker>,
-        stage_instance_id: Id<StageMarker>,
-    ) {
-        if !C::StageInstance::WANTED {
-            return;
-        }
-
-        let key = RedisKey::StageInstance {
-            id: stage_instance_id,
-        };
-        pipe.del(key).ignore();
-
-        let key = RedisKey::GuildStageInstances { id: guild_id };
-        pipe.srem(key, stage_instance_id.get()).ignore();
-
-        let key = RedisKey::StageInstances;
-        pipe.srem(key, stage_instance_id.get()).ignore();
-    }
-
-    pub(crate) fn delete_voice_state(
-        &self,
-        pipe: &mut Pipe<'_, C>,
-        guild_id: Id<GuildMarker>,
-        user_id: Id<UserMarker>,
-    ) {
-        if !C::VoiceState::WANTED {
-            return;
-        }
-
-        let key = RedisKey::VoiceState {
-            guild: guild_id,
-            user: user_id,
-        };
-        pipe.del(key).ignore();
-
-        let key = RedisKey::GuildVoiceStates { id: guild_id };
-        pipe.srem(key, user_id.get()).ignore();
     }
 }

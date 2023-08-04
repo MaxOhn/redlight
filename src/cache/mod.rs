@@ -1,7 +1,6 @@
-mod delete;
 mod get;
+mod impls;
 mod pipe;
-mod store;
 
 use std::marker::PhantomData;
 
