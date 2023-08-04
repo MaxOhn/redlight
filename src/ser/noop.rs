@@ -61,7 +61,11 @@ impl Serializer for NoopSerializer {
 }
 
 impl CacheSerializer for NoopSerializer {
-    fn finish(&mut self) -> AlignedVec {
+    fn finish(self) -> AlignedVec {
+        AlignedVec::new()
+    }
+
+    fn finish_and_reset(&mut self) -> AlignedVec {
         AlignedVec::new()
     }
 }

@@ -55,6 +55,6 @@ pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {
     fn serialize_with(&self, serializer: &mut Self::Serializer) -> SerializeResult<Self> {
         serializer.serialize_value(self)?;
 
-        Ok(serializer.finish())
+        Ok(serializer.finish_and_reset())
     }
 }

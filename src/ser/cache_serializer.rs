@@ -13,11 +13,12 @@ use rkyv::{
 
 /// Trait that provides the option to pick and choose a custom serializer.
 pub trait CacheSerializer: Default + Serializer + CacheSerializerExt {
+    /// Finish up serialization by extracting the [`AlignedVec`] from the serializer.
+    fn finish(self) -> AlignedVec;
+
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer
     /// and resetting the serializer so that it can be used again.
-    fn finish(&mut self) -> AlignedVec;
-
-    // TODO: add finish_once method
+    fn finish_and_reset(&mut self) -> AlignedVec;
 }
 
 /// Auxiliary trait to circumvent the fact that rust currently won't let
@@ -35,13 +36,21 @@ where
 }
 
 impl CacheSerializer for AlignedSerializer<AlignedVec> {
-    fn finish(&mut self) -> AlignedVec {
+    fn finish(self) -> AlignedVec {
+        self.into_inner()
+    }
+
+    fn finish_and_reset(&mut self) -> AlignedVec {
         mem::take(self).into_inner()
     }
 }
 
 impl CacheSerializer for BufferSerializer<AlignedVec> {
-    fn finish(&mut self) -> AlignedVec {
+    fn finish(self) -> AlignedVec {
+        self.into_inner()
+    }
+
+    fn finish_and_reset(&mut self) -> AlignedVec {
         mem::take(self).into_inner()
     }
 }
@@ -54,12 +63,16 @@ where
     H: Default + Fallible,
     <H as Fallible>::Error: StdError,
 {
-    fn finish(&mut self) -> AlignedVec {
+    fn finish(self) -> AlignedVec {
+        self.into_serializer().finish()
+    }
+
+    fn finish_and_reset(&mut self) -> AlignedVec {
         let ptr = self as *const Self;
         let owned = unsafe { ptr.read() };
 
         let (mut serializer, scratch, shared) = owned.into_components();
-        let inner = serializer.finish();
+        let inner = serializer.finish_and_reset();
 
         let prev = mem::replace(self, Self::new(serializer, scratch, shared));
         let _ = ManuallyDrop::new(prev);
