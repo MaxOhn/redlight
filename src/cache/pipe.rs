@@ -122,7 +122,7 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
         let res = CachedValue::new(bytes.into_boxed_slice());
 
         #[cfg(not(feature = "validation"))]
-        let res = Ok(CachedValue::new_unchecked(bytes.into_boxed_slice));
+        let res = Ok(CachedValue::new_unchecked(bytes.into_boxed_slice()));
 
         res.map(Some)
     }
