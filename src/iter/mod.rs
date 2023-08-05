@@ -13,7 +13,7 @@ pub struct RedisCacheIter<'c, C> {
 
 macro_rules! def_getter {
     ( $fn:ident, $ret:ident, $variant:ident, $prefix:ident ) => {
-        pub async fn $fn(&self) -> CacheResult<AsyncIter<'_, C::$ret<'static>>> {
+        pub async fn $fn(&self) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
             let mut conn = self.cache.connection().await?;
             let ids =
                 RedisCache::<C>::get_ids_static::<Vec<u64>>(RedisKey::$variant, &mut conn).await?;
@@ -26,7 +26,7 @@ macro_rules! def_getter {
         pub async fn $fn(
             &self,
             guild_id: Id<GuildMarker>,
-        ) -> CacheResult<AsyncIter<'_, C::$ret<'static>>> {
+        ) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
             let mut conn = self.cache.connection().await?;
 
             let ids = RedisCache::<C>::get_ids_static::<Vec<u64>>(

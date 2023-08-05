@@ -1,5 +1,5 @@
 mod channel;
+mod current_user;
 mod guild;
+mod sticker;
 mod user;
-
-pub use self::{channel::*, guild::*, user::*};
