@@ -47,7 +47,7 @@ async fn test_stickers() -> Result<(), CacheError> {
     #[derive(Archive, Serialize)]
     #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedSticker<'a> {
-        #[with(Map<RefAsBox>)] // TODO: use Niche?
+        #[with(Map<RefAsBox>)]
         description: Option<&'a str>,
         #[with(StickerFormatTypeRkyv)]
         format_type: StickerFormatType,

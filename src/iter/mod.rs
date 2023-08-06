@@ -1,5 +1,6 @@
 mod async_iter;
 
+use itoa::Buffer;
 use twilight_model::id::{marker::GuildMarker, Id};
 
 use crate::{config::CacheConfig, key::RedisKey, CacheResult, RedisCache};
@@ -35,7 +36,12 @@ macro_rules! def_getter {
             )
             .await?;
 
-            let iter = AsyncIter::new(conn, ids, RedisKey::$prefix);
+            let mut key_prefix = RedisKey::$prefix.to_owned();
+            let mut buf = Buffer::new();
+            let guild_id = buf.format(guild_id.get());
+            key_prefix.extend_from_slice(guild_id.as_bytes());
+
+            let iter = AsyncIter::new_with_buf(conn, ids, &key_prefix, buf);
 
             Ok(iter)
         }

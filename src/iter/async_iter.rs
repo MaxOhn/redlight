@@ -29,6 +29,22 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
         }
     }
 
+    pub(crate) fn new_with_buf(
+        conn: Connection<'c>,
+        ids: Vec<u64>,
+        key_prefix: &[u8],
+        itoa_buf: Buffer,
+    ) -> Self {
+        Self {
+            conn,
+            ids: ids.into_iter(),
+            phantom: PhantomData,
+            itoa_buf,
+            key_prefix_len: key_prefix.len(),
+            key_buf: key_prefix.to_owned(),
+        }
+    }
+
     pub async fn next_item(&mut self) -> Option<CacheResult<CachedArchive<T>>> {
         loop {
             let id = self.ids.next()?;

@@ -22,9 +22,7 @@ use twilight_model::util::ImageHash;
 /// ```
 pub struct ImageHashRkyv;
 
-#[derive(Archive, Copy, Clone, Debug, Eq, Hash, PartialEq)]
-#[archive(as = "Self", resolver = "ImageHashResolver")]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ArchivedImageHash {
     animated: bool,
     bytes: [u8; 16],
@@ -50,30 +48,27 @@ impl From<ArchivedImageHash> for ImageHash {
 
 impl ArchiveWith<ImageHash> for ImageHashRkyv {
     type Archived = ArchivedImageHash;
-    type Resolver = ImageHashResolver;
+    type Resolver = ();
 
     unsafe fn resolve_with(
         hash: &ImageHash,
         pos: usize,
-        resolver: Self::Resolver,
+        _: Self::Resolver,
         out: *mut Self::Archived,
     ) {
         let (fp, fo) = out_field!(out.animated);
 
         #[allow(clippy::unit_arg)]
-        Archive::resolve(&hash.is_animated(), pos + fp, resolver.animated, fo);
+        Archive::resolve(&hash.is_animated(), pos + fp, (), fo);
 
         let (fp, fo) = out_field!(out.bytes);
-        Archive::resolve(&hash.bytes(), pos + fp, resolver.bytes, fo);
+        Archive::resolve(&hash.bytes(), pos + fp, [(); 16], fo);
     }
 }
 
 impl<S: Fallible + ?Sized> SerializeWith<ImageHash, S> for ImageHashRkyv {
     fn serialize_with(_: &ImageHash, _: &mut S) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        Ok(ImageHashResolver {
-            animated: (),
-            bytes: [(); 16],
-        })
+        Ok(())
     }
 }
 
