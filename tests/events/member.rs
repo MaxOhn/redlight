@@ -196,7 +196,7 @@ pub fn member_update() -> MemberUpdate {
         nick: None,
         pending: false,
         premium_since: None,
-        roles: vec![Id::new(777)],
+        roles: vec![Id::new(123), Id::new(456)],
         user: user(),
     }
 }
@@ -212,7 +212,7 @@ pub fn partial_member() -> PartialMember {
         nick: None,
         permissions: None,
         premium_since: None,
-        roles: vec![Id::new(678)],
+        roles: vec![Id::new(123), Id::new(456)],
         user: Some(user()),
     }
 }

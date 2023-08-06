@@ -13,7 +13,7 @@ use rkyv::{
 };
 use twilight_model::id::Id;
 
-/// Used to archive `Option<Id<T>>`, `Vec<Id<T>>`, and `&[Id<T>]` more efficiently
+/// Used to archive `Option<Id<T>>`, `Vec<Id<T>>`, `&[Id<T>]`, and `Box<[Id<T>]>` more efficiently
 /// than with [`Map`](rkyv::with::Map) and [`IdRkyv`](crate::rkyv_util::id::IdRkyv).
 ///
 /// # Example
@@ -31,6 +31,8 @@ use twilight_model::id::Id;
 ///     id_vec: Vec<Id<T>>,
 ///     #[with(IdRkyvMap)]
 ///     id_slice: &'a [Id<T>],
+///     #[with(IdRkyvMap)]
+///     id_box: Box<[Id<T>]>,
 /// }
 /// ```
 pub struct IdRkyvMap;
@@ -151,6 +153,46 @@ impl<D: Fallible + ?Sized, T>
         _: &mut D,
     ) -> Result<Vec<Id<T>>, <D as Fallible>::Error> {
         Ok(nonzeros_to_ids(archived).to_owned())
+    }
+}
+
+// IdRkyvMap for Box<[Id<T>]>
+
+impl<T> ArchiveWith<Box<[Id<T>]>> for IdRkyvMap {
+    type Archived = ArchivedBox<<[NonZeroU64] as ArchiveUnsized>::Archived>;
+    type Resolver = BoxResolver<<[NonZeroU64] as ArchiveUnsized>::MetadataResolver>;
+
+    unsafe fn resolve_with(
+        ids: &Box<[Id<T>]>,
+        pos: usize,
+        resolver: Self::Resolver,
+        out: *mut Self::Archived,
+    ) {
+        let slice = ids_to_nonzeros(ids.as_ref());
+        ArchivedBox::resolve_from_ref(slice, pos, resolver, out);
+    }
+}
+
+impl<S: Serializer + Fallible, T> SerializeWith<Box<[Id<T>]>, S> for IdRkyvMap {
+    fn serialize_with(
+        ids: &Box<[Id<T>]>,
+        serializer: &mut S,
+    ) -> Result<Self::Resolver, <S as Fallible>::Error> {
+        let slice = ids_to_nonzeros(ids.as_ref());
+
+        unsafe { ArchivedBox::serialize_copy_from_slice(slice, serializer) }
+    }
+}
+
+impl<D: Fallible + ?Sized, T>
+    DeserializeWith<<IdRkyvMap as ArchiveWith<Box<[Id<T>]>>>::Archived, Box<[Id<T>]>, D>
+    for IdRkyvMap
+{
+    fn deserialize_with(
+        archived: &<IdRkyvMap as ArchiveWith<Vec<Id<T>>>>::Archived,
+        _: &mut D,
+    ) -> Result<Box<[Id<T>]>, <D as Fallible>::Error> {
+        Ok(Box::from(nonzeros_to_ids(archived)))
     }
 }
 
