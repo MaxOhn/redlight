@@ -18,21 +18,21 @@ pub struct AsyncIter<'c, T> {
 }
 
 impl<'c, T: Cacheable> AsyncIter<'c, T> {
-    pub(crate) fn new(conn: Connection<'c>, ids: Vec<u64>, key_prefix: &[u8]) -> Self {
+    pub(crate) fn new(conn: Connection<'c>, ids: Vec<u64>, key_prefix: Vec<u8>) -> Self {
         Self {
             conn,
             ids: ids.into_iter(),
             phantom: PhantomData,
             itoa_buf: Buffer::new(),
             key_prefix_len: key_prefix.len(),
-            key_buf: key_prefix.to_owned(),
+            key_buf: key_prefix,
         }
     }
 
     pub(crate) fn new_with_buf(
         conn: Connection<'c>,
         ids: Vec<u64>,
-        key_prefix: &[u8],
+        key_prefix: Vec<u8>,
         itoa_buf: Buffer,
     ) -> Self {
         Self {
@@ -41,7 +41,7 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
             phantom: PhantomData,
             itoa_buf,
             key_prefix_len: key_prefix.len(),
-            key_buf: key_prefix.to_owned(),
+            key_buf: key_prefix,
         }
     }
 

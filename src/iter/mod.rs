@@ -18,7 +18,12 @@ macro_rules! def_getter {
             let mut conn = self.cache.connection().await?;
             let ids =
                 RedisCache::<C>::get_ids_static::<Vec<u64>>(RedisKey::$variant, &mut conn).await?;
-            let iter = AsyncIter::new(conn, ids, RedisKey::$prefix);
+
+            let mut key_prefix = Vec::with_capacity(RedisKey::$prefix.len() + 1);
+            key_prefix.extend_from_slice(RedisKey::$prefix);
+            key_prefix.push(b':');
+
+            let iter = AsyncIter::new(conn, ids, key_prefix);
 
             Ok(iter)
         }
@@ -41,10 +46,11 @@ macro_rules! def_getter {
 
             let mut key_prefix = Vec::with_capacity(RedisKey::$prefix.len() + guild_id.len() + 1);
             key_prefix.extend_from_slice(RedisKey::$prefix);
+            key_prefix.push(b':');
             key_prefix.extend_from_slice(guild_id.as_bytes());
             key_prefix.push(b':');
 
-            let iter = AsyncIter::new_with_buf(conn, ids, &key_prefix, buf);
+            let iter = AsyncIter::new_with_buf(conn, ids, key_prefix, buf);
 
             Ok(iter)
         }

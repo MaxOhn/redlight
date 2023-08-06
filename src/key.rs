@@ -94,37 +94,37 @@ pub(crate) enum RedisKey {
 }
 
 impl RedisKey {
-    pub(crate) const CHANNEL_PREFIX: &[u8] = b"CHANNEL:";
+    pub(crate) const CHANNEL_PREFIX: &[u8] = b"CHANNEL";
     pub(crate) const CHANNELS_PREFIX: &[u8] = b"CHANNELS";
     pub(crate) const CURRENT_USER_PREFIX: &[u8] = b"CURRENT_USER";
-    pub(crate) const EMOJI_PREFIX: &[u8] = b"EMOJI:";
+    pub(crate) const EMOJI_PREFIX: &[u8] = b"EMOJI";
     pub(crate) const EMOJIS_PREFIX: &[u8] = b"EMOJIS";
-    pub(crate) const GUILD_PREFIX: &[u8] = b"GUILD:";
-    pub(crate) const GUILD_CHANNELS_PREFIX: &[u8] = b"GUILD_CHANNELS:";
-    pub(crate) const GUILD_EMOJIS_PREFIX: &[u8] = b"GUILD_EMOJIS:";
-    pub(crate) const GUILD_INTEGRATIONS_PREFIX: &[u8] = b"GUILD_INTEGRATIONS:";
-    pub(crate) const GUILD_MEMBERS_PREFIX: &[u8] = b"GUILD_MEMBERS:";
-    pub(crate) const GUILD_PRESENCES_PREFIX: &[u8] = b"GUILD_PRESENCES:";
-    pub(crate) const GUILD_ROLES_PREFIX: &[u8] = b"GUILD_ROLES:";
-    pub(crate) const GUILD_STAGE_INSTANCES_PREFIX: &[u8] = b"GUILD_STAGE_INSTANCES:";
-    pub(crate) const GUILD_STICKERS_PREFIX: &[u8] = b"GUILD_STICKERS:";
-    pub(crate) const GUILD_VOICE_STATES_PREFIX: &[u8] = b"GUILD_VOICE_STATES:";
+    pub(crate) const GUILD_PREFIX: &[u8] = b"GUILD";
+    pub(crate) const GUILD_CHANNELS_PREFIX: &[u8] = b"GUILD_CHANNELS";
+    pub(crate) const GUILD_EMOJIS_PREFIX: &[u8] = b"GUILD_EMOJIS";
+    pub(crate) const GUILD_INTEGRATIONS_PREFIX: &[u8] = b"GUILD_INTEGRATIONS";
+    pub(crate) const GUILD_MEMBERS_PREFIX: &[u8] = b"GUILD_MEMBERS";
+    pub(crate) const GUILD_PRESENCES_PREFIX: &[u8] = b"GUILD_PRESENCES";
+    pub(crate) const GUILD_ROLES_PREFIX: &[u8] = b"GUILD_ROLES";
+    pub(crate) const GUILD_STAGE_INSTANCES_PREFIX: &[u8] = b"GUILD_STAGE_INSTANCES";
+    pub(crate) const GUILD_STICKERS_PREFIX: &[u8] = b"GUILD_STICKERS";
+    pub(crate) const GUILD_VOICE_STATES_PREFIX: &[u8] = b"GUILD_VOICE_STATES";
     pub(crate) const GUILDS_PREFIX: &[u8] = b"GUILDS";
-    pub(crate) const INTEGRATION_PREFIX: &[u8] = b"INTEGRATION:";
-    pub(crate) const MEMBER_PREFIX: &[u8] = b"MEMBER:";
-    pub(crate) const MESSAGE_PREFIX: &[u8] = b"MESSAGE:";
-    pub(crate) const PRESENCE_PREFIX: &[u8] = b"PRESENCE:";
-    pub(crate) const ROLE_PREFIX: &[u8] = b"ROLE:";
+    pub(crate) const INTEGRATION_PREFIX: &[u8] = b"INTEGRATION";
+    pub(crate) const MEMBER_PREFIX: &[u8] = b"MEMBER";
+    pub(crate) const MESSAGE_PREFIX: &[u8] = b"MESSAGE";
+    pub(crate) const PRESENCE_PREFIX: &[u8] = b"PRESENCE";
+    pub(crate) const ROLE_PREFIX: &[u8] = b"ROLE";
     pub(crate) const ROLES_PREFIX: &[u8] = b"ROLES";
-    pub(crate) const STAGE_INSTANCE_PREFIX: &[u8] = b"STAGE_INSTANCE:";
+    pub(crate) const STAGE_INSTANCE_PREFIX: &[u8] = b"STAGE_INSTANCE";
     pub(crate) const STAGE_INSTANCES_PREFIX: &[u8] = b"STAGE_INSTANCES";
-    pub(crate) const STICKER_PREFIX: &[u8] = b"STICKER:";
+    pub(crate) const STICKER_PREFIX: &[u8] = b"STICKER";
     pub(crate) const STICKERS_PREFIX: &[u8] = b"STICKERS";
     pub(crate) const UNAVAILABLE_GUILDS_PREFIX: &[u8] = b"UNAVAILABLE_GUILDS";
-    pub(crate) const USER_PREFIX: &[u8] = b"USER:";
-    pub(crate) const USER_GUILDS_PREFIX: &[u8] = b"USER_GUILDS:";
+    pub(crate) const USER_PREFIX: &[u8] = b"USER";
+    pub(crate) const USER_GUILDS_PREFIX: &[u8] = b"USER_GUILDS";
     pub(crate) const USERS_PREFIX: &[u8] = b"USERS";
-    pub(crate) const VOICE_STATE_PREFIX: &[u8] = b"VOICE_STATE:";
+    pub(crate) const VOICE_STATE_PREFIX: &[u8] = b"VOICE_STATE";
 }
 
 impl From<Id<ChannelMarker>> for RedisKey {
@@ -185,8 +185,9 @@ impl ToRedisArgs for RedisKey {
                 let mut buf = Buffer::new();
                 let id = buf.format(id).as_bytes();
 
-                let mut vec = Vec::with_capacity(name.len() + id.len());
+                let mut vec = Vec::with_capacity(name.len() + 1 + id.len());
                 vec.extend_from_slice(name);
+                vec.push(b':');
                 vec.extend_from_slice(id);
 
                 Cow::Owned(vec)
@@ -204,10 +205,10 @@ impl ToRedisArgs for RedisKey {
                 let mut buf = Buffer::new();
                 let guild = buf.format(guild.get()).as_bytes();
 
-                let mut vec = Vec::with_capacity(name.len() + (guild.len() + 1) * 2);
+                let mut vec = Vec::with_capacity(name.len() + 1 + (guild.len() + 1) * 2);
                 vec.extend_from_slice(name);
+                vec.push(b':');
                 vec.extend_from_slice(guild);
-
                 vec.push(b':');
                 let id = buf.format(id).as_bytes();
                 vec.extend_from_slice(id);
