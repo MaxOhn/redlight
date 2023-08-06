@@ -208,6 +208,7 @@ impl ToRedisArgs for RedisKey {
                 vec.extend_from_slice(name);
                 vec.extend_from_slice(guild);
 
+                vec.push(b':');
                 let id = buf.format(id).as_bytes();
                 vec.extend_from_slice(id);
 

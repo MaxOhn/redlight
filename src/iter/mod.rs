@@ -36,10 +36,13 @@ macro_rules! def_getter {
             )
             .await?;
 
-            let mut key_prefix = RedisKey::$prefix.to_owned();
             let mut buf = Buffer::new();
             let guild_id = buf.format(guild_id.get());
+
+            let mut key_prefix = Vec::with_capacity(RedisKey::$prefix.len() + guild_id.len() + 1);
+            key_prefix.extend_from_slice(RedisKey::$prefix);
             key_prefix.extend_from_slice(guild_id.as_bytes());
+            key_prefix.push(b':');
 
             let iter = AsyncIter::new_with_buf(conn, ids, &key_prefix, buf);
 
