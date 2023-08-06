@@ -93,12 +93,12 @@ impl<T> ArchiveWith<Option<Id<T>>> for IdRkyvMap {
     type Resolver = ();
 
     unsafe fn resolve_with(
-        field: &Option<Id<T>>,
+        id: &Option<Id<T>>,
         _: usize,
         _: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        ArchivedIdOption::resolve_from_id(*field, out);
+        ArchivedIdOption::resolve_from_id(*id, out);
     }
 }
 
@@ -110,8 +110,8 @@ impl<S: Fallible + ?Sized, T> SerializeWith<Option<Id<T>>, S> for IdRkyvMap {
 
 impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedIdOption, Option<Id<T>>, D> for IdRkyvMap {
     #[inline]
-    fn deserialize_with(field: &ArchivedIdOption, _: &mut D) -> Result<Option<Id<T>>, D::Error> {
-        Ok(field.to_id_option())
+    fn deserialize_with(archived: &ArchivedIdOption, _: &mut D) -> Result<Option<Id<T>>, D::Error> {
+        Ok(archived.to_id_option())
     }
 }
 
@@ -122,22 +122,22 @@ impl<T> ArchiveWith<Vec<Id<T>>> for IdRkyvMap {
     type Resolver = BoxResolver<<[NonZeroU64] as ArchiveUnsized>::MetadataResolver>;
 
     unsafe fn resolve_with(
-        field: &Vec<Id<T>>,
+        ids: &Vec<Id<T>>,
         pos: usize,
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        let slice = ids_to_nonzeros(field.as_slice());
+        let slice = ids_to_nonzeros(ids.as_slice());
         ArchivedBox::resolve_from_ref(slice, pos, resolver, out);
     }
 }
 
 impl<S: Serializer + Fallible, T> SerializeWith<Vec<Id<T>>, S> for IdRkyvMap {
     fn serialize_with(
-        field: &Vec<Id<T>>,
+        ids: &Vec<Id<T>>,
         serializer: &mut S,
     ) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        let slice = ids_to_nonzeros(field.as_slice());
+        let slice = ids_to_nonzeros(ids.as_slice());
 
         unsafe { ArchivedBox::serialize_copy_from_slice(slice, serializer) }
     }
@@ -147,36 +147,36 @@ impl<D: Fallible + ?Sized, T>
     DeserializeWith<<IdRkyvMap as ArchiveWith<Vec<Id<T>>>>::Archived, Vec<Id<T>>, D> for IdRkyvMap
 {
     fn deserialize_with(
-        field: &<IdRkyvMap as ArchiveWith<Vec<Id<T>>>>::Archived,
+        archived: &<IdRkyvMap as ArchiveWith<Vec<Id<T>>>>::Archived,
         _: &mut D,
     ) -> Result<Vec<Id<T>>, <D as Fallible>::Error> {
-        Ok(nonzeros_to_ids(field).to_owned())
+        Ok(nonzeros_to_ids(archived).to_owned())
     }
 }
 
 // IdRkyvMap for slices
 
-impl<T> ArchiveWith<[Id<T>]> for IdRkyvMap {
+impl<T> ArchiveWith<&[Id<T>]> for IdRkyvMap {
     type Archived = ArchivedBox<<[NonZeroU64] as ArchiveUnsized>::Archived>;
     type Resolver = BoxResolver<<[NonZeroU64] as ArchiveUnsized>::MetadataResolver>;
 
     unsafe fn resolve_with(
-        field: &[Id<T>],
+        ids: &&[Id<T>],
         pos: usize,
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        let slice = ids_to_nonzeros(field);
+        let slice = ids_to_nonzeros(ids);
         ArchivedBox::resolve_from_ref(slice, pos, resolver, out);
     }
 }
 
-impl<S: Serializer + Fallible, T> SerializeWith<[Id<T>], S> for IdRkyvMap {
+impl<S: Serializer + Fallible, T> SerializeWith<&[Id<T>], S> for IdRkyvMap {
     fn serialize_with(
-        field: &[Id<T>],
+        ids: &&[Id<T>],
         serializer: &mut S,
     ) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        let slice = ids_to_nonzeros(field);
+        let slice = ids_to_nonzeros(ids);
 
         unsafe { ArchivedBox::serialize_copy_from_slice(slice, serializer) }
     }

@@ -37,5 +37,7 @@ pub fn pool() -> Pool {
             .unwrap()
     };
 
+    // cannot flush db on startup due to potentially initializing multiple times
+    // cannot flush db on cleanup due do lacking async drop
     POOL.get_or_init(init).clone()
 }
