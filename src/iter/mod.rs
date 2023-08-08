@@ -69,7 +69,6 @@ impl<'c, C> RedisCacheIter<'c, C> {
 }
 
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
-    // TODO: messages, channel_messages, channel_voice_states
     // TODO: docs
 
     def_getter!(channels, Channel, Channels, CHANNEL_PREFIX);

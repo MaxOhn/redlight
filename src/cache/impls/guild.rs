@@ -92,7 +92,7 @@ impl<C: CacheConfig> RedisCache<C> {
     ) -> CacheResult<()> {
         debug_assert!(pipe.is_empty());
 
-        if C::Member::WANTED {
+        if C::Member::WANTED || C::User::WANTED {
             let key = RedisKey::GuildMembers { id: guild_id };
             pipe.smembers(key);
         }
@@ -153,7 +153,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let mut keys_to_delete = Vec::new();
 
-        if C::Member::WANTED {
+        if C::Member::WANTED || C::User::WANTED {
             let user_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             if C::User::WANTED {
@@ -183,15 +183,17 @@ impl<C: CacheConfig> RedisCache<C> {
                 pipe.srem(key, &user_ids).ignore();
             }
 
-            let key = RedisKey::GuildMembers { id: guild_id };
-            keys_to_delete.push(key);
+            if C::Member::WANTED {
+                let key = RedisKey::GuildMembers { id: guild_id };
+                keys_to_delete.push(key);
 
-            let member_keys = user_ids.iter().map(|&user_id| RedisKey::Member {
-                guild: guild_id,
-                user: Id::new(user_id),
-            });
+                let member_keys = user_ids.iter().map(|&user_id| RedisKey::Member {
+                    guild: guild_id,
+                    user: Id::new(user_id),
+                });
 
-            keys_to_delete.extend(member_keys);
+                keys_to_delete.extend(member_keys);
+            }
         }
 
         if C::Channel::WANTED {
@@ -347,14 +349,14 @@ impl<C: CacheConfig> RedisCache<C> {
         let count = C::Channel::WANTED as usize
             + C::Emoji::WANTED as usize
             + C::Integration::WANTED as usize
-            + C::Member::WANTED as usize
+            + (C::Member::WANTED || C::User::WANTED) as usize
             + C::Presence::WANTED as usize
             + C::Role::WANTED as usize
             + C::StageInstance::WANTED as usize
             + C::Sticker::WANTED as usize
             + C::VoiceState::WANTED as usize;
 
-        if C::Member::WANTED {
+        if C::Member::WANTED || C::User::WANTED {
             for &guild_id in guild_ids {
                 let key = RedisKey::GuildMembers {
                     id: Id::new(guild_id),
@@ -464,7 +466,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let mut keys_to_delete = Vec::new();
 
-        if C::Member::WANTED {
+        if C::Member::WANTED || C::User::WANTED {
             let user_ids_unflattened = &iter.as_slice()[..guild_ids.len()];
 
             if C::User::WANTED {
@@ -498,27 +500,29 @@ impl<C: CacheConfig> RedisCache<C> {
                 keys_to_delete.extend(user_keys);
             }
 
-            let guild_keys = guild_ids
-                .iter()
-                .copied()
-                .map(|guild_id| RedisKey::GuildMembers {
-                    id: Id::new(guild_id),
-                });
-
-            keys_to_delete.extend(guild_keys);
-
-            let member_keys =
-                user_ids_unflattened
+            if C::Member::WANTED {
+                let guild_keys = guild_ids
                     .iter()
-                    .zip(guild_ids)
-                    .flat_map(|(user_ids, guild_id)| {
-                        user_ids.iter().map(|&user_id| RedisKey::Member {
-                            guild: Id::new(*guild_id),
-                            user: Id::new(user_id),
-                        })
+                    .copied()
+                    .map(|guild_id| RedisKey::GuildMembers {
+                        id: Id::new(guild_id),
                     });
 
-            keys_to_delete.extend(member_keys);
+                keys_to_delete.extend(guild_keys);
+
+                let member_keys =
+                    user_ids_unflattened
+                        .iter()
+                        .zip(guild_ids)
+                        .flat_map(|(user_ids, guild_id)| {
+                            user_ids.iter().map(|&user_id| RedisKey::Member {
+                                guild: Id::new(*guild_id),
+                                user: Id::new(user_id),
+                            })
+                        });
+
+                keys_to_delete.extend(member_keys);
+            }
 
             iter.by_ref().take(guild_ids.len()).for_each(|_| ());
         }
