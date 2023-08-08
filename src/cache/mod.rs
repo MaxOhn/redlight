@@ -8,7 +8,7 @@ use twilight_model::gateway::event::Event;
 
 use crate::{
     cache::pipe::Pipe,
-    config::CacheConfig,
+    config::{CacheConfig, ReactionEvent},
     iter::RedisCacheIter,
     redis::{Connection, Pool},
     CacheError, CacheResult,
@@ -171,14 +171,26 @@ impl<C: CacheConfig> RedisCache<C> {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
                     self.store_member(&mut pipe, guild_id, member)?;
                 }
+
+                self.handle_reaction(&mut pipe, ReactionEvent::Add(event))
+                    .await?;
             }
             Event::ReactionRemove(event) => {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
                     self.store_member(&mut pipe, guild_id, member)?;
                 }
+
+                self.handle_reaction(&mut pipe, ReactionEvent::Remove(event))
+                    .await?;
             }
-            Event::ReactionRemoveAll(_) => {}
-            Event::ReactionRemoveEmoji(_) => {}
+            Event::ReactionRemoveAll(event) => {
+                self.handle_reaction(&mut pipe, ReactionEvent::RemoveAll(event))
+                    .await?;
+            }
+            Event::ReactionRemoveEmoji(event) => {
+                self.handle_reaction(&mut pipe, ReactionEvent::RemoveEmoji(event))
+                    .await?;
+            }
             Event::Ready(event) => {
                 self.store_unavailable_guilds(&mut pipe, &event.guilds)
                     .await?;

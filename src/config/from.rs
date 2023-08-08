@@ -19,7 +19,7 @@ use twilight_model::{
 
 use crate::CachedArchive;
 
-use super::Cacheable;
+use super::{Cacheable, ReactionEvent};
 
 /// Create a type from a [`Channel`] reference.
 pub trait ICachedChannel<'a>: Cacheable {
@@ -146,6 +146,23 @@ pub trait ICachedMessage<'a>: Cacheable {
     #[allow(clippy::type_complexity)]
     fn on_message_update(
     ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>>;
+
+    /// Specify how reaction events are handled.
+    ///
+    /// If the events is not of interest, return `None`.
+    /// Otherwise, return a function that updates the currently cached message.
+    ///
+    /// The returned function should take two arguments:
+    ///   - a mutable reference to the current entry which must be updated
+    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///   - a [`ReactionEvent`]
+    ///
+    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
+    // Abstracting the type through a type definition would likely cause
+    // more confusion than do good so we'll allow the complexity.
+    #[allow(clippy::type_complexity)]
+    fn on_reaction_event(
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn StdError>>>;
 }
 
 /// Create a type from a [`Presence`] reference.

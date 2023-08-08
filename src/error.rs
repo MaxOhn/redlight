@@ -77,6 +77,8 @@ pub enum UpdateError {
     PartialMember(#[source] Box<dyn StdError>),
     #[error("failed to update through PartialUser")]
     PartialUser(#[source] Box<dyn StdError>),
+    #[error("failed to update through ReactionEvent")]
+    Reaction(#[source] Box<dyn StdError>),
 }
 
 #[derive(Debug, ThisError)]

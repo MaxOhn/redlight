@@ -23,7 +23,7 @@ use twilight_model::{
     util::Timestamp,
 };
 use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedMessage, Ignore},
+    config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
     rkyv_util::{flags::BitflagsRkyv, util::RkyvAsU8},
     CacheError, CachedArchive, RedisCache,
 };
@@ -81,6 +81,12 @@ async fn test_message() -> Result<(), CacheError> {
 
                 Ok(())
             })
+        }
+
+        fn on_reaction_event(
+        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn Error>>>
+        {
+            None
         }
     }
 

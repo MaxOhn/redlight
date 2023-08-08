@@ -2,6 +2,7 @@ mod cacheable;
 mod checked;
 mod from;
 mod ignore;
+mod reaction_event;
 
 pub use self::{
     cacheable::Cacheable,
@@ -11,6 +12,7 @@ pub use self::{
         ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     ignore::Ignore,
+    reaction_event::ReactionEvent,
 };
 
 /// Configuration for a [`RedisCache`](crate::RedisCache).

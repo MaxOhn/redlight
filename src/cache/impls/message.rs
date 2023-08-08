@@ -6,7 +6,7 @@ use twilight_model::{
 
 use crate::{
     cache::pipe::Pipe,
-    config::{CacheConfig, Cacheable, ICachedMessage},
+    config::{CacheConfig, Cacheable, ICachedMessage, ReactionEvent},
     error::{SerializeError, UpdateError},
     key::RedisKey,
     CacheResult, RedisCache,
@@ -77,6 +77,35 @@ impl<C: CacheConfig> RedisCache<C> {
         update_fn(&mut message, update).map_err(UpdateError::Message)?;
 
         let key = RedisKey::Message { id: update.id };
+        let bytes = message.into_bytes();
+        pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
+
+        Ok(())
+    }
+
+    pub(crate) async fn handle_reaction(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        event: ReactionEvent<'_>,
+    ) -> CacheResult<()> {
+        if !C::Message::WANTED {
+            return Ok(());
+        }
+
+        let Some(update_fn) = C::Message::on_reaction_event() else {
+            return Ok(());
+        };
+
+        let id = event.message_id();
+        let key = RedisKey::Message { id };
+
+        let Some(mut message) = pipe.get::<C::Message<'static>>(key).await? else {
+            return Ok(());
+        };
+
+        update_fn(&mut message, event).map_err(UpdateError::Reaction)?;
+
+        let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
         pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 

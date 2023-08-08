@@ -28,6 +28,8 @@ use crate::{
     CachedArchive,
 };
 
+use super::ReactionEvent;
+
 /// Struct to indicate that a type should not be cached.
 ///
 /// Used by specifying [`Ignore`] for associated types of [`CacheConfig`](crate::config::CacheConfig).
@@ -97,6 +99,12 @@ impl ICachedMessage<'_> for Ignore {
 
     fn on_message_update(
     ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>> {
+        None
+    }
+
+    fn on_reaction_event(
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn StdError>>>
+    {
         None
     }
 }
