@@ -34,5 +34,6 @@ macro_rules! archive_as_u8 {
 pub mod flags;
 pub mod id;
 pub mod integration;
+pub mod message;
 pub mod sticker;
 pub mod util;

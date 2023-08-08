@@ -32,8 +32,16 @@ impl<C: CacheConfig> RedisCache<C> {
 
         self.store_user(pipe, &msg.author)?;
 
-        if let (Some(guild_id), Some(member)) = (msg.guild_id, &msg.member) {
-            self.store_partial_member(pipe, guild_id, member).await?;
+        if let Some(guild_id) = msg.guild_id {
+            if let Some(ref member) = msg.member {
+                self.store_partial_member(pipe, guild_id, member).await?;
+            }
+
+            for mention in msg.mentions.iter() {
+                if let Some(ref member) = mention.member {
+                    self.store_partial_member(pipe, guild_id, member).await?;
+                }
+            }
         }
 
         if let Some(ref channel) = msg.thread {

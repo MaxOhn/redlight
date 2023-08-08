@@ -7,6 +7,7 @@ use std::{
 };
 
 use rkyv::{
+    out_field,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
     Archive, Fallible,
 };
@@ -31,12 +32,6 @@ pub use self::map::IdRkyvMap;
 /// ```
 pub struct IdRkyv;
 
-#[derive(Archive)]
-#[archive(
-    as = "Self",
-    resolver = "IdResolver",
-    bound(archive = "PhantomData<fn(T) -> T>: Archive<Archived = PhantomData<fn(T) -> T>>")
-)]
 pub struct ArchivedId<T> {
     value: NonZeroU64,
     phantom: PhantomData<fn(T) -> T>,
@@ -116,31 +111,26 @@ impl<C: ?Sized, T> rkyv::CheckBytes<C> for ArchivedId<T> {
 
 impl<T> ArchiveWith<Id<T>> for IdRkyv {
     type Archived = ArchivedId<T>;
-    type Resolver = IdResolver<T>;
+    type Resolver = ();
 
-    #[inline]
     unsafe fn resolve_with(
         id: &Id<T>,
         pos: usize,
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        Archive::resolve(&ArchivedId::from(*id), pos, resolver, out);
+        let (fp, fo) = out_field!(out.value);
+        id.into_nonzero().resolve(pos + fp, resolver, fo);
     }
 }
 
 impl<T, S: Fallible + ?Sized> SerializeWith<Id<T>, S> for IdRkyv {
-    #[inline]
     fn serialize_with(_: &Id<T>, _: &mut S) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        Ok(IdResolver {
-            value: (),
-            phantom: (),
-        })
+        Ok(())
     }
 }
 
 impl<T, D: Fallible + ?Sized> DeserializeWith<ArchivedId<T>, Id<T>, D> for IdRkyv {
-    #[inline]
     fn deserialize_with(id: &ArchivedId<T>, _: &mut D) -> Result<Id<T>, <D as Fallible>::Error> {
         Ok(Id::from(id.into_nonzero()))
     }
