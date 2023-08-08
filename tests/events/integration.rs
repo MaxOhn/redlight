@@ -19,8 +19,9 @@ use twilight_model::{
 };
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedIntegration, Ignore},
-    rkyv_util::integration::{
-        GuildIntegrationTypeRkyv, IntegrationAccountRkyv, IntegrationExpireBehaviorRkyv,
+    rkyv_util::{
+        integration::{GuildIntegrationTypeRkyv, IntegrationAccountRkyv},
+        util::RkyvAsU8,
     },
     CacheError, RedisCache,
 };
@@ -52,7 +53,7 @@ async fn test_integration() -> Result<(), CacheError> {
     struct CachedIntegration<'a> {
         #[with(IntegrationAccountRkyv)]
         account: &'a IntegrationAccount,
-        #[with(Map<IntegrationExpireBehaviorRkyv>)]
+        #[with(Map<RkyvAsU8>)]
         expire_behavior: Option<IntegrationExpireBehavior>,
         #[with(GuildIntegrationTypeRkyv)]
         kind: &'a GuildIntegrationType,

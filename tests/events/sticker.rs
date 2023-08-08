@@ -18,7 +18,7 @@ use twilight_model::{
 };
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedSticker, Ignore},
-    rkyv_util::sticker::{StickerFormatTypeRkyv, StickerTypeRkyv},
+    rkyv_util::util::RkyvAsU8,
     CacheError, RedisCache,
 };
 
@@ -49,9 +49,9 @@ async fn test_stickers() -> Result<(), CacheError> {
     struct CachedSticker<'a> {
         #[with(Map<RefAsBox>)]
         description: Option<&'a str>,
-        #[with(StickerFormatTypeRkyv)]
+        #[with(RkyvAsU8)]
         format_type: StickerFormatType,
-        #[with(StickerTypeRkyv)]
+        #[with(RkyvAsU8)]
         kind: StickerType,
     }
 

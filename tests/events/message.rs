@@ -24,7 +24,7 @@ use twilight_model::{
 };
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore},
-    rkyv_util::{flags::BitflagsRkyv, message::MessageTypeRkyv},
+    rkyv_util::{flags::BitflagsRkyv, util::RkyvAsU8},
     CacheError, CachedArchive, RedisCache,
 };
 
@@ -57,7 +57,7 @@ async fn test_message() -> Result<(), CacheError> {
     struct CachedMessage {
         #[with(Map<BitflagsRkyv>)]
         flags: Option<MessageFlags>,
-        #[with(MessageTypeRkyv)]
+        #[with(RkyvAsU8)]
         kind: MessageType,
     }
 
