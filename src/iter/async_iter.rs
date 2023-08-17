@@ -1,32 +1,40 @@
-use std::{marker::PhantomData, vec::IntoIter};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    mem,
+    mem::MaybeUninit,
+    pin::Pin,
+    task::{Context, Poll},
+    vec::IntoIter,
+};
 
+use futures_util::{stream::StreamExt, Stream};
 use itoa::Buffer;
+use pin_project::pin_project;
 
 use crate::{
     config::Cacheable,
-    redis::{AsyncCommands, Connection},
+    redis::{
+        aio::ConnectionLike, Cmd, Connection, FromRedisValue, RedisFuture, RedisResult, Value,
+    },
     CacheError, CacheResult, CachedArchive,
 };
 
+#[pin_project(project = AsyncIterProj)]
 pub struct AsyncIter<'c, T> {
-    conn: Connection<'c>,
     ids: IntoIter<u64>,
-    phantom: PhantomData<T>,
     itoa_buf: Buffer,
     key_prefix_len: usize,
     key_buf: Vec<u8>,
+    next: Next,
+    #[pin]
+    data: Box<StaticData<'c>>,
+    _phantom: PhantomData<T>,
 }
 
 impl<'c, T: Cacheable> AsyncIter<'c, T> {
     pub(crate) fn new(conn: Connection<'c>, ids: Vec<u64>, key_prefix: Vec<u8>) -> Self {
-        Self {
-            conn,
-            ids: ids.into_iter(),
-            phantom: PhantomData,
-            itoa_buf: Buffer::new(),
-            key_prefix_len: key_prefix.len(),
-            key_buf: key_prefix,
-        }
+        Self::new_with_buf(conn, ids, key_prefix, Buffer::new())
     }
 
     pub(crate) fn new_with_buf(
@@ -36,37 +44,139 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
         itoa_buf: Buffer,
     ) -> Self {
         Self {
-            conn,
             ids: ids.into_iter(),
-            phantom: PhantomData,
             itoa_buf,
             key_prefix_len: key_prefix.len(),
             key_buf: key_prefix,
+            next: Next::Create,
+            data: Box::new(StaticData::new(conn)),
+            _phantom: PhantomData,
         }
     }
 
     pub async fn next_item(&mut self) -> Option<CacheResult<CachedArchive<T>>> {
+        self.next().await
+    }
+
+    pub fn skip(mut self, n: usize) -> Self {
+        self.ids.by_ref().skip(n).for_each(|_| ());
+
+        self
+    }
+
+    fn next_fut(
+        ids: &mut IntoIter<u64>,
+        itoa_buf: &mut Buffer,
+        key_prefix_len: usize,
+        key_buf: &mut Vec<u8>,
+        mut data: Pin<&mut Box<StaticData<'_>>>,
+    ) -> Option<RedisFuture<'static, Value>> {
+        // SAFETY:
+        // The original `Cmd` and `Connection` come from `StaticData`
+        // which is boxed, ensuring that fields won't move.
+        // We also know that the resulting future lives at most as long as that
+        // Box so it is fine for us to consider the lifetime as static.
+        fn extend_cmd_lifetime(cmd: &Cmd) -> &'static Cmd {
+            unsafe { &*(cmd as *const _) }
+        }
+
+        fn extend_conn_lifetime(conn: &mut Connection<'_>) -> &'static mut Connection<'static> {
+            unsafe { &mut *(conn as *mut Connection<'_>).cast::<Connection<'static>>() }
+        }
+
+        let id = ids.next()?;
+
+        key_buf.truncate(key_prefix_len);
+        let id = itoa_buf.format(id);
+        key_buf.extend_from_slice(id.as_bytes());
+        let cmd = Cmd::get(key_buf.as_slice());
+
+        let cmd = data.cmd.write(cmd);
+        let cmd = extend_cmd_lifetime(cmd);
+
+        let conn = extend_conn_lifetime(&mut data.conn);
+
+        Some(conn.req_packed_command(cmd))
+    }
+}
+
+impl<'c, T: Cacheable> Stream for AsyncIter<'c, T> {
+    type Item = CacheResult<CachedArchive<T>>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let AsyncIterProj {
+            ids,
+            itoa_buf,
+            key_prefix_len: len,
+            key_buf,
+            next,
+            mut data,
+            _phantom,
+        } = self.project();
+
         loop {
-            let id = self.ids.next()?;
+            match next {
+                Next::Create => match Self::next_fut(ids, itoa_buf, *len, key_buf, data.as_mut()) {
+                    Some(fut) => *next = Next::InFlight(fut),
+                    None => {
+                        *next = Next::Completed;
 
-            self.key_buf.truncate(self.key_prefix_len);
-            let id = self.itoa_buf.format(id);
-            self.key_buf.extend_from_slice(id.as_bytes());
+                        return Poll::Ready(None);
+                    }
+                },
+                Next::InFlight(fut) => match Pin::new(fut).poll(cx) {
+                    Poll::Ready(res) => *next = Next::Ready(res),
+                    Poll::Pending => return Poll::Pending,
+                },
+                Next::Ready(res) => {
+                    let res = mem::replace(res, Ok(Value::Nil));
+                    *next = Next::Create;
 
-            let key = self.key_buf.as_slice();
+                    match res.and_then(|value| Option::<Vec<u8>>::from_redis_value(&value)) {
+                        Ok(Some(bytes)) => {
+                            let bytes = bytes.into_boxed_slice();
 
-            let res = match self.conn.get::<_, Option<Vec<u8>>>(key).await {
-                #[cfg(feature = "validation")]
-                Ok(Some(bytes)) => CachedArchive::new(bytes.into_boxed_slice()),
-                #[cfg(not(feature = "validation"))]
-                Ok(Some(bytes)) => Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice())),
-                Ok(None) => continue,
-                Err(err) => Err(CacheError::Redis(err)),
-            };
+                            #[cfg(feature = "validation")]
+                            let archived_res = CachedArchive::new(bytes);
 
-            return Some(res);
+                            #[cfg(not(feature = "validation"))]
+                            let archived_res = Ok(CachedArchive::new_unchecked(bytes));
+
+                            return Poll::Ready(Some(archived_res));
+                        }
+                        Ok(None) => {}
+                        Err(err) => return Poll::Ready(Some(Err(CacheError::Redis(err)))),
+                    }
+                }
+                Next::Completed => panic!("poll after future completed"),
+            }
         }
     }
 
-    // TODO: implement .nth, .skip, ... efficiently
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, max) = self.ids.size_hint();
+
+        (0, max)
+    }
+}
+
+enum Next {
+    Create,
+    InFlight(RedisFuture<'static, Value>),
+    Ready(RedisResult<Value>),
+    Completed,
+}
+
+pub struct StaticData<'c> {
+    conn: Connection<'c>,
+    cmd: MaybeUninit<Cmd>,
+}
+
+impl<'c> StaticData<'c> {
+    pub fn new(conn: Connection<'c>) -> Self {
+        Self {
+            conn,
+            cmd: MaybeUninit::uninit(),
+        }
+    }
 }
