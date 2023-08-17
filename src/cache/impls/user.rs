@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{gateway::payload::incoming::invite_create::PartialUser, user::User};
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
 type UserSerializer<'a, C> = <<C as CacheConfig>::User<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_user(&self, pipe: &mut Pipe<'_, C>, user: &User) -> CacheResult<()> {
         if !C::User::WANTED {
             return Ok(());
@@ -25,6 +27,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::User(Box::new(e)))?;
 
+        trace!(bytes = bytes.len());
+
         pipe.set(key, bytes.as_ref(), C::User::expire_seconds())
             .ignore();
 
@@ -34,6 +38,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_users<'a, I>(&self, pipe: &mut Pipe<'_, C>, users: I) -> CacheResult<()>
     where
         I: IntoIterator<Item = &'a User>,
@@ -54,6 +59,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 let bytes = user
                     .serialize_with(&mut serializer)
                     .map_err(|e| SerializeError::User(Box::new(e)))?;
+
+                trace!(bytes = bytes.len());
 
                 Ok(((key, BytesArg(bytes)), id.get()))
             })

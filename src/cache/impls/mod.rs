@@ -12,6 +12,7 @@ mod sticker;
 mod user;
 mod voice_state;
 
+use tracing::instrument;
 use twilight_model::{
     application::interaction::{Interaction, InteractionData},
     guild::UnavailableGuild,
@@ -23,6 +24,7 @@ use crate::{config::CacheConfig, key::RedisKey, CacheResult, RedisCache};
 use super::pipe::Pipe;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_interaction(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -59,6 +61,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_unavailable_guild(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -72,6 +75,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_unavailable_guilds(
         &self,
         pipe: &mut Pipe<'_, C>,

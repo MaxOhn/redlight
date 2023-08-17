@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     gateway::payload::incoming::GuildUpdate,
     guild::Guild,
@@ -13,6 +14,7 @@ use crate::{
 };
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_guild(&self, pipe: &mut Pipe<'_, C>, guild: &Guild) -> CacheResult<()> {
         if C::Guild::WANTED {
             let guild_id = guild.id;
@@ -22,6 +24,8 @@ impl<C: CacheConfig> RedisCache<C> {
             let bytes = guild
                 .serialize()
                 .map_err(|e| SerializeError::Guild(Box::new(e)))?;
+
+            trace!(bytes = bytes.len());
 
             pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
                 .ignore();
@@ -46,6 +50,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_guild_update(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -80,6 +85,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Guild { id: guild_id };
         let bytes = guild.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Guild::expire_seconds()).ignore();
 
         Ok(())

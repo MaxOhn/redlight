@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     gateway::presence::{Presence, UserOrId},
     id::{marker::GuildMarker, Id},
@@ -15,6 +16,7 @@ use crate::{
 type PresenceSerializer<'a, C> = <<C as CacheConfig>::Presence<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_presence(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -33,6 +35,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Presence(Box::new(e)))?;
 
+            trace!(bytes = bytes.len());
+
             pipe.set(key, bytes.as_ref(), C::Presence::expire_seconds())
                 .ignore();
 
@@ -47,6 +51,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_presences(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -70,6 +75,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     let bytes = presence
                         .serialize_with(&mut serializer)
                         .map_err(|e| SerializeError::Presence(Box::new(e)))?;
+
+                    trace!(bytes = bytes.len());
 
                     Ok(((key, BytesArg(bytes)), user_id.get()))
                 })

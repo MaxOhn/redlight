@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     guild::Emoji,
     id::{marker::GuildMarker, Id},
@@ -15,6 +16,7 @@ use crate::{
 type EmojiSerializer<'a, C> = <<C as CacheConfig>::Emoji<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_emojis(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -37,6 +39,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 let bytes = emoji
                     .serialize_with(&mut serializer)
                     .map_err(|e| SerializeError::Emoji(Box::new(e)))?;
+
+                trace!(bytes = bytes.len());
 
                 Ok(((key, BytesArg(bytes)), id.get()))
             })

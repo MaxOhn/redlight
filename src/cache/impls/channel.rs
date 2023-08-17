@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     channel::Channel,
     gateway::payload::incoming::ChannelPinsUpdate,
@@ -19,6 +20,7 @@ use crate::{
 type ChannelSerializer<'a, C> = <<C as CacheConfig>::Channel<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_channel(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -33,6 +35,8 @@ impl<C: CacheConfig> RedisCache<C> {
             let bytes = channel
                 .serialize()
                 .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+
+            trace!(bytes = bytes.len());
 
             pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
                 .ignore();
@@ -63,6 +67,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_channel_pins_update(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -89,12 +94,15 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Channel {
             id: update.channel_id,
         };
+
         let bytes = channel.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Channel::expire_seconds()).ignore();
 
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_channels(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -114,6 +122,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     let bytes = channel
                         .serialize_with(&mut serializer)
                         .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+
+                    trace!(bytes = bytes.len());
 
                     Ok(((key, BytesArg(bytes)), id.get()))
                 })

@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     id::{
         marker::{ChannelMarker, GuildMarker, UserMarker},
@@ -18,6 +19,7 @@ use crate::{
 type VoiceStateSerializer<'a, C> = <<C as CacheConfig>::VoiceState<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_voice_state(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -40,6 +42,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::VoiceState(Box::new(e)))?;
 
+            trace!(bytes = bytes.len());
+
             pipe.set(key, bytes.as_ref(), C::VoiceState::expire_seconds())
                 .ignore();
 
@@ -54,6 +58,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_voice_states(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -81,7 +86,11 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 let res = voice_state
                     .serialize_with(&mut serializer)
-                    .map(|bytes| ((key, BytesArg(bytes)), user_id.get()))
+                    .map(|bytes| {
+                        trace!(bytes = bytes.len());
+
+                        ((key, BytesArg(bytes)), user_id.get())
+                    })
                     .map_err(|e| {
                         CacheError::Serialization(SerializeError::VoiceState(Box::new(e)))
                     });

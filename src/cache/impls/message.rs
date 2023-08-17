@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     channel::Message,
     gateway::payload::incoming::MessageUpdate,
@@ -13,6 +14,7 @@ use crate::{
 };
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_message(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -25,6 +27,8 @@ impl<C: CacheConfig> RedisCache<C> {
             let bytes = msg
                 .serialize()
                 .map_err(|e| SerializeError::Message(Box::new(e)))?;
+
+            trace!(bytes = bytes.len());
 
             pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
                 .ignore();
@@ -51,6 +55,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_message_update(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -78,11 +83,13 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn handle_reaction(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -107,6 +114,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 
         Ok(())

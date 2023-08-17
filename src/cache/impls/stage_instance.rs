@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     channel::StageInstance,
     id::{
@@ -19,6 +20,7 @@ type StageInstanceSerializer<'a, C> =
     <<C as CacheConfig>::StageInstance<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_stage_instance(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -39,6 +41,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::StageInstance(Box::new(e)))?;
 
+        trace!(bytes = bytes.len());
+
         pipe.set(key, bytes.as_ref(), C::StageInstance::expire_seconds())
             .ignore();
 
@@ -51,6 +55,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_stage_instances(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -69,9 +74,12 @@ impl<C: CacheConfig> RedisCache<C> {
                 let id = stage_instance.id;
                 let key = RedisKey::StageInstance { id };
                 let stage_instance = C::StageInstance::from_stage_instance(stage_instance);
+
                 let bytes = stage_instance
                     .serialize_with(&mut serializer)
                     .map_err(|e| SerializeError::StageInstance(Box::new(e)))?;
+
+                trace!(bytes = bytes.len());
 
                 Ok(((key, BytesArg(bytes)), id.get()))
             })

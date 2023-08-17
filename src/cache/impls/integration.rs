@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     guild::GuildIntegration,
     id::{
@@ -15,6 +16,7 @@ use crate::{
 };
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_integration(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -32,6 +34,8 @@ impl<C: CacheConfig> RedisCache<C> {
             let bytes = integration
                 .serialize()
                 .map_err(|e| SerializeError::Integration(Box::new(e)))?;
+
+            trace!(bytes = bytes.len());
 
             pipe.set(key, bytes.as_ref(), C::Integration::expire_seconds())
                 .ignore();

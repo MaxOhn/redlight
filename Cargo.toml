@@ -19,11 +19,13 @@ itoa = { version = "1.0", default-features = false }
 pin-project = { version = "1.1", default-features = false }
 rkyv = { version = "0.7", default-features = false, features = ["size_32", "std", "strict"] }
 thiserror = { version = "1.0", default-features = false }
+tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 twilight-model = { version = "0.15", default-features = false }
 
 [dev-dependencies]
 dotenvy = { version = "0.15" }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 
 [[test]]
 name = "integration"

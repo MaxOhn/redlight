@@ -1,3 +1,5 @@
+use tracing::{instrument, trace};
+
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
@@ -22,7 +24,13 @@ impl<'c, C> Pipe<'c, C> {
         }
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.pipe.cmd_iter().count()
+    }
+
     pub(crate) async fn query<T: FromRedisValue>(&mut self) -> CacheResult<T> {
+        trace!(conn_ready = self.conn.is_some(), piped = self.len());
+
         let conn = match self.conn.as_mut() {
             Some(conn) => conn,
             None => self.conn.insert(self.cache.connection().await?),
@@ -101,10 +109,13 @@ impl<'c, C> Pipe<'c, C> {
 }
 
 impl<'c, C: CacheConfig> Pipe<'c, C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedArchive<T>>>
     where
         T: Cacheable,
     {
+        trace!(conn_ready = self.conn.is_some());
+
         let conn = match self.conn.as_mut() {
             Some(conn) => conn,
             None => self.conn.insert(self.cache.connection().await?),

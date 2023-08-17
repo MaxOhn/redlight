@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::user::CurrentUser;
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
 };
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_current_user(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -24,6 +26,8 @@ impl<C: CacheConfig> RedisCache<C> {
         let bytes = current_user
             .serialize()
             .map_err(|e| SerializeError::CurrentUser(Box::new(e)))?;
+
+        trace!(bytes = bytes.len());
 
         pipe.set(key, bytes.as_ref(), C::CurrentUser::expire_seconds())
             .ignore();

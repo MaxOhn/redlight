@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     guild::Role,
     id::{
@@ -18,6 +19,7 @@ use crate::{
 type RoleSerializer<'a, C> = <<C as CacheConfig>::Role<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_role(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -36,6 +38,8 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::Role(Box::new(e)))?;
 
+        trace!(bytes = bytes.len());
+
         pipe.set(key, bytes.as_ref(), C::Role::expire_seconds())
             .ignore();
 
@@ -48,6 +52,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_roles<'a, I>(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -73,6 +78,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 let bytes = role
                     .serialize_with(&mut serializer)
                     .map_err(|e| SerializeError::Role(Box::new(e)))?;
+
+                trace!(bytes = bytes.len());
 
                 Ok(((key, BytesArg(bytes)), id.get()))
             })

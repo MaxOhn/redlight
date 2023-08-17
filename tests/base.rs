@@ -2,6 +2,8 @@ mod events;
 
 use std::{env, sync::OnceLock};
 
+use tracing_subscriber::EnvFilter;
+
 #[cfg(feature = "bb8")]
 type Pool = bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>;
 
@@ -13,6 +15,12 @@ static POOL: OnceLock<Pool> = OnceLock::new();
 pub fn pool() -> Pool {
     fn redis_url() -> String {
         dotenvy::dotenv().unwrap();
+
+        tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_env_filter(EnvFilter::from_default_env())
+            .compact()
+            .init();
 
         env::var("REDIS_URL").unwrap_or_else(|_| {
             panic!(

@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use twilight_model::{
     gateway::payload::incoming::MemberUpdate,
     guild::{Member, PartialMember},
@@ -19,6 +20,7 @@ use crate::{
 type MemberSerializer<'a, C> = <<C as CacheConfig>::Member<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_member(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -37,6 +39,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Member(Box::new(e)))?;
 
+            trace!(bytes = bytes.len());
+
             pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
                 .ignore();
 
@@ -54,6 +58,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_member_update(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -99,11 +104,13 @@ impl<C: CacheConfig> RedisCache<C> {
         };
 
         let bytes = member.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
 
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn store_members(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -126,6 +133,8 @@ impl<C: CacheConfig> RedisCache<C> {
                     let bytes = member
                         .serialize_with(&mut serializer)
                         .map_err(|e| SerializeError::Member(Box::new(e)))?;
+
+                    trace!(bytes = bytes.len());
 
                     Ok(((key, BytesArg(bytes)), user_id.get()))
                 })
@@ -159,6 +168,7 @@ impl<C: CacheConfig> RedisCache<C> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn store_partial_member(
         &self,
         pipe: &mut Pipe<'_, C>,
@@ -206,6 +216,7 @@ impl<C: CacheConfig> RedisCache<C> {
         };
 
         let bytes = member.into_bytes();
+        trace!(bytes = bytes.len());
         pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
 
         Ok(())

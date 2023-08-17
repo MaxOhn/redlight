@@ -4,6 +4,7 @@ mod pipe;
 
 use std::marker::PhantomData;
 
+use tracing::instrument;
 use twilight_model::gateway::event::Event;
 
 use crate::{
@@ -65,9 +66,8 @@ impl<C> RedisCache<C> {
 }
 
 impl<C: CacheConfig> RedisCache<C> {
+    #[instrument(skip_all, fields(event = ?event.kind()))]
     pub async fn update(&self, event: &Event) -> CacheResult<()> {
-        let start = std::time::Instant::now();
-
         let mut pipe = Pipe::new(self);
 
         match event {
@@ -246,9 +246,6 @@ impl<C: CacheConfig> RedisCache<C> {
         if !pipe.is_empty() {
             pipe.query::<()>().await?;
         }
-
-        let elapsed = start.elapsed();
-        println!("{:?}: {elapsed:.2?}", event.kind());
 
         Ok(())
     }
