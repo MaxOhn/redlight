@@ -3,7 +3,7 @@ use tracing::{instrument, trace};
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
-    redis::{AsyncCommands, FromRedisValue, Pipeline, ToRedisArgs},
+    redis::{Cmd, FromRedisValue, Pipeline, ToRedisArgs},
     CacheResult, CachedArchive, RedisCache,
 };
 
@@ -121,7 +121,7 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
             None => self.conn.insert(self.cache.connection().await?),
         };
 
-        let bytes: Vec<u8> = conn.get(key).await?;
+        let bytes: Vec<u8> = Cmd::get(key).query_async(conn).await?;
 
         if bytes.is_empty() {
             return Ok(None);

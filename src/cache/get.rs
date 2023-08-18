@@ -11,7 +11,7 @@ use twilight_model::id::{
 use crate::{
     config::CacheConfig,
     key::RedisKey,
-    redis::{AsyncCommands, FromRedisValue},
+    redis::{Cmd, FromRedisValue},
     CacheError, CacheResult, CachedArchive, RedisCache,
 };
 
@@ -205,7 +205,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn unavailable_guilds_count(&self) -> CacheResult<usize> {
         let mut conn = self.connection().await?;
         let key = RedisKey::UnavailableGuilds;
-        let count = conn.scard(key).await?;
+        let count = Cmd::scard(key).query_async(&mut conn).await?;
 
         Ok(count)
     }
@@ -241,7 +241,7 @@ impl<C: CacheConfig> RedisCache<C> {
         V: crate::config::Cacheable,
     {
         let mut conn = self.connection().await?;
-        let bytes: Vec<u8> = conn.get(RedisKey::from(key)).await?;
+        let bytes: Vec<u8> = Cmd::get(RedisKey::from(key)).query_async(&mut conn).await?;
 
         if bytes.is_empty() {
             return Ok(None);
@@ -256,7 +256,7 @@ impl<C: CacheConfig> RedisCache<C> {
         RedisKey: From<K>,
     {
         let mut conn = self.connection().await?;
-        let bytes: Vec<u8> = conn.get(RedisKey::from(key)).await?;
+        let bytes: Vec<u8> = Cmd::get(RedisKey::from(key)).query_async(&mut conn).await?;
 
         if bytes.is_empty() {
             return Ok(None);
@@ -278,7 +278,10 @@ impl<C: CacheConfig> RedisCache<C> {
     where
         T: FromRedisValue,
     {
-        conn.smembers(key).await.map_err(CacheError::Redis)
+        Cmd::smembers(key)
+            .query_async(conn)
+            .await
+            .map_err(CacheError::Redis)
     }
 }
 
