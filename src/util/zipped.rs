@@ -13,9 +13,7 @@ impl<L, R> ZippedVecs<L, R> {
 
 impl<L, R> FromIterator<(L, R)> for ZippedVecs<L, R> {
     fn from_iter<T: IntoIterator<Item = (L, R)>>(iter: T) -> Self {
-        let mut vecs = (Vec::new(), Vec::new());
-        vecs.extend(iter);
-        let (left, right) = vecs;
+        let (left, right) = iter.into_iter().unzip();
 
         Self { left, right }
     }
