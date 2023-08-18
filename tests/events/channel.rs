@@ -130,7 +130,7 @@ async fn test_channel() -> Result<(), CacheError> {
 
             name.as_deref() == other.name.as_deref()
                 && *id == other.id
-                && *kind == other.kind.into()
+                && *kind == u8::from(other.kind)
                 && *last_pin_timestamp
                     == other
                         .last_pin_timestamp

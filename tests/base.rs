@@ -1,3 +1,4 @@
+mod cold_resume;
 mod events;
 
 use std::{env, sync::OnceLock};

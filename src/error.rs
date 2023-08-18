@@ -23,6 +23,17 @@ pub enum CacheError {
     #[error("cached bytes did not correspond to the cached type")]
     Validation(#[source] Box<dyn StdError>),
 
+    #[cfg(feature = "cold_resume")]
+    #[error("failed to serialize sessions")]
+    SerializeSessions(
+        #[source]
+        rkyv::ser::serializers::CompositeSerializerError<
+            std::convert::Infallible,
+            rkyv::ser::serializers::FixedSizeScratchError,
+            std::convert::Infallible,
+        >,
+    ),
+
     #[error("received invalid response from redis")]
     InvalidResponse,
     #[error("redis error")]

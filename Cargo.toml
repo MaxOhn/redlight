@@ -9,6 +9,7 @@ default = ["bb8", "validation"]
 bb8 = ["dep:bb8-redis"]
 deadpool = ["dep:deadpool-redis"]
 validation = ["dep:bytecheck", "rkyv/validation"]
+cold_resume = ["dep:twilight-gateway"]
 
 [dependencies]
 bb8-redis = { version = "0.13", default-features = false, optional = true }
@@ -20,6 +21,7 @@ pin-project = { version = "1.1", default-features = false }
 rkyv = { version = "0.7", default-features = false, features = ["size_32", "std", "strict"] }
 thiserror = { version = "1.0", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
+twilight-gateway = { version = "0.15", default-features = false, optional = true }
 twilight-model = { version = "0.15", default-features = false }
 
 [dev-dependencies]

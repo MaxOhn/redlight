@@ -1,3 +1,4 @@
+mod cold_resume;
 mod get;
 mod impls;
 mod pipe;

@@ -76,8 +76,8 @@ async fn test_stickers() -> Result<(), CacheError> {
     impl PartialEq<Sticker> for ArchivedCachedSticker<'_> {
         fn eq(&self, other: &Sticker) -> bool {
             self.description.as_deref() == other.description.as_deref()
-                && self.format_type == other.format_type.into()
-                && self.kind == other.kind.into()
+                && self.format_type == u8::from(other.format_type)
+                && self.kind == u8::from(other.kind)
         }
     }
 

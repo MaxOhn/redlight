@@ -71,6 +71,8 @@ pub(crate) enum RedisKey {
         id: Id<RoleMarker>,
     },
     Roles,
+    #[cfg(feature = "cold_resume")]
+    Sessions,
     StageInstance {
         id: Id<StageMarker>,
     },
@@ -116,6 +118,8 @@ impl RedisKey {
     pub(crate) const PRESENCE_PREFIX: &[u8] = b"PRESENCE";
     pub(crate) const ROLE_PREFIX: &[u8] = b"ROLE";
     pub(crate) const ROLES_PREFIX: &[u8] = b"ROLES";
+    #[cfg(feature = "cold_resume")]
+    pub(crate) const SESSIONS_PREFIX: &[u8] = b"SESSIONS";
     pub(crate) const STAGE_INSTANCE_PREFIX: &[u8] = b"STAGE_INSTANCE";
     pub(crate) const STAGE_INSTANCES_PREFIX: &[u8] = b"STAGE_INSTANCES";
     pub(crate) const STICKER_PREFIX: &[u8] = b"STICKER";
@@ -221,10 +225,10 @@ impl ToRedisArgs for RedisKey {
 
         let bytes = match self {
             Self::Channel { id } => name_id(Self::CHANNEL_PREFIX, id),
-            Self::Channels => Cow::<[u8]>::Borrowed(Self::CHANNELS_PREFIX),
-            Self::CurrentUser => Cow::<[u8]>::Borrowed(Self::CURRENT_USER_PREFIX),
+            Self::Channels => Cow::Borrowed(Self::CHANNELS_PREFIX),
+            Self::CurrentUser => Cow::Borrowed(Self::CURRENT_USER_PREFIX),
             Self::Emoji { id } => name_id(Self::EMOJI_PREFIX, id),
-            Self::Emojis => Cow::<[u8]>::Borrowed(Self::EMOJIS_PREFIX),
+            Self::Emojis => Cow::Borrowed(Self::EMOJIS_PREFIX),
             Self::Guild { id } => name_id(Self::GUILD_PREFIX, id),
             Self::GuildChannels { id } => name_id(Self::GUILD_CHANNELS_PREFIX, id),
             Self::GuildEmojis { id } => name_id(Self::GUILD_EMOJIS_PREFIX, id),
@@ -235,21 +239,23 @@ impl ToRedisArgs for RedisKey {
             Self::GuildStageInstances { id } => name_id(Self::GUILD_STAGE_INSTANCES_PREFIX, id),
             Self::GuildStickers { id } => name_id(Self::GUILD_STICKERS_PREFIX, id),
             Self::GuildVoiceStates { id } => name_id(Self::GUILD_VOICE_STATES_PREFIX, id),
-            Self::Guilds => Cow::<[u8]>::Borrowed(Self::GUILDS_PREFIX),
+            Self::Guilds => Cow::Borrowed(Self::GUILDS_PREFIX),
             Self::Integration { guild, id } => name_guild_id(Self::INTEGRATION_PREFIX, guild, id),
             Self::Member { user, guild } => name_guild_id(Self::MEMBER_PREFIX, guild, user),
             Self::Message { id } => name_id(Self::MESSAGE_PREFIX, id),
             Self::Presence { guild, user } => name_guild_id(Self::PRESENCE_PREFIX, guild, user),
             Self::Role { id } => name_id(Self::ROLE_PREFIX, id),
-            Self::Roles => Cow::<[u8]>::Borrowed(Self::ROLES_PREFIX),
+            Self::Roles => Cow::Borrowed(Self::ROLES_PREFIX),
+            #[cfg(feature = "cold_resume")]
+            Self::Sessions => Cow::Borrowed(Self::SESSIONS_PREFIX),
             Self::StageInstance { id } => name_id(Self::STAGE_INSTANCE_PREFIX, id),
-            Self::StageInstances => Cow::<[u8]>::Borrowed(Self::STAGE_INSTANCES_PREFIX),
+            Self::StageInstances => Cow::Borrowed(Self::STAGE_INSTANCES_PREFIX),
             Self::Sticker { id } => name_id(Self::STICKER_PREFIX, id),
-            Self::Stickers => Cow::<[u8]>::Borrowed(Self::STICKERS_PREFIX),
-            Self::UnavailableGuilds => Cow::<[u8]>::Borrowed(Self::UNAVAILABLE_GUILDS_PREFIX),
+            Self::Stickers => Cow::Borrowed(Self::STICKERS_PREFIX),
+            Self::UnavailableGuilds => Cow::Borrowed(Self::UNAVAILABLE_GUILDS_PREFIX),
             Self::User { id } => name_id(Self::USER_PREFIX, id),
             Self::UserGuilds { id } => name_id(Self::USER_GUILDS_PREFIX, id),
-            Self::Users => Cow::<[u8]>::Borrowed(Self::USERS_PREFIX),
+            Self::Users => Cow::Borrowed(Self::USERS_PREFIX),
             Self::VoiceState { guild, user } => {
                 name_guild_id(Self::VOICE_STATE_PREFIX, guild, user)
             }
