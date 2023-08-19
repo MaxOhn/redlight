@@ -16,6 +16,9 @@ pub mod rkyv_util;
 /// Types and traits related to serialization.
 pub mod ser;
 
+/// Types related to statistics of the cache.
+pub mod stats;
+
 /// Re-export of redis types and traits.
 pub(crate) mod redis;
 

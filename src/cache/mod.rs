@@ -13,6 +13,7 @@ use crate::{
     config::{CacheConfig, ReactionEvent},
     iter::RedisCacheIter,
     redis::{Connection, Pool},
+    stats::RedisCacheStats,
     CacheError, CacheResult,
 };
 
@@ -59,10 +60,12 @@ impl<C> RedisCache<C> {
         RedisCacheIter::new(self)
     }
 
+    pub fn stats(&self) -> RedisCacheStats<'_> {
+        RedisCacheStats::new(&self.pool)
+    }
+
     pub(crate) async fn connection(&self) -> CacheResult<Connection<'_>> {
-        Connection::get(&self.pool)
-            .await
-            .map_err(CacheError::GetConnection)
+        connection(&self.pool).await
     }
 }
 
@@ -250,4 +253,12 @@ impl<C: CacheConfig> RedisCache<C> {
 
         Ok(())
     }
+}
+
+/// If [`RedisCacheStats`] acquires a connection through [`RedisCache::connection`],
+/// it would add Send + Sync bound restrictions to `C`. This function gets around that bound.
+pub(crate) async fn connection(pool: &Pool) -> CacheResult<Connection<'_>> {
+    Connection::get(pool)
+        .await
+        .map_err(CacheError::GetConnection)
 }

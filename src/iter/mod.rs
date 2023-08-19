@@ -16,13 +16,10 @@ macro_rules! def_getter {
     ( $fn:ident, $ret:ident, $variant:ident, $prefix:ident ) => {
         pub async fn $fn(self) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
             let mut conn = self.cache.connection().await?;
-            let ids =
-                RedisCache::<C>::get_ids_static::<Vec<u64>>(RedisKey::$variant, &mut conn).await?;
+            let ids: Vec<u64> =
+                RedisCache::<C>::get_ids_static(RedisKey::$variant, &mut conn).await?;
 
-            let mut key_prefix = Vec::with_capacity(RedisKey::$prefix.len() + 1);
-            key_prefix.extend_from_slice(RedisKey::$prefix);
-            key_prefix.push(b':');
-
+            let key_prefix = key_prefix_simple(RedisKey::$prefix);
             let iter = AsyncIter::new(conn, ids, key_prefix);
 
             Ok(iter)
@@ -35,21 +32,11 @@ macro_rules! def_getter {
         ) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
             let mut conn = self.cache.connection().await?;
 
-            let ids = RedisCache::<C>::get_ids_static::<Vec<u64>>(
-                RedisKey::$variant { id: guild_id },
-                &mut conn,
-            )
-            .await?;
+            let ids: Vec<u64> =
+                RedisCache::<C>::get_ids_static(RedisKey::$variant { id: guild_id }, &mut conn)
+                    .await?;
 
-            let mut buf = Buffer::new();
-            let guild_id = buf.format(guild_id.get());
-
-            let mut key_prefix = Vec::with_capacity(RedisKey::$prefix.len() + guild_id.len() + 1);
-            key_prefix.extend_from_slice(RedisKey::$prefix);
-            key_prefix.push(b':');
-            key_prefix.extend_from_slice(guild_id.as_bytes());
-            key_prefix.push(b':');
-
+            let (key_prefix, buf) = key_prefix_buffered(RedisKey::$prefix, guild_id);
             let iter = AsyncIter::new_with_buf(conn, ids, key_prefix, buf);
 
             Ok(iter)
@@ -68,6 +55,7 @@ impl<'c, C> RedisCacheIter<'c, C> {
     }
 }
 
+#[rustfmt::skip]
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     // TODO: docs
 
@@ -75,12 +63,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     def_getter!(emojis, Emoji, Emojis, EMOJI_PREFIX);
     def_getter!(guilds, Guild, Guilds, GUILD_PREFIX);
     def_getter!(roles, Role, Roles, ROLE_PREFIX);
-    def_getter!(
-        stage_instances,
-        StageInstance,
-        StageInstances,
-        STAGE_INSTANCE_PREFIX
-    );
+    def_getter!(stage_instances, StageInstance, StageInstances, STAGE_INSTANCE_PREFIX);
     def_getter!(stickers, Sticker, Stickers, STICKER_PREFIX);
     def_getter!(users, User, Users, USER_PREFIX);
 
@@ -102,3 +85,24 @@ impl<'c, C> Clone for RedisCacheIter<'c, C> {
 }
 
 impl<'c, C> Copy for RedisCacheIter<'c, C> {}
+
+fn key_prefix_simple(prefix: &'static [u8]) -> Vec<u8> {
+    let mut key_prefix = Vec::with_capacity(prefix.len() + 1);
+    key_prefix.extend_from_slice(prefix);
+    key_prefix.push(b':');
+
+    key_prefix
+}
+
+fn key_prefix_buffered(prefix: &'static [u8], guild_id: Id<GuildMarker>) -> (Vec<u8>, Buffer) {
+    let mut buf = Buffer::new();
+    let guild_id = buf.format(guild_id.get());
+
+    let mut key_prefix = Vec::with_capacity(prefix.len() + guild_id.len() + 1);
+    key_prefix.extend_from_slice(prefix);
+    key_prefix.push(b':');
+    key_prefix.extend_from_slice(guild_id.as_bytes());
+    key_prefix.push(b':');
+
+    (key_prefix, buf)
+}
