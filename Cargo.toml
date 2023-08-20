@@ -5,7 +5,7 @@ edition = "2021"
 autotests = false
 
 [features]
-default = ["bb8", "validation", "metrics"]
+default = ["bb8", "validation"]
 bb8 = ["dep:bb8-redis"]
 deadpool = ["dep:deadpool-redis"]
 validation = ["dep:bytecheck", "rkyv/validation"]
