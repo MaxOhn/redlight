@@ -11,6 +11,9 @@ pub enum CacheError {
     #[cfg(feature = "bb8")]
     #[error("failed to get a connection")]
     GetConnection(#[source] bb8_redis::bb8::RunError<crate::redis::RedisError>),
+    #[cfg(feature = "bb8")]
+    #[error("failed to acquire a connection for metrics")]
+    MetricsConnection(#[source] crate::redis::RedisError),
 
     #[cfg(feature = "deadpool")]
     #[error("failed to create redis pool")]
@@ -18,6 +21,9 @@ pub enum CacheError {
     #[cfg(feature = "deadpool")]
     #[error("failed to get a connection")]
     GetConnection(#[source] deadpool_redis::PoolError),
+    #[cfg(feature = "deadpool")]
+    #[error("failed to acquire a connection for metrics")]
+    MetricsConnection(#[source] deadpool_redis::PoolError),
 
     #[cfg(feature = "validation")]
     #[error("cached bytes did not correspond to the cached type")]

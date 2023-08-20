@@ -35,6 +35,9 @@ async fn test_channel() -> Result<(), CacheError> {
     struct Config;
 
     impl CacheConfig for Config {
+        #[cfg(feature = "metrics")]
+        const METRICS_INTERVAL_DURATION: std::time::Duration = std::time::Duration::from_secs(60);
+
         type Channel<'a> = CachedChannel<'a>;
         type CurrentUser<'a> = Ignore;
         type Emoji<'a> = Ignore;
@@ -140,7 +143,7 @@ async fn test_channel() -> Result<(), CacheError> {
         }
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool());
+    let cache = RedisCache::<Config>::with_pool(pool()).await?;
 
     let mut expected = text_channel();
 

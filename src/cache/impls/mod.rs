@@ -19,7 +19,11 @@ use twilight_model::{
     id::{marker::GuildMarker, Id},
 };
 
-use crate::{config::CacheConfig, key::RedisKey, CacheResult, RedisCache};
+use crate::{
+    config::{CacheConfig, Cacheable},
+    key::RedisKey,
+    CacheResult, RedisCache,
+};
 
 use super::pipe::Pipe;
 
@@ -69,8 +73,10 @@ impl<C: CacheConfig> RedisCache<C> {
     ) -> CacheResult<()> {
         self.delete_guild(pipe, guild_id).await?;
 
-        let key = RedisKey::UnavailableGuilds;
-        pipe.sadd(key, guild_id.get()).ignore();
+        if C::Guild::WANTED {
+            let key = RedisKey::UnavailableGuilds;
+            pipe.sadd(key, guild_id.get()).ignore();
+        }
 
         Ok(())
     }
@@ -88,8 +94,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         self.delete_guilds(pipe, &guild_ids).await?;
 
-        let key = RedisKey::UnavailableGuilds;
-        pipe.sadd(key, guild_ids.as_slice()).ignore();
+        if C::Guild::WANTED {
+            let key = RedisKey::UnavailableGuilds;
+            pipe.sadd(key, guild_ids.as_slice()).ignore();
+        }
 
         Ok(())
     }
