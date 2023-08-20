@@ -7,6 +7,7 @@ use std::{
 use rkyv::{
     ser::serializers::AlignedSerializer, AlignedVec, Archive, Deserialize, Infallible, Serialize,
 };
+use serial_test::serial;
 use twilight_model::{
     gateway::{
         event::Event,
@@ -27,6 +28,7 @@ use crate::{events::message::message, pool};
 use super::user::user;
 
 #[tokio::test]
+#[serial]
 async fn test_member() -> Result<(), CacheError> {
     struct Config;
 

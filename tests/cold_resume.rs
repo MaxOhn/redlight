@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, iter, time::Duration};
 
+use serial_test::serial;
 use twilight_gateway::Session;
 use twilight_redis::{
     config::{CacheConfig, Ignore},
@@ -11,6 +12,7 @@ use twilight_redis::{
 use crate::pool;
 
 #[tokio::test]
+#[serial]
 async fn test_cold_resume() -> Result<(), CacheError> {
     struct Config;
 

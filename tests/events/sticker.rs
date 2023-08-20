@@ -8,6 +8,7 @@ use rkyv::{
     with::{Map, RefAsBox},
     AlignedVec, Archive, Serialize,
 };
+use serial_test::serial;
 use twilight_model::{
     channel::message::{
         sticker::{StickerFormatType, StickerType},
@@ -25,6 +26,7 @@ use twilight_redis::{
 use crate::pool;
 
 #[tokio::test]
+#[serial]
 async fn test_stickers() -> Result<(), CacheError> {
     struct Config;
 

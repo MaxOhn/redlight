@@ -3,6 +3,7 @@ use rkyv::{
     with::{Map, RefAsBox},
     Archive, Serialize,
 };
+use serial_test::serial;
 use twilight_model::{
     gateway::{event::Event, payload::incoming::UserUpdate},
     id::{marker::UserMarker, Id},
@@ -18,6 +19,7 @@ use twilight_redis::{
 use crate::pool;
 
 #[tokio::test]
+#[serial]
 async fn test_current_user() -> Result<(), CacheError> {
     struct Config;
 

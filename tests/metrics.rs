@@ -11,6 +11,7 @@ use std::{
 use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
 use redis::Cmd;
 use rkyv::{ser::serializers::AllocSerializer, Archive, Serialize};
+use serial_test::serial;
 use twilight_model::{
     channel::{message::Sticker, Channel},
     gateway::{
@@ -35,6 +36,7 @@ use bb8_redis::redis;
 use deadpool_redis::redis;
 
 #[tokio::test]
+#[serial]
 async fn test_metrics() -> Result<(), CacheError> {
     struct Config;
 

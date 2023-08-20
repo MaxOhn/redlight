@@ -5,6 +5,7 @@ use std::{
 };
 
 use rkyv::{ser::serializers::AllocSerializer, with::Map, Archive, Serialize};
+use serial_test::serial;
 use twilight_model::{
     channel::{
         message::{
@@ -33,6 +34,7 @@ use crate::pool;
 use super::{member::partial_member, user::user};
 
 #[tokio::test]
+#[serial]
 async fn test_message() -> Result<(), CacheError> {
     struct Config;
 

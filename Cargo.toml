@@ -29,6 +29,7 @@ twilight-model = { version = "0.15", default-features = false }
 
 [dev-dependencies]
 dotenvy = { version = "0.15" }
+serial_test = { version = "2.0", default-features = false, features = ["async", "file_locks"] }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 
