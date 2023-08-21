@@ -1,7 +1,7 @@
 use rkyv::{
-    ser::serializers::AllocSerializer,
+    ser::serializers::AlignedSerializer,
     with::{Map, RefAsBox},
-    Archive, Serialize,
+    AlignedVec, Archive, Serialize,
 };
 use serial_test::serial;
 use twilight_model::{
@@ -64,7 +64,7 @@ async fn test_current_user() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedCurrentUser<'_> {
-        type Serializer = AllocSerializer<0>;
+        type Serializer = AlignedSerializer<AlignedVec>;
 
         fn expire_seconds() -> Option<usize> {
             None

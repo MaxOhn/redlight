@@ -5,7 +5,7 @@ use std::{
 };
 
 use rkyv::{
-    ser::serializers::AlignedSerializer, AlignedVec, Archive, Deserialize, Infallible, Serialize,
+    ser::serializers::BufferSerializer, AlignedBytes, Archive, Deserialize, Infallible, Serialize,
 };
 use serial_test::serial;
 use twilight_model::{
@@ -92,7 +92,7 @@ async fn test_member() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedMember {
-        type Serializer = AlignedSerializer<AlignedVec>;
+        type Serializer = BufferSerializer<AlignedBytes<16>>;
 
         fn expire_seconds() -> Option<usize> {
             None

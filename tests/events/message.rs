@@ -4,7 +4,7 @@ use std::{
     ops::Deref,
 };
 
-use rkyv::{ser::serializers::AllocSerializer, with::Map, Archive, Serialize};
+use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
     channel::{
@@ -96,7 +96,7 @@ async fn test_message() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedMessage {
-        type Serializer = AllocSerializer<32>;
+        type Serializer = BufferSerializer<AlignedBytes<24>>;
 
         fn expire_seconds() -> Option<usize> {
             None

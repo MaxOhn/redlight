@@ -5,9 +5,11 @@ use std::{
 };
 
 use rkyv::{
-    ser::serializers::AllocSerializer,
+    ser::serializers::{
+        AlignedSerializer, AllocScratch, CompositeSerializer, FallbackScratch, HeapScratch,
+    },
     with::{Map, RefAsBox},
-    Archive, Serialize,
+    AlignedVec, Archive, Infallible, Serialize,
 };
 use serial_test::serial;
 use twilight_model::{
@@ -78,7 +80,11 @@ async fn test_integration() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedIntegration<'_> {
-        type Serializer = AllocSerializer<32>;
+        type Serializer = CompositeSerializer<
+            AlignedSerializer<AlignedVec>,
+            FallbackScratch<HeapScratch<32>, AllocScratch>,
+            Infallible,
+        >;
 
         fn expire_seconds() -> Option<usize> {
             None

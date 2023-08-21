@@ -10,7 +10,7 @@ use std::{
 
 use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
 use redis::Cmd;
-use rkyv::{ser::serializers::AllocSerializer, Archive, Serialize};
+use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
     channel::{message::Sticker, Channel},
@@ -75,7 +75,7 @@ async fn test_metrics() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedChannel {
-        type Serializer = AllocSerializer<0>;
+        type Serializer = BufferSerializer<AlignedBytes<0>>;
 
         fn expire_seconds() -> Option<usize> {
             None
@@ -93,7 +93,7 @@ async fn test_metrics() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedSticker {
-        type Serializer = AllocSerializer<0>;
+        type Serializer = BufferSerializer<AlignedBytes<0>>;
 
         fn expire_seconds() -> Option<usize> {
             None
