@@ -51,7 +51,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&emojis, C::Emoji::expire_seconds()).ignore();
+        pipe.mset(&emojis, C::Emoji::expire()).ignore();
 
         let key = RedisKey::GuildEmojis { id: guild_id };
         pipe.sadd(key, emoji_ids.as_slice()).ignore();

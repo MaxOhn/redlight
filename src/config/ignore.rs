@@ -1,4 +1,4 @@
-use std::{convert::Infallible, error::Error as StdError};
+use std::{convert::Infallible, error::Error as StdError, time::Duration};
 
 use rkyv::{Archive, Deserialize, Fallible, Serialize};
 use twilight_model::{
@@ -155,7 +155,7 @@ impl Cacheable for Ignore {
 
     const WANTED: bool = false;
 
-    fn expire_seconds() -> Option<usize> {
+    fn expire() -> Option<Duration> {
         None
     }
 }

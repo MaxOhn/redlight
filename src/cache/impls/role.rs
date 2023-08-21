@@ -40,8 +40,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::Role::expire_seconds())
-            .ignore();
+        pipe.set(key, bytes.as_ref(), C::Role::expire()).ignore();
 
         let key = RedisKey::GuildRoles { id: guild_id };
         pipe.sadd(key, id.get()).ignore();
@@ -90,7 +89,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&roles, C::Role::expire_seconds()).ignore();
+        pipe.mset(&roles, C::Role::expire()).ignore();
 
         let key = RedisKey::GuildRoles { id: guild_id };
         pipe.sadd(key, role_ids.as_slice()).ignore();

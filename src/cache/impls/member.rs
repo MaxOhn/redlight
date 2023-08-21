@@ -41,8 +41,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Member::expire_seconds())
-                .ignore();
+            pipe.set(key, bytes.as_ref(), C::Member::expire()).ignore();
 
             let key = RedisKey::GuildMembers { id: guild_id };
             pipe.sadd(key, user_id.get()).ignore();
@@ -105,7 +104,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = member.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
+        pipe.set(key, &bytes, C::Member::expire()).ignore();
 
         Ok(())
     }
@@ -142,8 +141,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !member_tuples.is_empty() {
-                pipe.mset(&member_tuples, C::Member::expire_seconds())
-                    .ignore();
+                pipe.mset(&member_tuples, C::Member::expire()).ignore();
 
                 let key = RedisKey::GuildMembers { id: guild_id };
                 pipe.sadd(key, user_ids.as_slice()).ignore();
@@ -217,7 +215,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = member.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Member::expire_seconds()).ignore();
+        pipe.set(key, &bytes, C::Member::expire()).ignore();
 
         Ok(())
     }

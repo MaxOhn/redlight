@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
+    time::Duration,
 };
 
 use rkyv::{
@@ -73,7 +74,7 @@ async fn test_stickers() -> Result<(), CacheError> {
     impl Cacheable for CachedSticker<'_> {
         type Serializer = AlignedSerializer<AlignedVec>;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }

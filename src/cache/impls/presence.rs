@@ -37,7 +37,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Presence::expire_seconds())
+            pipe.set(key, bytes.as_ref(), C::Presence::expire())
                 .ignore();
 
             let key = RedisKey::GuildPresences { id: guild_id };
@@ -84,8 +84,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !presences.is_empty() {
-                pipe.mset(&presences, C::Presence::expire_seconds())
-                    .ignore();
+                pipe.mset(&presences, C::Presence::expire()).ignore();
 
                 let key = RedisKey::GuildPresences { id: guild_id };
                 pipe.sadd(key, user_ids.as_slice()).ignore();

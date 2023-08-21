@@ -43,7 +43,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::StageInstance::expire_seconds())
+        pipe.set(key, bytes.as_ref(), C::StageInstance::expire())
             .ignore();
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
@@ -90,7 +90,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&stage_instances, C::StageInstance::expire_seconds())
+        pipe.mset(&stage_instances, C::StageInstance::expire())
             .ignore();
 
         let key = RedisKey::GuildStageInstances { id: guild_id };

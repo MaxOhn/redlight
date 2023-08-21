@@ -30,8 +30,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
-                .ignore();
+            pipe.set(key, bytes.as_ref(), C::Message::expire()).ignore();
         }
 
         self.store_user(pipe, &msg.author)?;
@@ -84,7 +83,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
+        pipe.set(key, &bytes, C::Message::expire()).ignore();
 
         Ok(())
     }
@@ -115,7 +114,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
+        pipe.set(key, &bytes, C::Message::expire()).ignore();
 
         Ok(())
     }

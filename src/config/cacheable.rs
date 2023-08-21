@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::ser::CacheSerializer;
 use rkyv::{ser::Serializer, Fallible, Serialize};
 
@@ -28,7 +30,7 @@ type SerializeResult<T> = Result<
 /// impl Cacheable for CachedRole<'_> {
 ///     type Serializer = AlignedSerializer<AlignedVec>;
 ///
-///     fn expire_seconds() -> Option<usize> { None }
+///     fn expire() -> Option<Duration> { None }
 /// }
 /// ```
 pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {
@@ -42,9 +44,9 @@ pub trait Cacheable: Sized + Serialize<Self::Serializer> + CheckedArchive {
     /// This should always be set to `true`. Otherwise, you should use [`Ignore`](crate::config::Ignore).
     const WANTED: bool = true;
 
-    /// Amount of seconds until the cache entry expires and is removed.
+    /// Duration until the cache entry expires and is removed.
     /// `None` indicates that it will never expire.
-    fn expire_seconds() -> Option<usize>;
+    fn expire() -> Option<Duration>;
 
     /// Serialize `self` with a new default serializer.
     fn serialize(&self) -> SerializeResult<Self> {

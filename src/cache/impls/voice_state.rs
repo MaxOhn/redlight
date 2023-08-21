@@ -44,7 +44,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::VoiceState::expire_seconds())
+            pipe.set(key, bytes.as_ref(), C::VoiceState::expire())
                 .ignore();
 
             let key = RedisKey::GuildVoiceStates { id: guild_id };
@@ -104,8 +104,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&voice_states, C::VoiceState::expire_seconds())
-            .ignore();
+        pipe.mset(&voice_states, C::VoiceState::expire()).ignore();
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
         pipe.sadd(key, user_ids.as_slice()).ignore();

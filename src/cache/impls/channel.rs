@@ -38,8 +38,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Channel::expire_seconds())
-                .ignore();
+            pipe.set(key, bytes.as_ref(), C::Channel::expire()).ignore();
 
             if let Some(guild_id) = guild_id {
                 let key = RedisKey::GuildChannels { id: guild_id };
@@ -97,7 +96,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = channel.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Channel::expire_seconds()).ignore();
+        pipe.set(key, &bytes, C::Channel::expire()).ignore();
 
         Ok(())
     }
@@ -131,7 +130,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !channels.is_empty() {
-                pipe.mset(&channels, C::Channel::expire_seconds()).ignore();
+                pipe.mset(&channels, C::Channel::expire()).ignore();
 
                 let key = RedisKey::GuildChannels { id: guild_id };
                 pipe.sadd(key, channel_ids.as_slice()).ignore();

@@ -51,7 +51,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&stickers, C::Sticker::expire_seconds()).ignore();
+        pipe.mset(&stickers, C::Sticker::expire()).ignore();
 
         let key = RedisKey::GuildStickers { id: guild_id };
         pipe.sadd(key, sticker_ids.as_slice()).ignore();

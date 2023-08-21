@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
+    time::Duration,
 };
 
 use rkyv::{
@@ -86,7 +87,7 @@ async fn test_integration() -> Result<(), CacheError> {
             Infallible,
         >;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }

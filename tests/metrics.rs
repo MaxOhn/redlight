@@ -77,7 +77,7 @@ async fn test_metrics() -> Result<(), CacheError> {
     impl Cacheable for CachedChannel {
         type Serializer = BufferSerializer<AlignedBytes<0>>;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }
@@ -95,7 +95,7 @@ async fn test_metrics() -> Result<(), CacheError> {
     impl Cacheable for CachedSticker {
         type Serializer = BufferSerializer<AlignedBytes<0>>;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }

@@ -1,4 +1,6 @@
-use rkyv::{ser::serializers::AllocSerializer, with::RefAsBox, Archive, Serialize};
+use std::time::Duration;
+
+use rkyv::{ser::serializers::AlignedSerializer, with::RefAsBox, AlignedVec, Archive, Serialize};
 use twilight_model::{guild::Role, id::Id};
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedRole, Ignore},
@@ -42,9 +44,9 @@ impl<'a> ICachedRole<'a> for CachedRole<'a> {
 }
 
 impl Cacheable for CachedRole<'_> {
-    type Serializer = AllocSerializer<0>;
+    type Serializer = AlignedSerializer<AlignedVec>;
 
-    fn expire_seconds() -> Option<usize> {
+    fn expire() -> Option<Duration> {
         None
     }
 }

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use tracing::{instrument, trace};
 
 use crate::{
@@ -59,13 +61,13 @@ impl<'c, C> Pipe<'c, C> {
     pub(crate) fn mset<V: ToRedisArgs>(
         &mut self,
         items: &[(RedisKey, V)],
-        expire_seconds: Option<usize>,
+        expire: Option<Duration>,
     ) -> &mut Self {
         self.pipe.mset(items);
 
-        if let Some(seconds) = expire_seconds {
+        if let Some(duration) = expire {
             for (key, _) in items {
-                self.pipe.expire(key, seconds).ignore();
+                self.pipe.expire(key, duration.as_secs() as usize).ignore();
             }
         }
 
@@ -86,10 +88,10 @@ impl<'c, C> Pipe<'c, C> {
         &mut self,
         key: RedisKey,
         bytes: &[u8],
-        expire_seconds: Option<usize>,
+        expire: Option<Duration>,
     ) -> &mut Self {
-        if let Some(seconds) = expire_seconds {
-            self.pipe.set_ex(key, bytes, seconds);
+        if let Some(duration) = expire {
+            self.pipe.set_ex(key, bytes, duration.as_secs() as usize);
         } else {
             self.pipe.set(key, bytes);
         }

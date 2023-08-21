@@ -2,6 +2,7 @@ use std::{
     error::Error,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
+    time::Duration,
 };
 
 use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
@@ -98,7 +99,7 @@ async fn test_message() -> Result<(), CacheError> {
     impl Cacheable for CachedMessage {
         type Serializer = BufferSerializer<AlignedBytes<24>>;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }

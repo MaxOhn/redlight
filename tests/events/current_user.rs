@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use rkyv::{
     ser::serializers::AlignedSerializer,
     with::{Map, RefAsBox},
@@ -66,7 +68,7 @@ async fn test_current_user() -> Result<(), CacheError> {
     impl Cacheable for CachedCurrentUser<'_> {
         type Serializer = AlignedSerializer<AlignedVec>;
 
-        fn expire_seconds() -> Option<usize> {
+        fn expire() -> Option<Duration> {
             None
         }
     }
