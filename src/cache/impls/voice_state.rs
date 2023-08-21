@@ -42,7 +42,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::VoiceState(Box::new(e)))?;
 
-            trace!(bytes = bytes.len());
+            trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::VoiceState::expire_seconds())
                 .ignore();
@@ -87,7 +87,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 let res = voice_state
                     .serialize_with(&mut serializer)
                     .map(|bytes| {
-                        trace!(bytes = bytes.len());
+                        trace!(bytes = bytes.as_ref().len());
 
                         ((key, BytesArg(bytes)), user_id.get())
                     })
@@ -97,7 +97,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 Some(res)
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
             .unzip();
 
         if voice_states.is_empty() {

@@ -1,9 +1,12 @@
 use crate::ser::CacheSerializer;
-use rkyv::{ser::Serializer, AlignedVec, Fallible, Serialize};
+use rkyv::{ser::Serializer, Fallible, Serialize};
 
 use super::checked::CheckedArchive;
 
-type SerializeResult<T> = Result<AlignedVec, <<T as Cacheable>::Serializer as Fallible>::Error>;
+type SerializeResult<T> = Result<
+    <<T as Cacheable>::Serializer as CacheSerializer>::Bytes,
+    <<T as Cacheable>::Serializer as Fallible>::Error,
+>;
 
 /// Trait to configure the serialization and handling of cached entries.
 ///

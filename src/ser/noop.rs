@@ -1,8 +1,6 @@
 use std::convert::Infallible;
 
-use rkyv::{
-    ser::Serializer, AlignedVec, Archive, ArchiveUnsized, Fallible, Serialize, SerializeUnsized,
-};
+use rkyv::{ser::Serializer, Archive, ArchiveUnsized, Fallible, Serialize, SerializeUnsized};
 
 use crate::ser::CacheSerializer;
 
@@ -61,11 +59,13 @@ impl Serializer for NoopSerializer {
 }
 
 impl CacheSerializer for NoopSerializer {
-    fn finish(self) -> AlignedVec {
-        AlignedVec::new()
+    type Bytes = [u8; 0];
+
+    fn finish(self) -> Self::Bytes {
+        []
     }
 
-    fn finish_and_reset(&mut self) -> AlignedVec {
-        AlignedVec::new()
+    fn finish_and_reset(&mut self) -> Self::Bytes {
+        []
     }
 }

@@ -25,7 +25,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Guild(Box::new(e)))?;
 
-            trace!(bytes = bytes.len());
+            trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::Guild::expire_seconds())
                 .ignore();
@@ -85,7 +85,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Guild { id: guild_id };
         let bytes = guild.into_bytes();
-        trace!(bytes = bytes.len());
+        trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Guild::expire_seconds()).ignore();
 
         Ok(())

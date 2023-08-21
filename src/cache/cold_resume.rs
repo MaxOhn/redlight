@@ -46,7 +46,7 @@ impl<C> RedisCache<C> {
             .map_err(CacheError::SerializeSessions)?;
 
         let bytes = serializer.into_serializer().into_inner();
-        trace!(bytes = bytes.len());
+        trace!(bytes = bytes.as_ref().len());
 
         let mut conn = self.connection().await?;
 

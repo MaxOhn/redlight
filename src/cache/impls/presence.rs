@@ -35,7 +35,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Presence(Box::new(e)))?;
 
-            trace!(bytes = bytes.len());
+            trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::Presence::expire_seconds())
                 .ignore();
@@ -76,11 +76,11 @@ impl<C: CacheConfig> RedisCache<C> {
                         .serialize_with(&mut serializer)
                         .map_err(|e| SerializeError::Presence(Box::new(e)))?;
 
-                    trace!(bytes = bytes.len());
+                    trace!(bytes = bytes.as_ref().len());
 
                     Ok(((key, BytesArg(bytes)), user_id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg), u64>>>()?
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
                 .unzip();
 
             if !presences.is_empty() {

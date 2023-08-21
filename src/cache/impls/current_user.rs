@@ -27,7 +27,7 @@ impl<C: CacheConfig> RedisCache<C> {
             .serialize()
             .map_err(|e| SerializeError::CurrentUser(Box::new(e)))?;
 
-        trace!(bytes = bytes.len());
+        trace!(bytes = bytes.as_ref().len());
 
         pipe.set(key, bytes.as_ref(), C::CurrentUser::expire_seconds())
             .ignore();

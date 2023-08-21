@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     error::Error as StdError,
     mem::{self, ManuallyDrop},
 };
@@ -13,12 +14,14 @@ use rkyv::{
 
 /// Trait that provides the option to pick and choose a custom serializer.
 pub trait CacheSerializer: Default + Serializer + CacheSerializerExt {
+    type Bytes: AsRef<[u8]>;
+
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer.
-    fn finish(self) -> AlignedVec;
+    fn finish(self) -> Self::Bytes;
 
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer
     /// and resetting the serializer so that it can be used again.
-    fn finish_and_reset(&mut self) -> AlignedVec;
+    fn finish_and_reset(&mut self) -> Self::Bytes;
 }
 
 /// Auxiliary trait to circumvent the fact that rust currently won't let
@@ -35,22 +38,26 @@ where
     type ErrorExt = <Self as Fallible>::Error;
 }
 
-impl CacheSerializer for AlignedSerializer<AlignedVec> {
-    fn finish(self) -> AlignedVec {
+impl<A: AsRef<[u8]> + BorrowMut<AlignedVec> + Default> CacheSerializer for AlignedSerializer<A> {
+    type Bytes = A;
+
+    fn finish(self) -> Self::Bytes {
         self.into_inner()
     }
 
-    fn finish_and_reset(&mut self) -> AlignedVec {
+    fn finish_and_reset(&mut self) -> Self::Bytes {
         mem::take(self).into_inner()
     }
 }
 
-impl CacheSerializer for BufferSerializer<AlignedVec> {
-    fn finish(self) -> AlignedVec {
+impl<A: AsMut<[u8]> + AsRef<[u8]> + Default> CacheSerializer for BufferSerializer<A> {
+    type Bytes = A;
+
+    fn finish(self) -> Self::Bytes {
         self.into_inner()
     }
 
-    fn finish_and_reset(&mut self) -> AlignedVec {
+    fn finish_and_reset(&mut self) -> Self::Bytes {
         mem::take(self).into_inner()
     }
 }
@@ -63,11 +70,13 @@ where
     H: Default + Fallible,
     <H as Fallible>::Error: StdError,
 {
-    fn finish(self) -> AlignedVec {
+    type Bytes = <S as CacheSerializer>::Bytes;
+
+    fn finish(self) -> Self::Bytes {
         self.into_serializer().finish()
     }
 
-    fn finish_and_reset(&mut self) -> AlignedVec {
+    fn finish_and_reset(&mut self) -> Self::Bytes {
         let ptr = self as *const Self;
         let owned = unsafe { ptr.read() };
 

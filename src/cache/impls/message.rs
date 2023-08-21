@@ -28,7 +28,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 .serialize()
                 .map_err(|e| SerializeError::Message(Box::new(e)))?;
 
-            trace!(bytes = bytes.len());
+            trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::Message::expire_seconds())
                 .ignore();
@@ -83,7 +83,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
-        trace!(bytes = bytes.len());
+        trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 
         Ok(())
@@ -114,7 +114,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
-        trace!(bytes = bytes.len());
+        trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Message::expire_seconds()).ignore();
 
         Ok(())

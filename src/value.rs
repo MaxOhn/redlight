@@ -71,7 +71,7 @@ impl<T: Cacheable> CachedArchive<T> {
             .map_err(UpdateArchiveError::Serialization)?;
 
         let bytes = serializer.finish();
-        self.bytes = bytes.into_boxed_slice();
+        self.bytes = Box::from(bytes.as_ref());
 
         Ok(())
     }
