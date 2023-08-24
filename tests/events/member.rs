@@ -35,7 +35,7 @@ async fn test_member() -> Result<(), CacheError> {
 
     impl CacheConfig for Config {
         #[cfg(feature = "metrics")]
-        const METRICS_INTERVAL_DURATION: std::time::Duration = std::time::Duration::from_secs(60);
+        const METRICS_INTERVAL_DURATION: Duration = Duration::from_secs(60);
 
         type Channel<'a> = Ignore;
         type CurrentUser<'a> = Ignore;
