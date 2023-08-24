@@ -268,11 +268,11 @@ impl<C: CacheConfig> RedisCache<C> {
     #[cfg(feature = "metrics")]
     async fn init_metrics(pool: &Pool) -> CacheResult<()> {
         use metrics::{describe_gauge, gauge};
-        use tracing::error;
+        use tracing::{error, trace};
 
-        use crate::{key::RedisKey, redis::Pipeline};
+        use crate::{config::Cacheable, key::RedisKey, redis::Pipeline};
 
-        async fn metrics_loop<C: CacheConfig>(mut conn: DedicatedConnection) {
+        async fn metrics_loop<C: CacheConfig>(pool: Pool) {
             const CHANNEL_COUNT: &str = "channel_count";
             const EMOJI_COUNT: &str = "emoji_count";
             const GUILD_COUNT: &str = "guild_count";
@@ -293,6 +293,12 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let mut pipe = Pipeline::new();
             let mut interval = tokio::time::interval(C::METRICS_INTERVAL_DURATION);
+
+            trace!(
+                interval = ?C::METRICS_INTERVAL_DURATION,
+                "Running metrics loop"
+            );
+
             interval.tick().await;
 
             loop {
@@ -326,6 +332,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 if C::User::WANTED {
                     pipe.scard(RedisKey::Users);
                 }
+
+                let mut conn = match Connection::get(&pool).await {
+                    Ok(conn) => conn,
+                    Err(err) => {
+                        error!(%err, "Failed to acquire connection for metrics");
+
+                        continue;
+                    }
+                };
 
                 let mut counts = match pipe.query_async::<_, Vec<usize>>(&mut conn).await {
                     Ok(counts) => counts.into_iter(),
@@ -381,11 +396,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let conn = DedicatedConnection::get(pool)
-            .await
-            .map_err(CacheError::MetricsConnection)?;
-
-        tokio::spawn(metrics_loop::<C>(conn));
+        tokio::spawn(metrics_loop::<C>(pool.clone()));
 
         Ok(())
     }

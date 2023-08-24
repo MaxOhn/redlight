@@ -42,10 +42,6 @@ pub enum CacheError {
         >,
     ),
 
-    #[cfg(feature = "metrics")]
-    #[error("failed to acquire a connection for metrics")]
-    MetricsConnection(#[source] DedicatedConnectionError),
-
     #[error(transparent)]
     Expire(#[from] ExpireError),
     #[error("received invalid response from redis")]
