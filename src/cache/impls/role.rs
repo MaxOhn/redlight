@@ -1,3 +1,4 @@
+use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     guild::Role,
@@ -8,10 +9,15 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, HasArchived, IMeta, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedRole},
-    error::SerializeError,
+    error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
+    redis::Pipeline,
+    rkyv_util::id::IdRkyv,
     util::{BytesArg, ZippedVecs},
     CacheResult, RedisCache,
 };
@@ -34,9 +40,10 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Role { id };
         let role = C::Role::from_role(role);
 
-        let bytes = role
-            .serialize()
-            .map_err(|e| SerializeError::Role(Box::new(e)))?;
+        let bytes = role.serialize().map_err(|e| SerializeError {
+            error: Box::new(e),
+            kind: SerializeErrorKind::Role,
+        })?;
 
         trace!(bytes = bytes.as_ref().len());
 
@@ -47,6 +54,15 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Roles;
         pipe.sadd(key, id.get()).ignore();
+
+        if C::Role::expire().is_some() {
+            RoleMeta { guild: guild_id }
+                .store(pipe, RoleMetaKey { role: id })
+                .map_err(|error| MetaError {
+                    error,
+                    kind: MetaErrorKind::Role,
+                })?;
+        }
 
         Ok(())
     }
@@ -65,6 +81,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
+        let with_expire = C::Role::expire().is_some();
         let mut serializer = RoleSerializer::<C>::default();
 
         let (roles, role_ids) = roles
@@ -74,9 +91,21 @@ impl<C: CacheConfig> RedisCache<C> {
                 let key = RedisKey::Role { id };
                 let role = C::Role::from_role(role);
 
+                if with_expire {
+                    RoleMeta { guild: guild_id }
+                        .store(pipe, RoleMetaKey { role: id })
+                        .map_err(|error| MetaError {
+                            error,
+                            kind: MetaErrorKind::Role,
+                        })?;
+                }
+
                 let bytes = role
                     .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError::Role(Box::new(e)))?;
+                    .map_err(|e| SerializeError {
+                        error: Box::new(e),
+                        kind: SerializeErrorKind::Role,
+                    })?;
 
                 trace!(bytes = bytes.as_ref().len());
 
@@ -118,5 +147,51 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Roles;
         pipe.srem(key, role_id.get()).ignore();
+
+        if C::Role::expire().is_some() {
+            pipe.del(RedisKey::RoleMeta { id: role_id });
+        }
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct RoleMetaKey {
+    role: Id<RoleMarker>,
+}
+
+impl IMetaKey for RoleMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|role| Self { role })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Roles;
+        pipe.srem(key, self.role.get()).ignore();
+    }
+}
+
+impl HasArchived for RoleMetaKey {
+    type Meta = RoleMeta;
+
+    fn redis_key(&self) -> RedisKey {
+        RedisKey::RoleMeta { id: self.role }
+    }
+
+    fn handle_archived(&self, pipe: &mut Pipeline, archived: &Archived<Self::Meta>) {
+        let key = RedisKey::GuildRoles {
+            id: archived.guild.into(),
+        };
+        pipe.srem(key, self.role.get());
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize)]
+#[cfg_attr(feature = "validation", archive(check_bytes))]
+pub(crate) struct RoleMeta {
+    #[with(IdRkyv)]
+    guild: Id<GuildMarker>,
+}
+
+impl IMeta<RoleMetaKey> for RoleMeta {
+    type Serializer = BufferSerializer<AlignedBytes<8>>;
 }

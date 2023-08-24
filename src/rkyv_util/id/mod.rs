@@ -79,6 +79,12 @@ impl<T> From<Id<T>> for ArchivedId<T> {
     }
 }
 
+impl<T> From<ArchivedId<T>> for Id<T> {
+    fn from(id: ArchivedId<T>) -> Self {
+        Id::from(id.value)
+    }
+}
+
 impl<T> PartialEq for ArchivedId<T> {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value

@@ -8,10 +8,14 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedVoiceState},
-    error::SerializeError,
+    error::{SerializeError, SerializeErrorKind},
     key::RedisKey,
+    redis::Pipeline,
     util::{BytesArg, ZippedVecs},
     CacheError, CacheResult, RedisCache,
 };
@@ -38,9 +42,10 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let voice_state = C::VoiceState::from_voice_state(channel_id, guild_id, voice_state);
 
-            let bytes = voice_state
-                .serialize()
-                .map_err(|e| SerializeError::VoiceState(Box::new(e)))?;
+            let bytes = voice_state.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::VoiceState,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -92,7 +97,10 @@ impl<C: CacheConfig> RedisCache<C> {
                         ((key, BytesArg(bytes)), user_id.get())
                     })
                     .map_err(|e| {
-                        CacheError::Serialization(SerializeError::VoiceState(Box::new(e)))
+                        CacheError::Serialization(SerializeError {
+                            error: Box::new(e),
+                            kind: SerializeErrorKind::VoiceState,
+                        })
                     });
 
                 Some(res)
@@ -130,5 +138,26 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
         pipe.srem(key, user_id.get()).ignore();
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct VoiceStateMetaKey {
+    guild: Id<GuildMarker>,
+    user: Id<UserMarker>,
+}
+
+impl IMetaKey for VoiceStateMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split
+            .next()
+            .and_then(atoi)
+            .zip(split.next().and_then(atoi))
+            .map(|(guild, user)| VoiceStateMetaKey { guild, user })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::GuildVoiceStates { id: self.guild };
+        pipe.srem(key, self.user.get());
     }
 }

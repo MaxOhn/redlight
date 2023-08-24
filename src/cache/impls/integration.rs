@@ -8,10 +8,14 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedIntegration},
-    error::SerializeError,
+    error::{SerializeError, SerializeErrorKind},
     key::RedisKey,
+    redis::Pipeline,
     CacheResult, RedisCache,
 };
 
@@ -31,9 +35,10 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let integration = C::Integration::from_integration(integration);
 
-            let bytes = integration
-                .serialize()
-                .map_err(|e| SerializeError::Integration(Box::new(e)))?;
+            let bytes = integration.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::Integration,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -69,5 +74,26 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::GuildIntegrations { id: guild_id };
         pipe.srem(key, integration_id.get()).ignore();
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct IntegrationMetaKey {
+    guild: Id<GuildMarker>,
+    integration: Id<IntegrationMarker>,
+}
+
+impl IMetaKey for IntegrationMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split
+            .next()
+            .and_then(atoi)
+            .zip(split.next().and_then(atoi))
+            .map(|(guild, integration)| Self { guild, integration })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::GuildIntegrations { id: self.guild };
+        pipe.srem(key, self.integration.get());
     }
 }

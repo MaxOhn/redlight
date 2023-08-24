@@ -11,13 +11,20 @@ use twilight_model::id::{
 
 use crate::redis::{RedisWrite, ToRedisArgs};
 
+#[derive(Clone)]
 pub(crate) enum RedisKey {
     Channel {
+        id: Id<ChannelMarker>,
+    },
+    ChannelMeta {
         id: Id<ChannelMarker>,
     },
     Channels,
     CurrentUser,
     Emoji {
+        id: Id<EmojiMarker>,
+    },
+    EmojiMeta {
         id: Id<EmojiMarker>,
     },
     Emojis,
@@ -70,14 +77,23 @@ pub(crate) enum RedisKey {
     Role {
         id: Id<RoleMarker>,
     },
+    RoleMeta {
+        id: Id<RoleMarker>,
+    },
     Roles,
     #[cfg(feature = "cold_resume")]
     Sessions,
     StageInstance {
         id: Id<StageMarker>,
     },
+    StageInstanceMeta {
+        id: Id<StageMarker>,
+    },
     StageInstances,
     Sticker {
+        id: Id<StickerMarker>,
+    },
+    StickerMeta {
         id: Id<StickerMarker>,
     },
     Stickers,
@@ -97,9 +113,11 @@ pub(crate) enum RedisKey {
 
 impl RedisKey {
     pub(crate) const CHANNEL_PREFIX: &[u8] = b"CHANNEL";
+    pub(crate) const CHANNEL_META_PREFIX: &[u8] = b"CHANNEL_META";
     pub(crate) const CHANNELS_PREFIX: &[u8] = b"CHANNELS";
     pub(crate) const CURRENT_USER_PREFIX: &[u8] = b"CURRENT_USER";
     pub(crate) const EMOJI_PREFIX: &[u8] = b"EMOJI";
+    pub(crate) const EMOJI_META_PREFIX: &[u8] = b"EMOJI_META";
     pub(crate) const EMOJIS_PREFIX: &[u8] = b"EMOJIS";
     pub(crate) const GUILD_PREFIX: &[u8] = b"GUILD";
     pub(crate) const GUILD_CHANNELS_PREFIX: &[u8] = b"GUILD_CHANNELS";
@@ -117,12 +135,15 @@ impl RedisKey {
     pub(crate) const MESSAGE_PREFIX: &[u8] = b"MESSAGE";
     pub(crate) const PRESENCE_PREFIX: &[u8] = b"PRESENCE";
     pub(crate) const ROLE_PREFIX: &[u8] = b"ROLE";
+    pub(crate) const ROLE_META_PREFIX: &[u8] = b"ROLE_META";
     pub(crate) const ROLES_PREFIX: &[u8] = b"ROLES";
     #[cfg(feature = "cold_resume")]
     pub(crate) const SESSIONS_PREFIX: &[u8] = b"SESSIONS";
     pub(crate) const STAGE_INSTANCE_PREFIX: &[u8] = b"STAGE_INSTANCE";
+    pub(crate) const STAGE_INSTANCE_META_PREFIX: &[u8] = b"STAGE_INSTANCE_META";
     pub(crate) const STAGE_INSTANCES_PREFIX: &[u8] = b"STAGE_INSTANCES";
     pub(crate) const STICKER_PREFIX: &[u8] = b"STICKER";
+    pub(crate) const STICKER_META_PREFIX: &[u8] = b"STICKER_META";
     pub(crate) const STICKERS_PREFIX: &[u8] = b"STICKERS";
     pub(crate) const UNAVAILABLE_GUILDS_PREFIX: &[u8] = b"UNAVAILABLE_GUILDS";
     pub(crate) const USER_PREFIX: &[u8] = b"USER";
@@ -225,9 +246,11 @@ impl ToRedisArgs for RedisKey {
 
         let bytes = match self {
             Self::Channel { id } => name_id(Self::CHANNEL_PREFIX, id),
+            Self::ChannelMeta { id } => name_id(Self::CHANNEL_META_PREFIX, id),
             Self::Channels => Cow::Borrowed(Self::CHANNELS_PREFIX),
             Self::CurrentUser => Cow::Borrowed(Self::CURRENT_USER_PREFIX),
             Self::Emoji { id } => name_id(Self::EMOJI_PREFIX, id),
+            Self::EmojiMeta { id } => name_id(Self::EMOJI_META_PREFIX, id),
             Self::Emojis => Cow::Borrowed(Self::EMOJIS_PREFIX),
             Self::Guild { id } => name_id(Self::GUILD_PREFIX, id),
             Self::GuildChannels { id } => name_id(Self::GUILD_CHANNELS_PREFIX, id),
@@ -245,12 +268,15 @@ impl ToRedisArgs for RedisKey {
             Self::Message { id } => name_id(Self::MESSAGE_PREFIX, id),
             Self::Presence { guild, user } => name_guild_id(Self::PRESENCE_PREFIX, guild, user),
             Self::Role { id } => name_id(Self::ROLE_PREFIX, id),
+            Self::RoleMeta { id } => name_id(Self::ROLE_META_PREFIX, id),
             Self::Roles => Cow::Borrowed(Self::ROLES_PREFIX),
             #[cfg(feature = "cold_resume")]
             Self::Sessions => Cow::Borrowed(Self::SESSIONS_PREFIX),
             Self::StageInstance { id } => name_id(Self::STAGE_INSTANCE_PREFIX, id),
+            Self::StageInstanceMeta { id } => name_id(Self::STAGE_INSTANCE_META_PREFIX, id),
             Self::StageInstances => Cow::Borrowed(Self::STAGE_INSTANCES_PREFIX),
             Self::Sticker { id } => name_id(Self::STICKER_PREFIX, id),
+            Self::StickerMeta { id } => name_id(Self::STICKER_META_PREFIX, id),
             Self::Stickers => Cow::Borrowed(Self::STICKERS_PREFIX),
             Self::UnavailableGuilds => Cow::Borrowed(Self::UNAVAILABLE_GUILDS_PREFIX),
             Self::User { id } => name_id(Self::USER_PREFIX, id),

@@ -6,10 +6,14 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedGuild},
-    error::{SerializeError, UpdateError},
+    error::{ExpireError, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
+    redis::{DedicatedConnection, Pipeline},
     CacheError, CacheResult, RedisCache,
 };
 
@@ -21,9 +25,10 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Guild { id: guild_id };
             let guild = C::Guild::from_guild(guild);
 
-            let bytes = guild
-                .serialize()
-                .map_err(|e| SerializeError::Guild(Box::new(e)))?;
+            let bytes = guild.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::Guild,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -80,7 +85,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut guild, update).map_err(UpdateError::Guild)?;
+        update_fn(&mut guild, update).map_err(|error| UpdateError {
+            error,
+            kind: UpdateErrorKind::Guild,
+        })?;
 
         let key = RedisKey::Guild { id: guild_id };
         let bytes = guild.into_bytes();
@@ -166,26 +174,27 @@ impl<C: CacheConfig> RedisCache<C> {
                     let user_id = Id::new(user_id);
 
                     let key = RedisKey::UserGuilds { id: user_id };
-                    pipe.srem(key, guild_id.get()).ignore();
-
-                    let key = RedisKey::UserGuilds { id: user_id };
+                    pipe.srem(key.clone(), guild_id.get()).ignore();
                     pipe.scard(key);
                 }
 
                 let scards: Vec<usize> = pipe.query().await?;
 
-                let user_keys = user_ids
+                let estranged_user_ids: Vec<u64> = user_ids
                     .iter()
                     .zip(scards)
                     .filter(|(_, common_guild_count)| *common_guild_count == 0)
-                    .map(|(user_id, _)| RedisKey::User {
-                        id: Id::new(*user_id),
-                    });
+                    .map(|(user_id, _)| *user_id)
+                    .collect();
+
+                let user_keys = estranged_user_ids.iter().map(|user_id| RedisKey::User {
+                    id: Id::new(*user_id),
+                });
 
                 keys_to_delete.extend(user_keys);
 
                 let key = RedisKey::Users;
-                pipe.srem(key, &user_ids).ignore();
+                pipe.srem(key, &estranged_user_ids).ignore();
             }
 
             if C::Member::WANTED {
@@ -733,4 +742,287 @@ impl<C: CacheConfig> RedisCache<C> {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct GuildMetaKey {
+    guild: Id<GuildMarker>,
+}
+
+impl IMetaKey for GuildMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|guild| Self { guild })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Guilds;
+        pipe.srem(key, self.guild.get());
+    }
+}
+
+impl GuildMetaKey {
+    pub(crate) async fn async_handle_expire(
+        self,
+        pipe: &mut Pipeline,
+        conn: &mut DedicatedConnection,
+    ) -> Result<(), ExpireError> {
+        debug_assert_eq!(pipe.cmd_iter().count(), 0);
+
+        let key = RedisKey::GuildChannels { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildEmojis { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildIntegrations { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildMembers { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildPresences { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildRoles { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildStageInstances { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildStickers { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let key = RedisKey::GuildVoiceStates { id: self.guild };
+        pipe.smembers(key.clone()).del(key).ignore();
+
+        let mut iter = pipe
+            .query_async::<_, Vec<Vec<u64>>>(conn)
+            .await
+            .map_err(ExpireError::Pipe)?
+            .into_iter();
+
+        pipe.clear();
+
+        let mut buf = Vec::new();
+
+        let channel_ids = iter.next().unwrap_or_default();
+        self.handle_channels(pipe, &mut buf, channel_ids);
+
+        let emoji_ids = iter.next().unwrap_or_default();
+        self.handle_emojis(pipe, &mut buf, emoji_ids);
+
+        let integration_ids = iter.next().unwrap_or_default();
+        self.handle_integrations(pipe, &mut buf, integration_ids);
+
+        let member_ids = iter.next().unwrap_or_default();
+        self.handle_members(pipe, conn, &mut buf, member_ids)
+            .await?;
+
+        let presence_ids = iter.next().unwrap_or_default();
+        self.handle_presences(pipe, &mut buf, presence_ids);
+
+        let role_ids = iter.next().unwrap_or_default();
+        self.handle_roles(pipe, &mut buf, role_ids);
+
+        let stage_instance_ids = iter.next().unwrap_or_default();
+        self.handle_stage_instances(pipe, &mut buf, stage_instance_ids);
+
+        let sticker_ids = iter.next().unwrap_or_default();
+        self.handle_stickers(pipe, &mut buf, sticker_ids);
+
+        let voice_state_ids = iter.next().unwrap_or_default();
+        self.handle_voice_states(pipe, &mut buf, voice_state_ids);
+
+        Ok(())
+    }
+
+    fn handle_channels(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, channel_ids: Vec<u64>) {
+        del_keys(
+            pipe,
+            buf,
+            Some(RedisKey::Channels),
+            &channel_ids,
+            |channel| RedisKey::Channel {
+                id: Id::new(*channel),
+            },
+        );
+
+        del_keys(pipe, buf, None, &channel_ids, |channel| {
+            RedisKey::ChannelMeta {
+                id: Id::new(*channel),
+            }
+        });
+    }
+
+    fn handle_emojis(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, emoji_ids: Vec<u64>) {
+        del_keys(pipe, buf, Some(RedisKey::Emojis), &emoji_ids, |emoji| {
+            RedisKey::Emoji {
+                id: Id::new(*emoji),
+            }
+        });
+
+        del_keys(pipe, buf, None, &emoji_ids, |emoji| RedisKey::Emoji {
+            id: Id::new(*emoji),
+        });
+    }
+
+    fn handle_integrations(
+        &self,
+        pipe: &mut Pipeline,
+        buf: &mut Vec<RedisKey>,
+        integration_ids: Vec<u64>,
+    ) {
+        del_keys(pipe, buf, None, &integration_ids, |integration| {
+            RedisKey::Integration {
+                guild: self.guild,
+                id: Id::new(*integration),
+            }
+        });
+    }
+
+    async fn handle_members(
+        &self,
+        pipe: &mut Pipeline,
+        conn: &mut DedicatedConnection,
+        buf: &mut Vec<RedisKey>,
+        member_ids: Vec<u64>,
+    ) -> Result<(), ExpireError> {
+        if member_ids.is_empty() {
+            return Ok(());
+        }
+
+        for user in member_ids.iter() {
+            let key = RedisKey::UserGuilds { id: Id::new(*user) };
+            pipe.srem(key.clone(), self.guild.get()).ignore().scard(key);
+        }
+
+        let scards: Vec<usize> = pipe.query_async(conn).await.map_err(ExpireError::Pipe)?;
+        pipe.clear();
+
+        let estranged_user_ids: Vec<u64> = member_ids
+            .iter()
+            .zip(scards)
+            .filter(|(_, common_guild_count)| *common_guild_count == 0)
+            .map(|(user_id, _)| *user_id)
+            .collect();
+
+        let user_keys = estranged_user_ids.iter().map(|user_id| RedisKey::User {
+            id: Id::new(*user_id),
+        });
+
+        buf.extend(user_keys);
+        pipe.del(&*buf).ignore();
+        buf.clear();
+
+        let key = RedisKey::Users;
+        pipe.srem(key, &estranged_user_ids).ignore();
+
+        del_keys(pipe, buf, None, &member_ids, |user| RedisKey::Member {
+            guild: self.guild,
+            user: Id::new(*user),
+        });
+
+        Ok(())
+    }
+
+    fn handle_presences(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, user_ids: Vec<u64>) {
+        del_keys(pipe, buf, None, &user_ids, |user| RedisKey::Presence {
+            guild: self.guild,
+            user: Id::new(*user),
+        });
+    }
+
+    fn handle_roles(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, role_ids: Vec<u64>) {
+        del_keys(pipe, buf, Some(RedisKey::Roles), &role_ids, |role| {
+            RedisKey::Role { id: Id::new(*role) }
+        });
+
+        del_keys(pipe, buf, None, &role_ids, |role| RedisKey::RoleMeta {
+            id: Id::new(*role),
+        });
+    }
+
+    fn handle_stage_instances(
+        &self,
+        pipe: &mut Pipeline,
+        buf: &mut Vec<RedisKey>,
+        stage_instance_ids: Vec<u64>,
+    ) {
+        del_keys(
+            pipe,
+            buf,
+            Some(RedisKey::StageInstances),
+            &stage_instance_ids,
+            |stage_instance| RedisKey::StageInstance {
+                id: Id::new(*stage_instance),
+            },
+        );
+
+        del_keys(pipe, buf, None, &stage_instance_ids, |stage_instance| {
+            RedisKey::StageInstanceMeta {
+                id: Id::new(*stage_instance),
+            }
+        });
+    }
+
+    fn handle_stickers(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, sticker_ids: Vec<u64>) {
+        del_keys(
+            pipe,
+            buf,
+            Some(RedisKey::Stickers),
+            &sticker_ids,
+            |sticker| RedisKey::Sticker {
+                id: Id::new(*sticker),
+            },
+        );
+
+        del_keys(pipe, buf, None, &sticker_ids, |sticker| {
+            RedisKey::StickerMeta {
+                id: Id::new(*sticker),
+            }
+        });
+    }
+
+    fn handle_voice_states(
+        &self,
+        pipe: &mut Pipeline,
+        buf: &mut Vec<RedisKey>,
+        user_ids: Vec<u64>,
+    ) {
+        del_keys(pipe, buf, None, &user_ids, |user| RedisKey::VoiceState {
+            guild: self.guild,
+            user: Id::new(*user),
+        });
+    }
+}
+
+fn del_keys<F>(
+    pipe: &mut Pipeline,
+    buf: &mut Vec<RedisKey>,
+    list_key: Option<RedisKey>,
+    ids: &[u64],
+    f: F,
+) where
+    F: Fn(&u64) -> RedisKey,
+{
+    fn inner(
+        pipe: &mut Pipeline,
+        buf: &mut Vec<RedisKey>,
+        list_key: Option<RedisKey>,
+        ids: &[u64],
+    ) {
+        if ids.is_empty() {
+            return;
+        }
+
+        if let Some(key) = list_key {
+            pipe.srem(key, &ids).ignore();
+        }
+
+        pipe.del(&*buf).ignore();
+        buf.clear();
+    }
+
+    buf.extend(ids.into_iter().map(f));
+    inner(pipe, buf, list_key, ids);
 }

@@ -12,8 +12,10 @@ use rkyv::{
     AlignedVec, Fallible,
 };
 
+use super::SerializerExt;
+
 /// Trait that provides the option to pick and choose a custom serializer.
-pub trait CacheSerializer: Default + Serializer + CacheSerializerExt {
+pub trait CacheSerializer: Default + Serializer + SerializerExt {
     type Bytes: AsRef<[u8]>;
 
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer.
@@ -22,20 +24,6 @@ pub trait CacheSerializer: Default + Serializer + CacheSerializerExt {
     /// Finish up serialization by extracting the [`AlignedVec`] from the serializer
     /// and resetting the serializer so that it can be used again.
     fn finish_and_reset(&mut self) -> Self::Bytes;
-}
-
-/// Auxiliary trait to circumvent the fact that rust currently won't let
-/// you specify trait bounds on associated types within trait bounds.
-pub trait CacheSerializerExt: Serializer<Error = Self::ErrorExt> {
-    type ErrorExt: StdError + 'static;
-}
-
-impl<T> CacheSerializerExt for T
-where
-    T: Serializer,
-    <T as Fallible>::Error: StdError,
-{
-    type ErrorExt = <Self as Fallible>::Error;
 }
 
 impl<A: AsRef<[u8]> + BorrowMut<AlignedVec> + Default> CacheSerializer for AlignedSerializer<A> {

@@ -10,7 +10,7 @@ bb8 = ["dep:bb8-redis"]
 deadpool = ["dep:deadpool-redis"]
 validation = ["dep:bytecheck", "rkyv/validation"]
 cold_resume = ["dep:twilight-gateway"]
-metrics = ["dep:metrics", "dep:tokio"]
+metrics = ["dep:metrics"]
 
 [dependencies]
 bb8-redis = { version = "0.13", default-features = false, optional = true }
@@ -22,7 +22,7 @@ metrics = { version = "0.21", default-features = false, optional = true }
 pin-project = { version = "1.1", default-features = false }
 rkyv = { version = "0.7", default-features = false, features = ["size_32", "std", "strict"] }
 thiserror = { version = "1.0", default-features = false }
-tokio = { version = "1.0", default-features = false, optional = true, features = ["rt"] }
+tokio = { version = "1.0", default-features = false, features = ["rt"] }
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 twilight-gateway = { version = "0.15", default-features = false, optional = true }
 twilight-model = { version = "0.15", default-features = false }

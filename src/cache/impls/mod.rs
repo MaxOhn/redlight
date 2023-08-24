@@ -1,16 +1,16 @@
-mod channel;
-mod current_user;
-mod emoji;
-mod guild;
-mod integration;
-mod member;
-mod message;
-mod presence;
-mod role;
-mod stage_instance;
-mod sticker;
-mod user;
-mod voice_state;
+pub(super) mod channel;
+pub(super) mod current_user;
+pub(super) mod emoji;
+pub(super) mod guild;
+pub(super) mod integration;
+pub(super) mod member;
+pub(super) mod message;
+pub(super) mod presence;
+pub(super) mod role;
+pub(super) mod stage_instance;
+pub(super) mod sticker;
+pub(super) mod user;
+pub(super) mod voice_state;
 
 use tracing::instrument;
 use twilight_model::{

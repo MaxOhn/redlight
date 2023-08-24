@@ -1,6 +1,8 @@
 mod cold_resume;
+mod expire;
 mod get;
 mod impls;
+mod meta;
 mod pipe;
 
 use std::marker::PhantomData;
@@ -25,15 +27,19 @@ pub struct RedisCache<C> {
 
 impl<C> RedisCache<C> {
     pub(crate) async fn connection(&self) -> CacheResult<Connection<'_>> {
-        connection(&self.pool).await
+        Connection::get(&self.pool)
+            .await
+            .map_err(CacheError::GetConnection)
     }
 
     pub fn iter(&self) -> RedisCacheIter<'_, C> {
         RedisCacheIter::new(self)
     }
+}
 
+impl<C: Send + Sync + 'static> RedisCache<C> {
     pub fn stats(&self) -> RedisCacheStats<'_> {
-        RedisCacheStats::new(&self.pool)
+        RedisCacheStats::new(self)
     }
 }
 
@@ -64,6 +70,8 @@ impl<C: CacheConfig> RedisCache<C> {
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
     pub async fn with_pool(pool: Pool) -> CacheResult<Self> {
+        Self::handle_expire(&pool).await?;
+
         #[cfg(feature = "metrics")]
         Self::init_metrics(&pool).await?;
 
@@ -262,11 +270,7 @@ impl<C: CacheConfig> RedisCache<C> {
         use metrics::{describe_gauge, gauge};
         use tracing::error;
 
-        use crate::{
-            config::Cacheable,
-            key::RedisKey,
-            redis::{DedicatedConnection, Pipeline},
-        };
+        use crate::{key::RedisKey, redis::Pipeline};
 
         async fn metrics_loop<C: CacheConfig>(mut conn: DedicatedConnection) {
             const CHANNEL_COUNT: &str = "channel_count";
@@ -385,12 +389,4 @@ impl<C: CacheConfig> RedisCache<C> {
 
         Ok(())
     }
-}
-
-/// If [`RedisCacheStats`] acquires a connection through [`RedisCache::connection`],
-/// it would add Send + Sync bound restrictions to `C`. This function gets around that bound.
-pub(crate) async fn connection(pool: &Pool) -> CacheResult<Connection<'_>> {
-    Connection::get(pool)
-        .await
-        .map_err(CacheError::GetConnection)
 }

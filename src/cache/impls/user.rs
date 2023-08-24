@@ -1,11 +1,22 @@
 use tracing::{instrument, trace};
-use twilight_model::{gateway::payload::incoming::invite_create::PartialUser, user::User};
+use twilight_model::{
+    gateway::payload::incoming::invite_create::PartialUser,
+    id::{
+        marker::{GuildMarker, UserMarker},
+        Id,
+    },
+    user::User,
+};
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedUser},
-    error::{SerializeError, UpdateError},
+    error::{SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
+    redis::Pipeline,
     util::{BytesArg, ZippedVecs},
     CacheResult, RedisCache,
 };
@@ -23,9 +34,10 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::User { id };
         let user = C::User::from_user(user);
 
-        let bytes = user
-            .serialize()
-            .map_err(|e| SerializeError::User(Box::new(e)))?;
+        let bytes = user.serialize().map_err(|e| SerializeError {
+            error: Box::new(e),
+            kind: SerializeErrorKind::User,
+        })?;
 
         trace!(bytes = bytes.as_ref().len());
 
@@ -57,7 +69,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 let bytes = user
                     .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError::User(Box::new(e)))?;
+                    .map_err(|e| SerializeError {
+                        error: Box::new(e),
+                        kind: SerializeErrorKind::User,
+                    })?;
 
                 trace!(bytes = bytes.as_ref().len());
 
@@ -102,12 +117,71 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut user, partial_user).map_err(UpdateError::PartialUser)?;
+        update_fn(&mut user, partial_user).map_err(|error| UpdateError {
+            error,
+            kind: UpdateErrorKind::PartialUser,
+        })?;
 
         let key = RedisKey::User { id };
         let bytes = user.into_bytes();
         pipe.set(key, &bytes, C::Guild::expire()).ignore();
 
         Ok(())
+    }
+
+    pub(crate) async fn delete_user(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        user_id: Id<UserMarker>,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<()> {
+        if !C::User::WANTED {
+            return Ok(());
+        }
+
+        debug_assert!(pipe.is_empty());
+
+        let key = RedisKey::UserGuilds { id: user_id };
+        pipe.srem(key, guild_id.get()).ignore();
+
+        let key = RedisKey::UserGuilds { id: user_id };
+        pipe.scard(key);
+
+        let common_guild_count: usize = pipe.query().await?;
+
+        if common_guild_count == 0 {
+            let key = RedisKey::User { id: user_id };
+            pipe.del(key).ignore();
+
+            let key = RedisKey::Users;
+            pipe.srem(key, user_id.get()).ignore();
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct UserMetaKey {
+    user: Id<UserMarker>,
+}
+
+impl IMetaKey for UserMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|user| Self { user })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Users;
+        pipe.srem(key, self.user.get()).ignore();
+
+        let key = RedisKey::UserGuilds { id: self.user };
+        pipe.del(key).ignore();
+    }
+}
+
+impl UserMetaKey {
+    pub(crate) fn new(user: Id<UserMarker>) -> Self {
+        Self { user }
     }
 }

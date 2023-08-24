@@ -24,12 +24,10 @@ mod bb8 {
         }
     }
 
-    #[cfg(feature = "metrics")]
     pub struct DedicatedConnection(
         pub(super) <RedisConnectionManager as bb8_redis::bb8::ManageConnection>::Connection,
     );
 
-    #[cfg(feature = "metrics")]
     impl DedicatedConnection {
         pub async fn get(pool: &Pool) -> Result<Self, RedisError> {
             pool.dedicated_connection().await.map(Self)
@@ -62,10 +60,8 @@ mod deadpool {
         }
     }
 
-    #[cfg(feature = "metrics")]
     pub struct DedicatedConnection(pub(super) InnerConnection);
 
-    #[cfg(feature = "metrics")]
     impl DedicatedConnection {
         pub async fn get(pool: &Pool) -> Result<Self, PoolError> {
             pool.get().await.map(Self)
@@ -92,7 +88,12 @@ impl aio::ConnectionLike for Connection<'_> {
     }
 }
 
-#[cfg(feature = "metrics")]
+impl DedicatedConnection {
+    pub(crate) fn into_pubsub(self) -> aio::PubSub {
+        self.0.into_pubsub()
+    }
+}
+
 impl aio::ConnectionLike for DedicatedConnection {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         aio::ConnectionLike::req_packed_command(&mut self.0, cmd)

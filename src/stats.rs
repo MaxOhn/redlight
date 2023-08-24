@@ -5,10 +5,9 @@ use twilight_model::id::{
 };
 
 use crate::{
-    cache::connection,
     key::RedisKey,
-    redis::{Cmd, Connection, Pool},
-    CacheError, CacheResult,
+    redis::{Cmd, Connection},
+    CacheError, CacheResult, RedisCache,
 };
 
 pub struct RedisCacheStats<'c> {
@@ -39,9 +38,9 @@ macro_rules! impl_stats_fn {
 }
 
 impl<'c> RedisCacheStats<'c> {
-    pub(crate) fn new(pool: &'c Pool) -> RedisCacheStats<'c> {
+    pub(crate) fn new<C: Send + Sync + 'static>(cache: &'c RedisCache<C>) -> RedisCacheStats<'c> {
         Self {
-            conn: ConnectionState::new(pool),
+            conn: ConnectionState::new(cache),
         }
     }
 }
@@ -82,15 +81,17 @@ enum ConnectionState<'c> {
 }
 
 impl<'c> ConnectionState<'c> {
-    fn new(pool: &'c Pool) -> Self {
-        Self::Future(Box::pin(connection(pool)))
+    fn new<C: Send + Sync + 'static>(cache: &'c RedisCache<C>) -> Self {
+        Self::Future(Box::pin(cache.connection()))
     }
 
     async fn get(&mut self) -> CacheResult<&mut Connection<'c>> {
         match self {
             ConnectionState::Future(fut) => {
                 *self = Self::Ready(fut.await?);
-                let Self::Ready(conn) = self else { unreachable!() };
+                let Self::Ready(conn) = self else {
+                    unreachable!()
+                };
 
                 Ok(conn)
             }

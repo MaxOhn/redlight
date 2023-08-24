@@ -1,3 +1,4 @@
+use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Channel,
@@ -9,10 +10,17 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, HasArchived, IMeta, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedChannel},
-    error::{SerializeError, UpdateError},
+    error::{
+        MetaError, MetaErrorKind, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind,
+    },
     key::RedisKey,
+    redis::Pipeline,
+    rkyv_util::id::IdRkyvMap,
     util::{BytesArg, ZippedVecs},
     CacheResult, RedisCache,
 };
@@ -32,13 +40,27 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Channel { id: channel_id };
             let channel = C::Channel::from_channel(channel);
 
-            let bytes = channel
-                .serialize()
-                .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+            let bytes = channel.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::Channel,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::Channel::expire()).ignore();
+
+            if C::Channel::expire().is_some() {
+                let key = ChannelMetaKey {
+                    channel: channel_id,
+                };
+
+                ChannelMeta { guild: guild_id }
+                    .store(pipe, key)
+                    .map_err(|error| MetaError {
+                        error,
+                        kind: MetaErrorKind::Channel,
+                    })?;
+            }
 
             if let Some(guild_id) = guild_id {
                 let key = RedisKey::GuildChannels { id: guild_id };
@@ -88,7 +110,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut channel, update).map_err(UpdateError::ChannelPins)?;
+        update_fn(&mut channel, update).map_err(|error| UpdateError {
+            error,
+            kind: UpdateErrorKind::ChannelPins,
+        })?;
 
         let key = RedisKey::Channel {
             id: update.channel_id,
@@ -97,6 +122,21 @@ impl<C: CacheConfig> RedisCache<C> {
         let bytes = channel.into_bytes();
         trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Channel::expire()).ignore();
+
+        if C::Channel::expire().is_some() {
+            let key = ChannelMetaKey {
+                channel: update.channel_id,
+            };
+
+            let meta = ChannelMeta {
+                guild: update.guild_id,
+            };
+
+            meta.store(pipe, key).map_err(|error| MetaError {
+                error,
+                kind: MetaErrorKind::Channel,
+            })?;
+        }
 
         Ok(())
     }
@@ -111,16 +151,20 @@ impl<C: CacheConfig> RedisCache<C> {
         if C::Channel::WANTED {
             let mut serializer = ChannelSerializer::<C>::default();
 
-            let (channels, channel_ids) = channels
+            let (channel_entries, channel_ids) = channels
                 .iter()
                 .map(|channel| {
                     let id = channel.id;
                     let key = RedisKey::Channel { id };
                     let channel = C::Channel::from_channel(channel);
 
-                    let bytes = channel
-                        .serialize_with(&mut serializer)
-                        .map_err(|e| SerializeError::Channel(Box::new(e)))?;
+                    let bytes =
+                        channel
+                            .serialize_with(&mut serializer)
+                            .map_err(|e| SerializeError {
+                                error: Box::new(e),
+                                kind: SerializeErrorKind::Channel,
+                            })?;
 
                     trace!(bytes = bytes.as_ref().len());
 
@@ -129,14 +173,34 @@ impl<C: CacheConfig> RedisCache<C> {
                 .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
                 .unzip();
 
-            if !channels.is_empty() {
-                pipe.mset(&channels, C::Channel::expire()).ignore();
+            if !channel_entries.is_empty() {
+                pipe.mset(&channel_entries, C::Channel::expire()).ignore();
 
                 let key = RedisKey::GuildChannels { id: guild_id };
                 pipe.sadd(key, channel_ids.as_slice()).ignore();
 
                 let key = RedisKey::Channels;
                 pipe.sadd(key, channel_ids).ignore();
+
+                if C::Channel::expire().is_some() {
+                    channels
+                        .iter()
+                        .try_for_each(|channel| {
+                            let key = ChannelMetaKey {
+                                channel: channel.id,
+                            };
+
+                            let meta = ChannelMeta {
+                                guild: channel.guild_id,
+                            };
+
+                            meta.store(pipe, key)
+                        })
+                        .map_err(|error| MetaError {
+                            error,
+                            kind: MetaErrorKind::Channel,
+                        })?;
+                }
             }
         }
 
@@ -170,5 +234,53 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Channels;
         pipe.srem(key, channel_id.get()).ignore();
+
+        if C::Channel::expire().is_some() {
+            pipe.del(RedisKey::ChannelMeta { id: channel_id });
+        }
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct ChannelMetaKey {
+    channel: Id<ChannelMarker>,
+}
+
+impl IMetaKey for ChannelMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|channel_id| Self {
+            channel: channel_id,
+        })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Channels;
+        pipe.srem(key, self.channel.get()).ignore();
+    }
+}
+
+impl HasArchived for ChannelMetaKey {
+    type Meta = ChannelMeta;
+
+    fn redis_key(&self) -> RedisKey {
+        RedisKey::ChannelMeta { id: self.channel }
+    }
+
+    fn handle_archived(&self, pipe: &mut Pipeline, archived: &Archived<Self::Meta>) {
+        if let Some(guild) = archived.guild.to_id_option() {
+            let key = RedisKey::GuildChannels { id: guild };
+            pipe.srem(key, self.channel.get());
+        }
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize)]
+#[cfg_attr(feature = "validation", archive(check_bytes))]
+pub(crate) struct ChannelMeta {
+    #[with(IdRkyvMap)]
+    guild: Option<Id<GuildMarker>>,
+}
+
+impl IMeta<ChannelMetaKey> for ChannelMeta {
+    type Serializer = BufferSerializer<AlignedBytes<16>>;
 }

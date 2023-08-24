@@ -1,14 +1,23 @@
+use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::message::Sticker,
-    id::{marker::GuildMarker, Id},
+    id::{
+        marker::{GuildMarker, StickerMarker},
+        Id,
+    },
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, HasArchived, IMeta, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedSticker},
-    error::SerializeError,
+    error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
+    redis::Pipeline,
+    rkyv_util::id::IdRkyv,
     util::{BytesArg, ZippedVecs},
     CacheResult, RedisCache,
 };
@@ -29,16 +38,20 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let mut serializer = StickerSerializer::<C>::default();
 
-        let (stickers, sticker_ids) = stickers
+        let (sticker_entries, sticker_ids) = stickers
             .iter()
             .map(|sticker| {
                 let id = sticker.id;
                 let key = RedisKey::Sticker { id };
                 let sticker = C::Sticker::from_sticker(sticker);
 
-                let bytes = sticker
-                    .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError::Sticker(Box::new(e)))?;
+                let bytes =
+                    sticker
+                        .serialize_with(&mut serializer)
+                        .map_err(|e| SerializeError {
+                            error: Box::new(e),
+                            kind: SerializeErrorKind::Sticker,
+                        })?;
 
                 trace!(bytes = bytes.as_ref().len());
 
@@ -47,11 +60,11 @@ impl<C: CacheConfig> RedisCache<C> {
             .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
             .unzip();
 
-        if stickers.is_empty() {
+        if sticker_entries.is_empty() {
             return Ok(());
         }
 
-        pipe.mset(&stickers, C::Sticker::expire()).ignore();
+        pipe.mset(&sticker_entries, C::Sticker::expire()).ignore();
 
         let key = RedisKey::GuildStickers { id: guild_id };
         pipe.sadd(key, sticker_ids.as_slice()).ignore();
@@ -59,6 +72,65 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Stickers;
         pipe.sadd(key, sticker_ids).ignore();
 
+        if C::Sticker::expire().is_some() {
+            stickers
+                .iter()
+                .try_for_each(|sticker| {
+                    let key = StickerMetaKey {
+                        sticker: sticker.id,
+                    };
+
+                    StickerMeta { guild: guild_id }.store(pipe, key)
+                })
+                .map_err(|error| MetaError {
+                    error,
+                    kind: MetaErrorKind::Sticker,
+                })?;
+        }
+
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct StickerMetaKey {
+    sticker: Id<StickerMarker>,
+}
+
+impl IMetaKey for StickerMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|sticker| Self { sticker })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Stickers;
+        pipe.srem(key, self.sticker.get()).ignore();
+    }
+}
+
+impl HasArchived for StickerMetaKey {
+    type Meta = StickerMeta;
+
+    fn redis_key(&self) -> RedisKey {
+        RedisKey::StickerMeta { id: self.sticker }
+    }
+
+    fn handle_archived(&self, pipe: &mut Pipeline, archived: &Archived<Self::Meta>) {
+        let key = RedisKey::GuildStickers {
+            id: archived.guild.into(),
+        };
+
+        pipe.srem(key, self.sticker.get());
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize)]
+#[cfg_attr(feature = "validation", archive(check_bytes))]
+pub(crate) struct StickerMeta {
+    #[with(IdRkyv)]
+    guild: Id<GuildMarker>,
+}
+
+impl IMeta<StickerMetaKey> for StickerMeta {
+    type Serializer = BufferSerializer<AlignedBytes<8>>;
 }

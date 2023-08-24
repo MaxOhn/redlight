@@ -6,10 +6,14 @@ use twilight_model::{
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedMessage, ReactionEvent},
-    error::{SerializeError, UpdateError},
+    error::{SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
+    redis::Pipeline,
     CacheResult, RedisCache,
 };
 
@@ -24,9 +28,10 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Message { id: msg.id };
             let msg = C::Message::from_message(msg);
 
-            let bytes = msg
-                .serialize()
-                .map_err(|e| SerializeError::Message(Box::new(e)))?;
+            let bytes = msg.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::Message,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -78,7 +83,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut message, update).map_err(UpdateError::Message)?;
+        update_fn(&mut message, update).map_err(|error| UpdateError {
+            error,
+            kind: UpdateErrorKind::Message,
+        })?;
 
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
@@ -109,7 +117,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut message, event).map_err(UpdateError::Reaction)?;
+        update_fn(&mut message, event).map_err(|error| UpdateError {
+            error,
+            kind: UpdateErrorKind::Reaction,
+        })?;
 
         let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
@@ -141,4 +152,17 @@ impl<C: CacheConfig> RedisCache<C> {
 
         pipe.del(keys).ignore();
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct MessageMetaKey {
+    _msg: Id<MessageMarker>,
+}
+
+impl IMetaKey for MessageMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split.next().and_then(atoi).map(|_msg| Self { _msg })
+    }
+
+    fn handle_expire(&self, _pipe: &mut Pipeline) {}
 }

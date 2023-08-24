@@ -19,7 +19,7 @@ mod validation {
 
 #[cfg(not(feature = "validation"))]
 mod validation {
-    pub trait CheckedArchive {}
+    pub trait CheckedArchive: Archive {}
 
-    impl<T> CheckedArchive for T {}
+    impl<T: Archive> CheckedArchive for T {}
 }

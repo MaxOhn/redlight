@@ -1,14 +1,21 @@
 use tracing::{instrument, trace};
 use twilight_model::{
     gateway::presence::{Presence, UserOrId},
-    id::{marker::GuildMarker, Id},
+    id::{
+        marker::{GuildMarker, UserMarker},
+        Id,
+    },
 };
 
 use crate::{
-    cache::pipe::Pipe,
+    cache::{
+        meta::{atoi, IMetaKey},
+        pipe::Pipe,
+    },
     config::{CacheConfig, Cacheable, ICachedPresence},
-    error::SerializeError,
+    error::{SerializeError, SerializeErrorKind},
     key::RedisKey,
+    redis::Pipeline,
     util::{BytesArg, ZippedVecs},
     CacheResult, RedisCache,
 };
@@ -31,9 +38,10 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let presence = C::Presence::from_presence(presence);
 
-            let bytes = presence
-                .serialize()
-                .map_err(|e| SerializeError::Presence(Box::new(e)))?;
+            let bytes = presence.serialize().map_err(|e| SerializeError {
+                error: Box::new(e),
+                kind: SerializeErrorKind::Presence,
+            })?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -61,7 +69,7 @@ impl<C: CacheConfig> RedisCache<C> {
         if C::Presence::WANTED {
             let mut serializer = PresenceSerializer::<C>::default();
 
-            let (presences, user_ids) = presences
+            let (presence_entries, user_ids) = presences
                 .iter()
                 .map(|presence| {
                     let guild_id = presence.guild_id;
@@ -72,9 +80,13 @@ impl<C: CacheConfig> RedisCache<C> {
                     };
                     let presence = C::Presence::from_presence(presence);
 
-                    let bytes = presence
-                        .serialize_with(&mut serializer)
-                        .map_err(|e| SerializeError::Presence(Box::new(e)))?;
+                    let bytes =
+                        presence
+                            .serialize_with(&mut serializer)
+                            .map_err(|e| SerializeError {
+                                error: Box::new(e),
+                                kind: SerializeErrorKind::Presence,
+                            })?;
 
                     trace!(bytes = bytes.as_ref().len());
 
@@ -83,8 +95,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
                 .unzip();
 
-            if !presences.is_empty() {
-                pipe.mset(&presences, C::Presence::expire()).ignore();
+            if !presence_entries.is_empty() {
+                pipe.mset(&presence_entries, C::Presence::expire()).ignore();
 
                 let key = RedisKey::GuildPresences { id: guild_id };
                 pipe.sadd(key, user_ids.as_slice()).ignore();
@@ -99,5 +111,27 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_users(pipe, users)?;
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+
+pub(crate) struct PresenceMetaKey {
+    guild: Id<GuildMarker>,
+    user: Id<UserMarker>,
+}
+
+impl IMetaKey for PresenceMetaKey {
+    fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
+        split
+            .next()
+            .and_then(atoi)
+            .zip(split.next().and_then(atoi))
+            .map(|(guild, user)| Self { guild, user })
+    }
+
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::GuildPresences { id: self.guild };
+        pipe.srem(key, self.user.get());
     }
 }
