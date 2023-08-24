@@ -64,13 +64,13 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&sticker_entries, C::Sticker::expire()).ignore();
+        pipe.mset(&sticker_entries, C::Sticker::expire());
 
         let key = RedisKey::GuildStickers { id: guild_id };
-        pipe.sadd(key, sticker_ids.as_slice()).ignore();
+        pipe.sadd(key, sticker_ids.as_slice());
 
         let key = RedisKey::Stickers;
-        pipe.sadd(key, sticker_ids).ignore();
+        pipe.sadd(key, sticker_ids);
 
         if C::Sticker::expire().is_some() {
             stickers

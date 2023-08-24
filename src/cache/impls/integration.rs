@@ -42,11 +42,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Integration::expire())
-                .ignore();
+            pipe.set(key, bytes.as_ref(), C::Integration::expire());
 
             let key = RedisKey::GuildIntegrations { id: guild_id };
-            pipe.sadd(key, integration_id.get()).ignore();
+            pipe.sadd(key, integration_id.get());
         }
 
         if let Some(ref user) = integration.user {
@@ -70,10 +69,10 @@ impl<C: CacheConfig> RedisCache<C> {
             guild: guild_id,
             id: integration_id,
         };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         let key = RedisKey::GuildIntegrations { id: guild_id };
-        pipe.srem(key, integration_id.get()).ignore();
+        pipe.srem(key, integration_id.get());
     }
 }
 

@@ -49,11 +49,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::VoiceState::expire())
-                .ignore();
+            pipe.set(key, bytes.as_ref(), C::VoiceState::expire());
 
             let key = RedisKey::GuildVoiceStates { id: guild_id };
-            pipe.sadd(key, user_id.get()).ignore();
+            pipe.sadd(key, user_id.get());
         }
 
         if let Some(ref member) = voice_state.member {
@@ -112,10 +111,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&voice_states, C::VoiceState::expire()).ignore();
+        pipe.mset(&voice_states, C::VoiceState::expire());
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
-        pipe.sadd(key, user_ids.as_slice()).ignore();
+        pipe.sadd(key, user_ids.as_slice());
 
         Ok(())
     }
@@ -134,10 +133,10 @@ impl<C: CacheConfig> RedisCache<C> {
             guild: guild_id,
             user: user_id,
         };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         let key = RedisKey::GuildVoiceStates { id: guild_id };
-        pipe.srem(key, user_id.get()).ignore();
+        pipe.srem(key, user_id.get());
     }
 }
 

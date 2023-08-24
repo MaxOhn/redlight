@@ -75,7 +75,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::Guild::WANTED {
             let key = RedisKey::UnavailableGuilds;
-            pipe.sadd(key, guild_id.get()).ignore();
+            pipe.sadd(key, guild_id.get());
         }
 
         Ok(())
@@ -96,7 +96,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::Guild::WANTED {
             let key = RedisKey::UnavailableGuilds;
-            pipe.sadd(key, guild_ids.as_slice()).ignore();
+            pipe.sadd(key, guild_ids.as_slice());
         }
 
         Ok(())

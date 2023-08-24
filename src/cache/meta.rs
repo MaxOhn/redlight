@@ -219,7 +219,7 @@ where
         serializer.serialize_value(self)?;
         let bytes = serializer.finish();
         let key = key.redis_key();
-        pipe.set(key, bytes.as_ref(), None).ignore();
+        pipe.set(key, bytes.as_ref(), None);
 
         Ok(())
     }

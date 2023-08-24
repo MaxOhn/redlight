@@ -41,10 +41,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::User::expire()).ignore();
+        pipe.set(key, bytes.as_ref(), C::User::expire());
 
         let key = RedisKey::Users;
-        pipe.sadd(key, id.get()).ignore();
+        pipe.sadd(key, id.get());
 
         Ok(())
     }
@@ -85,10 +85,10 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&users, C::User::expire()).ignore();
+        pipe.mset(&users, C::User::expire());
 
         let key = RedisKey::Users;
-        pipe.sadd(key, user_ids).ignore();
+        pipe.sadd(key, user_ids);
 
         Ok(())
     }
@@ -105,7 +105,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let id = partial_user.id;
 
         let key = RedisKey::Users;
-        pipe.sadd(key, id.get()).ignore();
+        pipe.sadd(key, id.get());
 
         let Some(update_fn) = C::User::update_via_partial() else {
             return Ok(());
@@ -124,7 +124,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::User { id };
         let bytes = user.into_bytes();
-        pipe.set(key, &bytes, C::Guild::expire()).ignore();
+        pipe.set(key, &bytes, C::Guild::expire());
 
         Ok(())
     }
@@ -142,7 +142,7 @@ impl<C: CacheConfig> RedisCache<C> {
         debug_assert!(pipe.is_empty());
 
         let key = RedisKey::UserGuilds { id: user_id };
-        pipe.srem(key, guild_id.get()).ignore();
+        pipe.srem(key, guild_id.get());
 
         let key = RedisKey::UserGuilds { id: user_id };
         pipe.scard(key);
@@ -151,10 +151,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if common_guild_count == 0 {
             let key = RedisKey::User { id: user_id };
-            pipe.del(key).ignore();
+            pipe.del(key);
 
             let key = RedisKey::Users;
-            pipe.srem(key, user_id.get()).ignore();
+            pipe.srem(key, user_id.get());
         }
 
         Ok(())

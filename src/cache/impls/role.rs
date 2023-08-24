@@ -47,13 +47,13 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::Role::expire()).ignore();
+        pipe.set(key, bytes.as_ref(), C::Role::expire());
 
         let key = RedisKey::GuildRoles { id: guild_id };
-        pipe.sadd(key, id.get()).ignore();
+        pipe.sadd(key, id.get());
 
         let key = RedisKey::Roles;
-        pipe.sadd(key, id.get()).ignore();
+        pipe.sadd(key, id.get());
 
         if C::Role::expire().is_some() {
             RoleMeta { guild: guild_id }
@@ -118,13 +118,13 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&roles, C::Role::expire()).ignore();
+        pipe.mset(&roles, C::Role::expire());
 
         let key = RedisKey::GuildRoles { id: guild_id };
-        pipe.sadd(key, role_ids.as_slice()).ignore();
+        pipe.sadd(key, role_ids.as_slice());
 
         let key = RedisKey::Roles;
-        pipe.sadd(key, role_ids).ignore();
+        pipe.sadd(key, role_ids);
 
         Ok(())
     }
@@ -140,13 +140,13 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let key = RedisKey::Role { id: role_id };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         let key = RedisKey::GuildRoles { id: guild_id };
-        pipe.srem(key, role_id.get()).ignore();
+        pipe.srem(key, role_id.get());
 
         let key = RedisKey::Roles;
-        pipe.srem(key, role_id.get()).ignore();
+        pipe.srem(key, role_id.get());
 
         if C::Role::expire().is_some() {
             pipe.del(RedisKey::RoleMeta { id: role_id });

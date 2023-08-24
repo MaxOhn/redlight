@@ -32,13 +32,13 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Guild::expire()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Guild::expire());
 
             let key = RedisKey::Guilds;
-            pipe.sadd(key, guild_id.get()).ignore();
+            pipe.sadd(key, guild_id.get());
 
             let key = RedisKey::UnavailableGuilds;
-            pipe.srem(key, guild_id.get()).ignore();
+            pipe.srem(key, guild_id.get());
         }
 
         self.store_channels(pipe, guild.id, &guild.channels)?;
@@ -70,10 +70,10 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let key = RedisKey::Guilds;
-        pipe.sadd(key, guild_id.get()).ignore();
+        pipe.sadd(key, guild_id.get());
 
         let key = RedisKey::UnavailableGuilds;
-        pipe.srem(key, guild_id.get()).ignore();
+        pipe.srem(key, guild_id.get());
 
         let Some(update_fn) = C::Guild::on_guild_update() else {
             return Ok(());
@@ -93,7 +93,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Guild { id: guild_id };
         let bytes = guild.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Guild::expire()).ignore();
+        pipe.set(key, &bytes, C::Guild::expire());
 
         Ok(())
     }
@@ -153,10 +153,10 @@ impl<C: CacheConfig> RedisCache<C> {
         if pipe.is_empty() {
             if C::Guild::WANTED {
                 let key = RedisKey::Guild { id: guild_id };
-                pipe.del(key).ignore();
+                pipe.del(key);
 
                 let key = RedisKey::Guilds;
-                pipe.srem(key, guild_id.get()).ignore();
+                pipe.srem(key, guild_id.get());
             }
 
             return Ok(());
@@ -174,7 +174,7 @@ impl<C: CacheConfig> RedisCache<C> {
                     let user_id = Id::new(user_id);
 
                     let key = RedisKey::UserGuilds { id: user_id };
-                    pipe.srem(key.clone(), guild_id.get()).ignore();
+                    pipe.srem(key.clone(), guild_id.get());
                     pipe.scard(key);
                 }
 
@@ -194,7 +194,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 keys_to_delete.extend(user_keys);
 
                 let key = RedisKey::Users;
-                pipe.srem(key, &estranged_user_ids).ignore();
+                pipe.srem(key, &estranged_user_ids);
             }
 
             if C::Member::WANTED {
@@ -217,7 +217,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let channel_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             let key = RedisKey::Channels;
-            pipe.srem(key, channel_ids.as_slice()).ignore();
+            pipe.srem(key, channel_ids.as_slice());
 
             let channel_keys = channel_ids.into_iter().map(|channel_id| RedisKey::Channel {
                 id: Id::new(channel_id),
@@ -233,7 +233,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let emoji_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             let key = RedisKey::Emojis;
-            pipe.srem(key, emoji_ids.as_slice()).ignore();
+            pipe.srem(key, emoji_ids.as_slice());
 
             let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
                 id: Id::new(emoji_id),
@@ -280,7 +280,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let role_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             let key = RedisKey::Roles;
-            pipe.srem(key, role_ids.as_slice()).ignore();
+            pipe.srem(key, role_ids.as_slice());
 
             let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
                 id: Id::new(role_id),
@@ -296,7 +296,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let stage_instance_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             let key = RedisKey::StageInstances;
-            pipe.srem(key, stage_instance_ids.as_slice()).ignore();
+            pipe.srem(key, stage_instance_ids.as_slice());
 
             let stage_instance_keys =
                 stage_instance_ids
@@ -315,7 +315,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let sticker_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
 
             let key = RedisKey::Stickers;
-            pipe.srem(key, sticker_ids.as_slice()).ignore();
+            pipe.srem(key, sticker_ids.as_slice());
 
             let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
                 id: Id::new(sticker_id),
@@ -343,11 +343,11 @@ impl<C: CacheConfig> RedisCache<C> {
             keys_to_delete.push(key);
 
             let key = RedisKey::Guilds;
-            pipe.srem(key, guild_id.get()).ignore();
+            pipe.srem(key, guild_id.get());
         }
 
         if !keys_to_delete.is_empty() {
-            pipe.del(keys_to_delete).ignore();
+            pipe.del(keys_to_delete);
         }
 
         Ok(())
@@ -461,10 +461,10 @@ impl<C: CacheConfig> RedisCache<C> {
                     })
                     .collect();
 
-                pipe.del(guild_keys).ignore();
+                pipe.del(guild_keys);
 
                 let key = RedisKey::Guilds;
-                pipe.srem(key, guild_ids).ignore();
+                pipe.srem(key, guild_ids);
             }
 
             return Ok(());
@@ -491,7 +491,7 @@ impl<C: CacheConfig> RedisCache<C> {
                         let user_id = Id::new(user_id);
 
                         let key = RedisKey::UserGuilds { id: user_id };
-                        pipe.srem(key, guild_id).ignore();
+                        pipe.srem(key, guild_id);
 
                         let key = RedisKey::UserGuilds { id: user_id };
                         pipe.scard(key);
@@ -501,7 +501,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 let scards: Vec<usize> = pipe.query().await?;
 
                 let key = RedisKey::Users;
-                pipe.srem(key, &user_ids).ignore();
+                pipe.srem(key, &user_ids);
 
                 let user_keys = user_ids
                     .iter()
@@ -545,7 +545,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let channel_ids: Vec<_> = iter.by_ref().take(guild_ids.len()).flatten().collect();
 
             let key = RedisKey::Channels;
-            pipe.srem(key, channel_ids.as_slice()).ignore();
+            pipe.srem(key, channel_ids.as_slice());
 
             let channel_keys = channel_ids.into_iter().map(|emoji_id| RedisKey::Channel {
                 id: Id::new(emoji_id),
@@ -567,7 +567,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let emoji_ids: Vec<_> = iter.by_ref().take(guild_ids.len()).flatten().collect();
 
             let key = RedisKey::Emojis;
-            pipe.srem(key, emoji_ids.as_slice()).ignore();
+            pipe.srem(key, emoji_ids.as_slice());
 
             let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
                 id: Id::new(emoji_id),
@@ -636,7 +636,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let role_ids: Vec<_> = iter.by_ref().take(guild_ids.len()).flatten().collect();
 
             let key = RedisKey::Roles;
-            pipe.srem(key, role_ids.as_slice()).ignore();
+            pipe.srem(key, role_ids.as_slice());
 
             let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
                 id: Id::new(role_id),
@@ -659,7 +659,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 iter.by_ref().take(guild_ids.len()).flatten().collect();
 
             let key = RedisKey::StageInstances;
-            pipe.srem(key, stage_instance_ids.as_slice()).ignore();
+            pipe.srem(key, stage_instance_ids.as_slice());
 
             let stage_instance_keys =
                 stage_instance_ids
@@ -685,7 +685,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let sticker_ids: Vec<_> = iter.by_ref().take(guild_ids.len()).flatten().collect();
 
             let key = RedisKey::Stickers;
-            pipe.srem(key, sticker_ids.as_slice()).ignore();
+            pipe.srem(key, sticker_ids.as_slice());
 
             let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
                 id: Id::new(sticker_id),
@@ -733,11 +733,11 @@ impl<C: CacheConfig> RedisCache<C> {
             keys_to_delete.extend(guild_keys);
 
             let key = RedisKey::Guilds;
-            pipe.srem(key, guild_ids).ignore();
+            pipe.srem(key, guild_ids);
         }
 
         if !keys_to_delete.is_empty() {
-            pipe.del(keys_to_delete).ignore();
+            pipe.del(keys_to_delete);
         }
 
         Ok(())

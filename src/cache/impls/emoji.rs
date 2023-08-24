@@ -63,13 +63,13 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&emoji_entries, C::Emoji::expire()).ignore();
+        pipe.mset(&emoji_entries, C::Emoji::expire());
 
         let key = RedisKey::GuildEmojis { id: guild_id };
-        pipe.sadd(key, emoji_ids.as_slice()).ignore();
+        pipe.sadd(key, emoji_ids.as_slice());
 
         let key = RedisKey::Emojis;
-        pipe.sadd(key, emoji_ids).ignore();
+        pipe.sadd(key, emoji_ids);
 
         if C::Emoji::expire().is_some() {
             emojis

@@ -30,8 +30,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::CurrentUser::expire())
-            .ignore();
+        pipe.set(key, bytes.as_ref(), C::CurrentUser::expire());
 
         Ok(())
     }

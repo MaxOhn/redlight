@@ -35,7 +35,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Message::expire()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Message::expire());
         }
 
         self.store_user(pipe, &msg.author)?;
@@ -91,7 +91,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Message::expire()).ignore();
+        pipe.set(key, &bytes, C::Message::expire());
 
         Ok(())
     }
@@ -125,7 +125,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Message { id };
         let bytes = message.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Message::expire()).ignore();
+        pipe.set(key, &bytes, C::Message::expire());
 
         Ok(())
     }
@@ -136,7 +136,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let key = RedisKey::Message { id: msg_id };
-        pipe.del(key).ignore();
+        pipe.del(key);
     }
 
     pub(crate) fn delete_messages(&self, pipe: &mut Pipe<'_, C>, msg_ids: &[Id<MessageMarker>]) {
@@ -150,7 +150,7 @@ impl<C: CacheConfig> RedisCache<C> {
             .map(|id| RedisKey::Message { id })
             .collect();
 
-        pipe.del(keys).ignore();
+        pipe.del(keys);
     }
 }
 

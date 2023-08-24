@@ -50,14 +50,13 @@ impl<C: CacheConfig> RedisCache<C> {
 
         trace!(bytes = bytes.as_ref().len());
 
-        pipe.set(key, bytes.as_ref(), C::StageInstance::expire())
-            .ignore();
+        pipe.set(key, bytes.as_ref(), C::StageInstance::expire());
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
-        pipe.sadd(key, stage_instance_id.get()).ignore();
+        pipe.sadd(key, stage_instance_id.get());
 
         let key = RedisKey::StageInstances;
-        pipe.sadd(key, stage_instance_id.get()).ignore();
+        pipe.sadd(key, stage_instance_id.get());
 
         if C::StageInstance::expire().is_some() {
             let key = StageInstanceMetaKey {
@@ -113,14 +112,13 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        pipe.mset(&stage_instance_entries, C::StageInstance::expire())
-            .ignore();
+        pipe.mset(&stage_instance_entries, C::StageInstance::expire());
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
-        pipe.sadd(key, stage_instance_ids.as_slice()).ignore();
+        pipe.sadd(key, stage_instance_ids.as_slice());
 
         let key = RedisKey::StageInstances;
-        pipe.sadd(key, stage_instance_ids).ignore();
+        pipe.sadd(key, stage_instance_ids);
 
         if C::StageInstance::expire().is_some() {
             stage_instances
@@ -154,19 +152,19 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::StageInstance {
             id: stage_instance_id,
         };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         let key = RedisKey::GuildStageInstances { id: guild_id };
-        pipe.srem(key, stage_instance_id.get()).ignore();
+        pipe.srem(key, stage_instance_id.get());
 
         let key = RedisKey::StageInstances;
-        pipe.srem(key, stage_instance_id.get()).ignore();
+        pipe.srem(key, stage_instance_id.get());
 
         if C::StageInstance::expire().is_some() {
             let key = RedisKey::StageInstanceMeta {
                 id: stage_instance_id,
             };
-            pipe.del(key).ignore();
+            pipe.del(key);
         }
     }
 }

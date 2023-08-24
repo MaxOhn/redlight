@@ -47,15 +47,15 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Member::expire()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Member::expire());
 
             let key = RedisKey::GuildMembers { id: guild_id };
-            pipe.sadd(key, user_id.get()).ignore();
+            pipe.sadd(key, user_id.get());
         }
 
         if C::User::WANTED {
             let key = RedisKey::UserGuilds { id: member.user.id };
-            pipe.sadd(key, guild_id.get()).ignore();
+            pipe.sadd(key, guild_id.get());
         }
 
         self.store_user(pipe, &member.user)?;
@@ -75,7 +75,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::User::WANTED {
             let key = RedisKey::UserGuilds { id: user_id };
-            pipe.sadd(key, update.guild_id.get()).ignore();
+            pipe.sadd(key, update.guild_id.get());
         }
 
         if !C::Member::WANTED {
@@ -86,7 +86,7 @@ impl<C: CacheConfig> RedisCache<C> {
             id: update.guild_id,
         };
 
-        pipe.sadd(key, user_id.get()).ignore();
+        pipe.sadd(key, user_id.get());
 
         let Some(update_fn) = C::Member::on_member_update() else {
             return Ok(());
@@ -113,7 +113,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = member.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Member::expire()).ignore();
+        pipe.set(key, &bytes, C::Member::expire());
 
         Ok(())
     }
@@ -154,22 +154,22 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !member_tuples.is_empty() {
-                pipe.mset(&member_tuples, C::Member::expire()).ignore();
+                pipe.mset(&member_tuples, C::Member::expire());
 
                 let key = RedisKey::GuildMembers { id: guild_id };
-                pipe.sadd(key, user_ids.as_slice()).ignore();
+                pipe.sadd(key, user_ids.as_slice());
 
                 if C::User::WANTED {
                     for member in members {
                         let key = RedisKey::UserGuilds { id: member.user.id };
-                        pipe.sadd(key, guild_id.get()).ignore();
+                        pipe.sadd(key, guild_id.get());
                     }
                 }
             }
         } else if C::User::WANTED {
             for member in members {
                 let key = RedisKey::UserGuilds { id: member.user.id };
-                pipe.sadd(key, guild_id.get()).ignore();
+                pipe.sadd(key, guild_id.get());
             }
         }
 
@@ -196,7 +196,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::User::WANTED {
             let key = RedisKey::UserGuilds { id: user.id };
-            pipe.sadd(key, guild_id.get()).ignore();
+            pipe.sadd(key, guild_id.get());
         }
 
         if !C::Member::WANTED {
@@ -204,7 +204,7 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let key = RedisKey::GuildMembers { id: guild_id };
-        pipe.sadd(key, user.id.get()).ignore();
+        pipe.sadd(key, user.id.get());
 
         let Some(update_fn) = C::Member::update_via_partial() else {
             return Ok(());
@@ -231,7 +231,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = member.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Member::expire()).ignore();
+        pipe.set(key, &bytes, C::Member::expire());
 
         Ok(())
     }
@@ -252,10 +252,10 @@ impl<C: CacheConfig> RedisCache<C> {
             guild: guild_id,
             user: user_id,
         };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         let key = RedisKey::GuildMembers { id: guild_id };
-        pipe.srem(key, user_id.get()).ignore();
+        pipe.srem(key, user_id.get());
 
         Ok(())
     }

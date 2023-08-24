@@ -47,7 +47,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             trace!(bytes = bytes.as_ref().len());
 
-            pipe.set(key, bytes.as_ref(), C::Channel::expire()).ignore();
+            pipe.set(key, bytes.as_ref(), C::Channel::expire());
 
             if C::Channel::expire().is_some() {
                 let key = ChannelMetaKey {
@@ -64,11 +64,11 @@ impl<C: CacheConfig> RedisCache<C> {
 
             if let Some(guild_id) = guild_id {
                 let key = RedisKey::GuildChannels { id: guild_id };
-                pipe.sadd(key, channel_id.get()).ignore();
+                pipe.sadd(key, channel_id.get());
             }
 
             let key = RedisKey::Channels;
-            pipe.sadd(key, channel_id.get()).ignore();
+            pipe.sadd(key, channel_id.get());
         }
 
         if let Some(ref member) = channel.member {
@@ -121,7 +121,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let bytes = channel.into_bytes();
         trace!(bytes = bytes.as_ref().len());
-        pipe.set(key, &bytes, C::Channel::expire()).ignore();
+        pipe.set(key, &bytes, C::Channel::expire());
 
         if C::Channel::expire().is_some() {
             let key = ChannelMetaKey {
@@ -174,13 +174,13 @@ impl<C: CacheConfig> RedisCache<C> {
                 .unzip();
 
             if !channel_entries.is_empty() {
-                pipe.mset(&channel_entries, C::Channel::expire()).ignore();
+                pipe.mset(&channel_entries, C::Channel::expire());
 
                 let key = RedisKey::GuildChannels { id: guild_id };
-                pipe.sadd(key, channel_ids.as_slice()).ignore();
+                pipe.sadd(key, channel_ids.as_slice());
 
                 let key = RedisKey::Channels;
-                pipe.sadd(key, channel_ids).ignore();
+                pipe.sadd(key, channel_ids);
 
                 if C::Channel::expire().is_some() {
                     channels
@@ -225,15 +225,15 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let key = RedisKey::Channel { id: channel_id };
-        pipe.del(key).ignore();
+        pipe.del(key);
 
         if let Some(guild_id) = guild_id {
             let key = RedisKey::GuildChannels { id: guild_id };
-            pipe.srem(key, channel_id.get()).ignore();
+            pipe.srem(key, channel_id.get());
         }
 
         let key = RedisKey::Channels;
-        pipe.srem(key, channel_id.get()).ignore();
+        pipe.srem(key, channel_id.get());
 
         if C::Channel::expire().is_some() {
             pipe.del(RedisKey::ChannelMeta { id: channel_id });

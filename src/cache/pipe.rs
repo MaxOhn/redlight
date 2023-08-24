@@ -44,14 +44,8 @@ impl<'c, C> Pipe<'c, C> {
         Ok(res)
     }
 
-    pub(crate) fn del(&mut self, key: impl ToRedisArgs) -> &mut Self {
-        self.pipe.del(key);
-
-        self
-    }
-
-    pub(crate) fn ignore(&mut self) {
-        self.pipe.ignore();
+    pub(crate) fn del(&mut self, key: impl ToRedisArgs) {
+        self.pipe.del(key).ignore();
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -62,51 +56,40 @@ impl<'c, C> Pipe<'c, C> {
         &mut self,
         items: &[(RedisKey, V)],
         expire: Option<Duration>,
-    ) -> &mut Self {
-        self.pipe.mset(items);
+    ) {
+        self.pipe.mset(items).ignore();
 
         if let Some(duration) = expire {
             for (key, _) in items {
                 self.pipe.expire(key, duration.as_secs() as usize).ignore();
             }
         }
-
-        self
     }
 
-    pub(crate) fn sadd(&mut self, key: RedisKey, member: impl ToRedisArgs) -> &mut Self {
-        self.pipe.sadd(key, member);
-
-        self
+    pub(crate) fn sadd(&mut self, key: RedisKey, member: impl ToRedisArgs) {
+        self.pipe.sadd(key, member).ignore();
     }
 
     pub(crate) fn scard(&mut self, key: RedisKey) {
         self.pipe.scard(key);
     }
 
-    pub(crate) fn set(
-        &mut self,
-        key: RedisKey,
-        bytes: &[u8],
-        expire: Option<Duration>,
-    ) -> &mut Self {
+    pub(crate) fn set(&mut self, key: RedisKey, bytes: &[u8], expire: Option<Duration>) {
         if let Some(duration) = expire {
             self.pipe.set_ex(key, bytes, duration.as_secs() as usize);
         } else {
             self.pipe.set(key, bytes);
         }
 
-        self
+        self.pipe.ignore();
     }
 
     pub(crate) fn smembers(&mut self, key: RedisKey) {
         self.pipe.smembers(key);
     }
 
-    pub(crate) fn srem(&mut self, key: RedisKey, member: impl ToRedisArgs) -> &mut Self {
-        self.pipe.srem(key, member);
-
-        self
+    pub(crate) fn srem(&mut self, key: RedisKey, member: impl ToRedisArgs) {
+        self.pipe.srem(key, member).ignore();
     }
 }
 
