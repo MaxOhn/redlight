@@ -29,6 +29,17 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_ids(RedisKey::Channels).await
     }
 
+    pub async fn channel_msg_ids(
+        &self,
+        channel_id: Id<ChannelMarker>,
+    ) -> CacheResult<HashSet<Id<MessageMarker>>> {
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+
+        self.get_ids(key).await
+    }
+
     pub async fn common_guild_ids(
         &self,
         user_id: Id<UserMarker>,
@@ -160,6 +171,10 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(msg_id).await
     }
 
+    pub async fn message_ids(&self) -> CacheResult<HashSet<Id<MessageMarker>>> {
+        self.get_ids(RedisKey::Messages).await
+    }
+
     pub async fn presence(
         &self,
         guild_id: Id<GuildMarker>,
@@ -233,7 +248,9 @@ impl<C: CacheConfig> RedisCache<C> {
 
         self.get_single(key).await
     }
+}
 
+impl<C> RedisCache<C> {
     #[cfg(feature = "validation")]
     async fn get_single<K, V>(&self, key: K) -> CacheResult<Option<CachedArchive<V>>>
     where

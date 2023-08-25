@@ -1,19 +1,26 @@
+use rkyv::{ser::serializers::BufferSerializer, AlignedBytes};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Message,
     gateway::payload::incoming::MessageUpdate,
-    id::{marker::MessageMarker, Id},
+    id::{
+        marker::{ChannelMarker, MessageMarker},
+        Id,
+    },
 };
 
 use crate::{
     cache::{
-        meta::{atoi, IMetaKey},
+        meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
     config::{CacheConfig, Cacheable, ICachedMessage, ReactionEvent},
-    error::{SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
+    error::{
+        MetaError, MetaErrorKind, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind,
+    },
     key::RedisKey,
     redis::Pipeline,
+    rkyv_util::id::IdRkyv,
     CacheResult, RedisCache,
 };
 
@@ -25,7 +32,9 @@ impl<C: CacheConfig> RedisCache<C> {
         msg: &Message,
     ) -> CacheResult<()> {
         if C::Message::WANTED {
-            let key = RedisKey::Message { id: msg.id };
+            let msg_id = msg.id;
+            let channel_id = msg.channel_id;
+            let key = RedisKey::Message { id: msg_id };
             let msg = C::Message::from_message(msg);
 
             let bytes = msg.serialize().map_err(|e| SerializeError {
@@ -36,6 +45,26 @@ impl<C: CacheConfig> RedisCache<C> {
             trace!(bytes = bytes.as_ref().len());
 
             pipe.set(key, bytes.as_ref(), C::Message::expire());
+
+            let key = RedisKey::Messages;
+            pipe.sadd(key, msg_id.get());
+
+            let key = RedisKey::ChannelMessages {
+                channel: channel_id,
+            };
+            pipe.sadd(key, msg_id.get());
+
+            if C::Message::expire().is_some() {
+                let meta = MessageMeta {
+                    channel: channel_id,
+                };
+
+                meta.store(pipe, MessageMetaKey { msg: msg_id })
+                    .map_err(|error| MetaError {
+                        error,
+                        kind: MetaErrorKind::Message,
+                    })?;
+            }
         }
 
         self.store_user(pipe, &msg.author)?;
@@ -93,6 +122,26 @@ impl<C: CacheConfig> RedisCache<C> {
         trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Message::expire());
 
+        let key = RedisKey::Messages;
+        pipe.sadd(key, update.id.get());
+
+        let key = RedisKey::ChannelMessages {
+            channel: update.channel_id,
+        };
+        pipe.sadd(key, update.id.get());
+
+        if C::Message::expire().is_some() {
+            let meta = MessageMeta {
+                channel: update.channel_id,
+            };
+
+            meta.store(pipe, MessageMetaKey { msg: update.id })
+                .map_err(|error| MetaError {
+                    error,
+                    kind: MetaErrorKind::Message,
+                })?;
+        }
+
         Ok(())
     }
 
@@ -110,8 +159,9 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        let id = event.message_id();
-        let key = RedisKey::Message { id };
+        let msg_id = event.message_id();
+        let channel_id = event.channel_id();
+        let key = RedisKey::Message { id: msg_id };
 
         let Some(mut message) = pipe.get::<C::Message<'static>>(key).await? else {
             return Ok(());
@@ -122,47 +172,142 @@ impl<C: CacheConfig> RedisCache<C> {
             kind: UpdateErrorKind::Reaction,
         })?;
 
-        let key = RedisKey::Message { id };
+        let key = RedisKey::Message { id: msg_id };
         let bytes = message.into_bytes();
         trace!(bytes = bytes.as_ref().len());
         pipe.set(key, &bytes, C::Message::expire());
 
+        let key = RedisKey::Messages;
+        pipe.sadd(key, msg_id.get());
+
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+        pipe.sadd(key, msg_id.get());
+
+        if C::Message::expire().is_some() {
+            let meta = MessageMeta {
+                channel: channel_id,
+            };
+
+            meta.store(pipe, MessageMetaKey { msg: msg_id })
+                .map_err(|error| MetaError {
+                    error,
+                    kind: MetaErrorKind::Message,
+                })?;
+        }
+
         Ok(())
     }
 
-    pub(crate) fn delete_message(&self, pipe: &mut Pipe<'_, C>, msg_id: Id<MessageMarker>) {
+    pub(crate) fn delete_message(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        msg_id: Id<MessageMarker>,
+        channel_id: Id<ChannelMarker>,
+    ) {
         if !C::Message::WANTED {
             return;
         }
 
         let key = RedisKey::Message { id: msg_id };
         pipe.del(key);
+
+        let key = RedisKey::Messages;
+        pipe.srem(key, msg_id.get());
+
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+        pipe.srem(key, msg_id.get());
+
+        if C::Message::expire().is_some() {
+            pipe.del(RedisKey::MessageMeta { id: msg_id });
+        }
     }
 
-    pub(crate) fn delete_messages(&self, pipe: &mut Pipe<'_, C>, msg_ids: &[Id<MessageMarker>]) {
+    pub(crate) fn delete_messages(
+        &self,
+        pipe: &mut Pipe<'_, C>,
+        msg_ids: &[Id<MessageMarker>],
+        channel_id: Id<ChannelMarker>,
+    ) {
         if !C::Message::WANTED || msg_ids.is_empty() {
             return;
         }
 
-        let keys: Vec<_> = msg_ids
-            .iter()
-            .copied()
-            .map(|id| RedisKey::Message { id })
-            .collect();
+        let keys: Vec<_> = if C::Message::expire().is_some() {
+            msg_ids
+                .iter()
+                .copied()
+                .flat_map(|id| [RedisKey::Message { id }, RedisKey::MessageMeta { id }])
+                .collect()
+        } else {
+            msg_ids
+                .iter()
+                .copied()
+                .map(|id| RedisKey::Message { id })
+                .collect()
+        };
 
         pipe.del(keys);
+
+        fn ids_to_u64(msg_ids: &[Id<MessageMarker>]) -> &[u64] {
+            // SAFETY: Id<T> is a transparent wrapper of NonZeroU64
+            // which is a transparent wrapper of u64
+            unsafe { std::mem::transmute(msg_ids) }
+        }
+
+        let raw_msg_ids = ids_to_u64(msg_ids);
+
+        let key = RedisKey::Messages;
+        pipe.srem(key, raw_msg_ids);
+
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+        pipe.srem(key, raw_msg_ids);
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct MessageMetaKey {
-    _msg: Id<MessageMarker>,
+    msg: Id<MessageMarker>,
 }
 
 impl IMetaKey for MessageMetaKey {
     fn parse<'a>(split: &mut impl Iterator<Item = &'a [u8]>) -> Option<Self> {
-        split.next().and_then(atoi).map(|_msg| Self { _msg })
+        split.next().and_then(atoi).map(|msg| Self { msg })
     }
 
-    fn handle_expire(&self, _pipe: &mut Pipeline) {}
+    fn handle_expire(&self, pipe: &mut Pipeline) {
+        let key = RedisKey::Messages;
+        pipe.srem(key, self.msg.get()).ignore();
+    }
+}
+
+impl HasArchived for MessageMetaKey {
+    type Meta = MessageMeta;
+
+    fn redis_key(&self) -> RedisKey {
+        RedisKey::MessageMeta { id: self.msg }
+    }
+
+    fn handle_archived(&self, pipe: &mut Pipeline, archived: &rkyv::Archived<Self::Meta>) {
+        let key = RedisKey::ChannelMessages {
+            channel: archived.channel.into(),
+        };
+        pipe.srem(key, self.msg.get()).ignore();
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize)]
+#[cfg_attr(feature = "validation", archive(check_bytes))]
+pub(crate) struct MessageMeta {
+    #[with(IdRkyv)]
+    channel: Id<ChannelMarker>,
+}
+
+impl IMeta<MessageMetaKey> for MessageMeta {
+    type Serializer = BufferSerializer<AlignedBytes<8>>;
 }

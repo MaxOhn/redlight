@@ -1,6 +1,6 @@
 use futures_util::future::BoxFuture;
 use twilight_model::id::{
-    marker::{GuildMarker, UserMarker},
+    marker::{ChannelMarker, GuildMarker, UserMarker},
     Id,
 };
 
@@ -49,6 +49,7 @@ impl RedisCacheStats<'_> {
     impl_stats_fn!(channels, Channels);
     impl_stats_fn!(emojis, Emojis);
     impl_stats_fn!(guilds, Guilds);
+    impl_stats_fn!(messages, Messages);
     impl_stats_fn!(roles, Roles);
     impl_stats_fn!(stage_instances, StageInstances);
     impl_stats_fn!(stickers, Stickers);
@@ -64,6 +65,19 @@ impl RedisCacheStats<'_> {
     impl_stats_fn!(Guild: guild_stage_instances, GuildStageInstances);
     impl_stats_fn!(Guild: guild_stickers, GuildStickers);
     impl_stats_fn!(Guild: guild_voice_states, GuildVoiceStates);
+
+    pub async fn channel_messages(&mut self, channel_id: Id<ChannelMarker>) -> CacheResult<usize> {
+        let conn = self.conn.get().await?;
+
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+
+        Cmd::scard(key)
+            .query_async(conn)
+            .await
+            .map_err(CacheError::Redis)
+    }
 
     pub async fn common_guilds(&mut self, user_id: Id<UserMarker>) -> CacheResult<usize> {
         let conn = self.conn.get().await?;

@@ -1,7 +1,10 @@
 mod async_iter;
 
 use itoa::Buffer;
-use twilight_model::id::{marker::GuildMarker, Id};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 
 use crate::{config::CacheConfig, key::RedisKey, CacheResult, RedisCache};
 
@@ -57,11 +60,10 @@ impl<'c, C> RedisCacheIter<'c, C> {
 
 #[rustfmt::skip]
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
-    // TODO: docs
-
     def_getter!(channels, Channel, Channels, CHANNEL_PREFIX);
     def_getter!(emojis, Emoji, Emojis, EMOJI_PREFIX);
     def_getter!(guilds, Guild, Guilds, GUILD_PREFIX);
+    def_getter!(messages, Message, Messages, MESSAGE_PREFIX);
     def_getter!(roles, Role, Roles, ROLE_PREFIX);
     def_getter!(stage_instances, StageInstance, StageInstances, STAGE_INSTANCE_PREFIX);
     def_getter!(stickers, Sticker, Stickers, STICKER_PREFIX);
@@ -76,6 +78,23 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     def_getter!(Guild: guild_stage_instances, StageInstance, GuildStageInstances, STAGE_INSTANCE_PREFIX);
     def_getter!(Guild: guild_stickers, Sticker, GuildStickers, STICKER_PREFIX);
     def_getter!(Guild: guild_voice_states, VoiceState, GuildVoiceStates, VOICE_STATE_PREFIX);
+
+    
+    pub async fn channel_messages(
+        self,
+        channel_id: Id<ChannelMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
+        let mut conn = self.cache.connection().await?;
+
+        let ids: Vec<u64> =
+            RedisCache::<C>::get_ids_static(RedisKey::ChannelMessages { channel: channel_id }, &mut conn)
+                .await?;
+
+        let key_prefix = key_prefix_simple(RedisKey::MESSAGE_PREFIX);
+        let iter = AsyncIter::new(conn, ids, key_prefix);
+
+        Ok(iter)
+    }
 }
 
 impl<'c, C> Clone for RedisCacheIter<'c, C> {
@@ -98,7 +117,7 @@ fn key_prefix_buffered(prefix: &'static [u8], guild_id: Id<GuildMarker>) -> (Vec
     let mut buf = Buffer::new();
     let guild_id = buf.format(guild_id.get());
 
-    let mut key_prefix = Vec::with_capacity(prefix.len() + guild_id.len() + 1);
+    let mut key_prefix = Vec::with_capacity(prefix.len() + 1 + 2 * (guild_id.len() + 1));
     key_prefix.extend_from_slice(prefix);
     key_prefix.push(b':');
     key_prefix.extend_from_slice(guild_id.as_bytes());

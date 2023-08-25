@@ -16,6 +16,9 @@ pub(crate) enum RedisKey {
     Channel {
         id: Id<ChannelMarker>,
     },
+    ChannelMessages {
+        channel: Id<ChannelMarker>,
+    },
     ChannelMeta {
         id: Id<ChannelMarker>,
     },
@@ -70,6 +73,10 @@ pub(crate) enum RedisKey {
     Message {
         id: Id<MessageMarker>,
     },
+    MessageMeta {
+        id: Id<MessageMarker>,
+    },
+    Messages,
     Presence {
         guild: Id<GuildMarker>,
         user: Id<UserMarker>,
@@ -113,6 +120,7 @@ pub(crate) enum RedisKey {
 
 impl RedisKey {
     pub(crate) const CHANNEL_PREFIX: &[u8] = b"CHANNEL";
+    pub(crate) const CHANNEL_MESSAGES_PREFIX: &[u8] = b"CHANNEL_MESSAGES_META";
     pub(crate) const CHANNEL_META_PREFIX: &[u8] = b"CHANNEL_META";
     pub(crate) const CHANNELS_PREFIX: &[u8] = b"CHANNELS";
     pub(crate) const CURRENT_USER_PREFIX: &[u8] = b"CURRENT_USER";
@@ -133,6 +141,8 @@ impl RedisKey {
     pub(crate) const INTEGRATION_PREFIX: &[u8] = b"INTEGRATION";
     pub(crate) const MEMBER_PREFIX: &[u8] = b"MEMBER";
     pub(crate) const MESSAGE_PREFIX: &[u8] = b"MESSAGE";
+    pub(crate) const MESSAGE_META_PREFIX: &[u8] = b"MESSAGE_META";
+    pub(crate) const MESSAGES_PREFIX: &[u8] = b"MESSAGES";
     pub(crate) const PRESENCE_PREFIX: &[u8] = b"PRESENCE";
     pub(crate) const ROLE_PREFIX: &[u8] = b"ROLE";
     pub(crate) const ROLE_META_PREFIX: &[u8] = b"ROLE_META";
@@ -246,6 +256,7 @@ impl ToRedisArgs for RedisKey {
 
         let bytes = match self {
             Self::Channel { id } => name_id(Self::CHANNEL_PREFIX, id),
+            Self::ChannelMessages { channel } => name_id(Self::CHANNEL_MESSAGES_PREFIX, channel),
             Self::ChannelMeta { id } => name_id(Self::CHANNEL_META_PREFIX, id),
             Self::Channels => Cow::Borrowed(Self::CHANNELS_PREFIX),
             Self::CurrentUser => Cow::Borrowed(Self::CURRENT_USER_PREFIX),
@@ -266,6 +277,8 @@ impl ToRedisArgs for RedisKey {
             Self::Integration { guild, id } => name_guild_id(Self::INTEGRATION_PREFIX, guild, id),
             Self::Member { user, guild } => name_guild_id(Self::MEMBER_PREFIX, guild, user),
             Self::Message { id } => name_id(Self::MESSAGE_PREFIX, id),
+            Self::MessageMeta { id } => name_id(Self::MESSAGE_META_PREFIX, id),
+            Self::Messages => Cow::Borrowed(Self::MESSAGES_PREFIX),
             Self::Presence { guild, user } => name_guild_id(Self::PRESENCE_PREFIX, guild, user),
             Self::Role { id } => name_id(Self::ROLE_PREFIX, id),
             Self::RoleMeta { id } => name_id(Self::ROLE_META_PREFIX, id),

@@ -177,8 +177,12 @@ impl<C: CacheConfig> RedisCache<C> {
                 self.store_presences(&mut pipe, event.guild_id, &event.presences)?;
             }
             Event::MessageCreate(event) => self.store_message(&mut pipe, event).await?,
-            Event::MessageDelete(event) => self.delete_message(&mut pipe, event.id),
-            Event::MessageDeleteBulk(event) => self.delete_messages(&mut pipe, &event.ids),
+            Event::MessageDelete(event) => {
+                self.delete_message(&mut pipe, event.id, event.channel_id)
+            }
+            Event::MessageDeleteBulk(event) => {
+                self.delete_messages(&mut pipe, &event.ids, event.channel_id)
+            }
             Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event).await?,
             Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event)?,
             Event::PresencesReplace => {}
@@ -276,6 +280,7 @@ impl<C: CacheConfig> RedisCache<C> {
             const CHANNEL_COUNT: &str = "channel_count";
             const EMOJI_COUNT: &str = "emoji_count";
             const GUILD_COUNT: &str = "guild_count";
+            const MESSAGE_COUNT: &str = "message_count";
             const ROLE_COUNT: &str = "role_count";
             const STAGE_INSTANCE_COUNT: &str = "stage_instance_count";
             const STICKER_COUNT: &str = "sticker_count";
@@ -285,6 +290,7 @@ impl<C: CacheConfig> RedisCache<C> {
             describe_gauge!(CHANNEL_COUNT, "Amount of cached channels");
             describe_gauge!(EMOJI_COUNT, "Amount of cached emojis");
             describe_gauge!(GUILD_COUNT, "Amount of cached guilds");
+            describe_gauge!(MESSAGE_COUNT, "Amount of cached messages");
             describe_gauge!(ROLE_COUNT, "Amount of cached roles");
             describe_gauge!(STAGE_INSTANCE_COUNT, "Amount of cached stage instances");
             describe_gauge!(STICKER_COUNT, "Amount of cached stickers");
@@ -315,6 +321,10 @@ impl<C: CacheConfig> RedisCache<C> {
                 if C::Guild::WANTED {
                     pipe.scard(RedisKey::Guilds);
                     pipe.scard(RedisKey::UnavailableGuilds);
+                }
+
+                if C::Message::WANTED {
+                    pipe.scard(RedisKey::Messages);
                 }
 
                 if C::Role::WANTED {
@@ -366,6 +376,10 @@ impl<C: CacheConfig> RedisCache<C> {
                     gauge!(UNAVAILABLE_GUILD_COUNT, counts.next().unwrap_or(0) as f64);
                 }
 
+                if C::Message::WANTED {
+                    gauge!(MESSAGE_COUNT, counts.next().unwrap_or(0) as f64);
+                }
+
                 if C::Role::WANTED {
                     gauge!(ROLE_COUNT, counts.next().unwrap_or(0) as f64);
                 }
@@ -387,6 +401,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let wants_any = C::Channel::WANTED
             || C::Emoji::WANTED
             || C::Guild::WANTED
+            || C::Message::WANTED
             || C::Role::WANTED
             || C::StageInstance::WANTED
             || C::Sticker::WANTED

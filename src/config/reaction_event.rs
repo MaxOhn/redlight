@@ -2,7 +2,10 @@ use twilight_model::{
     gateway::payload::incoming::{
         ReactionAdd, ReactionRemove, ReactionRemoveAll, ReactionRemoveEmoji,
     },
-    id::{marker::MessageMarker, Id},
+    id::{
+        marker::{ChannelMarker, MessageMarker},
+        Id,
+    },
 };
 
 /// All the different events related to reactions.
@@ -25,6 +28,15 @@ impl ReactionEvent<'_> {
             ReactionEvent::Remove(event) => event.message_id,
             ReactionEvent::RemoveAll(event) => event.message_id,
             ReactionEvent::RemoveEmoji(event) => event.message_id,
+        }
+    }
+
+    pub fn channel_id(self) -> Id<ChannelMarker> {
+        match self {
+            ReactionEvent::Add(event) => event.channel_id,
+            ReactionEvent::Remove(event) => event.channel_id,
+            ReactionEvent::RemoveAll(event) => event.channel_id,
+            ReactionEvent::RemoveEmoji(event) => event.channel_id,
         }
     }
 }
