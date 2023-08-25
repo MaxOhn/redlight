@@ -887,81 +887,86 @@ impl GuildMetaKey {
 
         pipe.clear();
 
-        let mut buf = Vec::new();
+        let mut keys_to_delete = Vec::new();
 
         let channel_ids = iter.next().unwrap_or_default();
-        self.handle_channels(pipe, &mut buf, channel_ids);
+        self.handle_channels(pipe, &mut keys_to_delete, channel_ids);
 
         let emoji_ids = iter.next().unwrap_or_default();
-        self.handle_emojis(pipe, &mut buf, emoji_ids);
+        self.handle_emojis(pipe, &mut keys_to_delete, emoji_ids);
 
         let integration_ids = iter.next().unwrap_or_default();
-        self.handle_integrations(pipe, &mut buf, integration_ids);
+        self.handle_integrations(&mut keys_to_delete, integration_ids);
 
         let member_ids = iter.next().unwrap_or_default();
-        self.handle_members(pipe, conn, &mut buf, member_ids)
+        self.handle_members(pipe, conn, &mut keys_to_delete, member_ids)
             .await?;
 
         let presence_ids = iter.next().unwrap_or_default();
-        self.handle_presences(pipe, &mut buf, presence_ids);
+        self.handle_presences(&mut keys_to_delete, presence_ids);
 
         let role_ids = iter.next().unwrap_or_default();
-        self.handle_roles(pipe, &mut buf, role_ids);
+        self.handle_roles(pipe, &mut keys_to_delete, role_ids);
 
-        let stage_instance_ids = iter.next().unwrap_or_default();
-        self.handle_stage_instances(pipe, &mut buf, stage_instance_ids);
+        let stage_ids = iter.next().unwrap_or_default();
+        self.handle_stages(pipe, &mut keys_to_delete, stage_ids);
 
         let sticker_ids = iter.next().unwrap_or_default();
-        self.handle_stickers(pipe, &mut buf, sticker_ids);
+        self.handle_stickers(pipe, &mut keys_to_delete, sticker_ids);
 
         let voice_state_ids = iter.next().unwrap_or_default();
-        self.handle_voice_states(pipe, &mut buf, voice_state_ids);
+        self.handle_voice_states(&mut keys_to_delete, voice_state_ids);
+
+        pipe.del(keys_to_delete).ignore();
 
         Ok(())
     }
 
     fn handle_channels(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, channel_ids: Vec<u64>) {
-        del_keys(
-            pipe,
-            buf,
-            Some(RedisKey::Channels),
-            &channel_ids,
-            |channel| RedisKey::Channel {
-                id: Id::new(*channel),
-            },
-        );
+        pipe.srem(RedisKey::Channels, &channel_ids).ignore();
 
-        del_keys(pipe, buf, None, &channel_ids, |channel| {
-            RedisKey::ChannelMeta {
+        let iter = channel_ids.iter().flat_map(|channel| {
+            let meta = RedisKey::ChannelMeta {
                 id: Id::new(*channel),
-            }
+            };
+
+            let channel = RedisKey::Channel {
+                id: Id::new(*channel),
+            };
+
+            [channel, meta]
         });
+
+        buf.extend(iter);
     }
 
     fn handle_emojis(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, emoji_ids: Vec<u64>) {
-        del_keys(pipe, buf, Some(RedisKey::Emojis), &emoji_ids, |emoji| {
-            RedisKey::Emoji {
+        pipe.srem(RedisKey::Emojis, &emoji_ids).ignore();
+
+        let iter = emoji_ids.iter().flat_map(|emoji| {
+            let meta = RedisKey::EmojiMeta {
                 id: Id::new(*emoji),
-            }
+            };
+
+            let emoji = RedisKey::Emoji {
+                id: Id::new(*emoji),
+            };
+
+            [emoji, meta]
         });
 
-        del_keys(pipe, buf, None, &emoji_ids, |emoji| RedisKey::EmojiMeta {
-            id: Id::new(*emoji),
-        });
+        buf.extend(iter);
     }
 
-    fn handle_integrations(
-        &self,
-        pipe: &mut Pipeline,
-        buf: &mut Vec<RedisKey>,
-        integration_ids: Vec<u64>,
-    ) {
-        del_keys(pipe, buf, None, &integration_ids, |integration| {
-            RedisKey::Integration {
+    fn handle_integrations(&self, buf: &mut Vec<RedisKey>, integration_ids: Vec<u64>) {
+        let iter = integration_ids
+            .iter()
+            .map(|integration| RedisKey::Integration {
                 guild: self.guild,
                 id: Id::new(*integration),
-            }
-        });
+            });
+
+        buf.extend(iter);
     }
 
     async fn handle_members(
@@ -995,118 +1000,84 @@ impl GuildMetaKey {
         });
 
         buf.extend(user_keys);
-        pipe.del(&*buf).ignore();
-        buf.clear();
 
         let key = RedisKey::Users;
         pipe.srem(key, &estranged_user_ids).ignore();
 
-        del_keys(pipe, buf, None, &member_ids, |user| RedisKey::Member {
+        let iter = member_ids.iter().map(|user| RedisKey::Member {
             guild: self.guild,
             user: Id::new(*user),
         });
+
+        buf.extend(iter);
 
         Ok(())
     }
 
-    fn handle_presences(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, user_ids: Vec<u64>) {
-        del_keys(pipe, buf, None, &user_ids, |user| RedisKey::Presence {
+    fn handle_presences(&self, buf: &mut Vec<RedisKey>, user_ids: Vec<u64>) {
+        let iter = user_ids.iter().map(|user| RedisKey::Presence {
             guild: self.guild,
             user: Id::new(*user),
         });
+
+        buf.extend(iter);
     }
 
     fn handle_roles(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, role_ids: Vec<u64>) {
-        del_keys(pipe, buf, Some(RedisKey::Roles), &role_ids, |role| {
-            RedisKey::Role { id: Id::new(*role) }
+        pipe.srem(RedisKey::Roles, &role_ids).ignore();
+
+        let iter = role_ids.iter().flat_map(|role| {
+            let meta = RedisKey::RoleMeta { id: Id::new(*role) };
+            let role = RedisKey::Role { id: Id::new(*role) };
+
+            [role, meta]
         });
 
-        del_keys(pipe, buf, None, &role_ids, |role| RedisKey::RoleMeta {
-            id: Id::new(*role),
-        });
+        buf.extend(iter);
     }
 
-    fn handle_stage_instances(
-        &self,
-        pipe: &mut Pipeline,
-        buf: &mut Vec<RedisKey>,
-        stage_instance_ids: Vec<u64>,
-    ) {
-        del_keys(
-            pipe,
-            buf,
-            Some(RedisKey::StageInstances),
-            &stage_instance_ids,
-            |stage_instance| RedisKey::StageInstance {
-                id: Id::new(*stage_instance),
-            },
-        );
+    fn handle_stages(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, stage_ids: Vec<u64>) {
+        pipe.srem(RedisKey::StageInstances, &stage_ids).ignore();
 
-        del_keys(pipe, buf, None, &stage_instance_ids, |stage_instance| {
-            RedisKey::StageInstanceMeta {
-                id: Id::new(*stage_instance),
-            }
+        let iter = stage_ids.iter().flat_map(|stage| {
+            let meta = RedisKey::StageInstanceMeta {
+                id: Id::new(*stage),
+            };
+
+            let stage = RedisKey::StageInstance {
+                id: Id::new(*stage),
+            };
+
+            [stage, meta]
         });
+
+        buf.extend(iter);
     }
 
     fn handle_stickers(&self, pipe: &mut Pipeline, buf: &mut Vec<RedisKey>, sticker_ids: Vec<u64>) {
-        del_keys(
-            pipe,
-            buf,
-            Some(RedisKey::Stickers),
-            &sticker_ids,
-            |sticker| RedisKey::Sticker {
-                id: Id::new(*sticker),
-            },
-        );
+        pipe.srem(RedisKey::Stickers, &sticker_ids).ignore();
 
-        del_keys(pipe, buf, None, &sticker_ids, |sticker| {
-            RedisKey::StickerMeta {
+        let iter = sticker_ids.iter().flat_map(|sticker| {
+            let meta = RedisKey::StickerMeta {
                 id: Id::new(*sticker),
-            }
+            };
+
+            let sticker = RedisKey::Sticker {
+                id: Id::new(*sticker),
+            };
+
+            [sticker, meta]
         });
+
+        buf.extend(iter);
     }
 
-    fn handle_voice_states(
-        &self,
-        pipe: &mut Pipeline,
-        buf: &mut Vec<RedisKey>,
-        user_ids: Vec<u64>,
-    ) {
-        del_keys(pipe, buf, None, &user_ids, |user| RedisKey::VoiceState {
+    fn handle_voice_states(&self, buf: &mut Vec<RedisKey>, user_ids: Vec<u64>) {
+        let iter = user_ids.iter().map(|user| RedisKey::VoiceState {
             guild: self.guild,
             user: Id::new(*user),
         });
+
+        buf.extend(iter);
     }
-}
-
-fn del_keys<F>(
-    pipe: &mut Pipeline,
-    buf: &mut Vec<RedisKey>,
-    list_key: Option<RedisKey>,
-    ids: &[u64],
-    f: F,
-) where
-    F: Fn(&u64) -> RedisKey,
-{
-    fn inner(
-        pipe: &mut Pipeline,
-        buf: &mut Vec<RedisKey>,
-        list_key: Option<RedisKey>,
-        ids: &[u64],
-    ) {
-        if ids.is_empty() {
-            return;
-        }
-
-        if let Some(key) = list_key {
-            pipe.srem(key, ids).ignore();
-        }
-
-        pipe.del(&*buf).ignore();
-        buf.clear();
-    }
-
-    buf.extend(ids.iter().map(f));
-    inner(pipe, buf, list_key, ids);
 }
