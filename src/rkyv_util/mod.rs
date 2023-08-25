@@ -1,6 +1,7 @@
 pub mod flags;
 pub mod id;
 pub mod integration;
+pub mod presence;
 pub mod stage_instance;
 pub mod util;
 

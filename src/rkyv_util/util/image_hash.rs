@@ -82,31 +82,35 @@ impl<D: Fallible + ?Sized> DeserializeWith<ArchivedImageHash, ImageHash, D> for 
 }
 
 #[cfg(feature = "validation")]
-impl<C: ?Sized> rkyv::CheckBytes<C> for ArchivedImageHash {
-    type Error = rkyv::bytecheck::StructCheckError;
-
-    unsafe fn check_bytes<'a>(
-        value: *const Self,
-        context: &mut C,
-    ) -> Result<&'a Self, Self::Error> {
+const _: () =
+    {
         use std::ptr::addr_of;
 
-        use rkyv::bytecheck::{ErrorBox, StructCheckError};
+        use rkyv::{
+            bytecheck::{ErrorBox, StructCheckError},
+            CheckBytes,
+        };
 
-        <bool as rkyv::CheckBytes<C>>::check_bytes(addr_of!((*value).animated), context).map_err(
-            |e| StructCheckError {
-                field_name: "animated",
-                inner: ErrorBox::new(e),
-            },
-        )?;
+        impl<C: ?Sized> CheckBytes<C> for ArchivedImageHash {
+            type Error = StructCheckError;
 
-        <[u8; 16] as rkyv::CheckBytes<C>>::check_bytes(addr_of!((*value).bytes), context).map_err(
-            |e| StructCheckError {
-                field_name: "bytes",
-                inner: ErrorBox::new(e),
-            },
-        )?;
+            unsafe fn check_bytes<'a>(
+                value: *const Self,
+                context: &mut C,
+            ) -> Result<&'a Self, Self::Error> {
+                <bool as CheckBytes<C>>::check_bytes(addr_of!((*value).animated), context)
+                    .map_err(|e| StructCheckError {
+                        field_name: "animated",
+                        inner: ErrorBox::new(e),
+                    })?;
 
-        Ok(&*value)
-    }
-}
+                <[u8; 16] as CheckBytes<C>>::check_bytes(addr_of!((*value).bytes), context)
+                    .map_err(|e| StructCheckError {
+                        field_name: "bytes",
+                        inner: ErrorBox::new(e),
+                    })?;
+
+                Ok(&*value)
+            }
+        }
+    };

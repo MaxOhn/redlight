@@ -109,32 +109,37 @@ impl<D: Fallible + ?Sized> DeserializeWith<ArchivedIntegrationAccount, Integrati
 }
 
 #[cfg(feature = "validation")]
-impl<C: ?Sized> rkyv::CheckBytes<C> for ArchivedIntegrationAccount
-where
-    ArchivedString: rkyv::CheckBytes<C>,
-{
-    type Error = rkyv::bytecheck::StructCheckError;
+const _: () = {
+    use std::ptr::addr_of;
 
-    unsafe fn check_bytes<'bytecheck>(
-        value: *const Self,
-        context: &mut C,
-    ) -> Result<&'bytecheck Self, rkyv::bytecheck::StructCheckError> {
-        use std::ptr::addr_of;
+    use rkyv::{
+        bytecheck::{ErrorBox, StructCheckError},
+        CheckBytes,
+    };
 
-        use rkyv::bytecheck::{ErrorBox, StructCheckError};
+    impl<C: ?Sized> CheckBytes<C> for ArchivedIntegrationAccount
+    where
+        ArchivedString: CheckBytes<C>,
+    {
+        type Error = StructCheckError;
 
-        <ArchivedString as rkyv::CheckBytes<C>>::check_bytes(addr_of!((*value).id), context)
-            .map_err(|e| StructCheckError {
-                field_name: "id",
-                inner: ErrorBox::new(e),
-            })?;
+        unsafe fn check_bytes<'bytecheck>(
+            value: *const Self,
+            context: &mut C,
+        ) -> Result<&'bytecheck Self, StructCheckError> {
+            <ArchivedString as CheckBytes<C>>::check_bytes(addr_of!((*value).id), context)
+                .map_err(|e| StructCheckError {
+                    field_name: "id",
+                    inner: ErrorBox::new(e),
+                })?;
 
-        <ArchivedString as rkyv::CheckBytes<C>>::check_bytes(addr_of!((*value).name), context)
-            .map_err(|e| StructCheckError {
-                field_name: "name",
-                inner: ErrorBox::new(e),
-            })?;
+            <ArchivedString as CheckBytes<C>>::check_bytes(addr_of!((*value).name), context)
+                .map_err(|e| StructCheckError {
+                    field_name: "name",
+                    inner: ErrorBox::new(e),
+                })?;
 
-        Ok(&*value)
+            Ok(&*value)
+        }
     }
-}
+};

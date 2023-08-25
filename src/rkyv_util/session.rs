@@ -125,8 +125,6 @@ impl<S> ArchiveWith<&HashMap<u64, Session, S>> for SessionsRkyv {
         out: *mut Self::Archived,
     ) {
         ArchivedVec::resolve_from_len(map.len(), pos, resolver, out);
-
-        // ArchivedHashMap::resolve_from_len(map.len(), pos, resolver, out);
     }
 }
 

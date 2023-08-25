@@ -82,13 +82,19 @@ impl Debug for ArchivedIdOption {
 }
 
 #[cfg(feature = "validation")]
-impl<C: ?Sized> rkyv::CheckBytes<C> for ArchivedIdOption {
-    type Error = std::convert::Infallible;
+const _: () = {
+    use std::convert::Infallible;
 
-    unsafe fn check_bytes<'a>(value: *const Self, _: &mut C) -> Result<&'a Self, Self::Error> {
-        Ok(&*value)
+    use rkyv::CheckBytes;
+
+    impl<C: ?Sized> CheckBytes<C> for ArchivedIdOption {
+        type Error = Infallible;
+
+        unsafe fn check_bytes<'a>(value: *const Self, _: &mut C) -> Result<&'a Self, Self::Error> {
+            Ok(&*value)
+        }
     }
-}
+};
 
 impl<T> ArchiveWith<Option<Id<T>>> for IdRkyvMap {
     type Archived = ArchivedIdOption;

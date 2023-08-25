@@ -14,10 +14,10 @@ type SerializeResult<T> = Result<
 ///
 /// # Example
 /// ```
+/// # use std::time::Duration;
 /// use rkyv::{Archive, Fallible, Serialize};
-/// use rkyv::ser::serializers::AlignedSerializer;
+/// use rkyv::{ser::serializers::AlignedSerializer, util::AlignedVec};
 /// use rkyv::with::RefAsBox;
-/// use rkyv::util::AlignedVec;
 /// use twilight_redis::config::Cacheable;
 ///
 /// #[derive(Archive, Serialize)]
