@@ -6,45 +6,17 @@ use twilight_model::id::{
     Id,
 };
 
-use crate::{config::CacheConfig, key::RedisKey, CacheResult, RedisCache};
+use crate::{
+    config::{CacheConfig, Cacheable},
+    key::RedisKey,
+    CacheResult, RedisCache,
+};
 
 pub use self::async_iter::AsyncIter;
 
 /// Base type to create iterators for cached entries.
 pub struct RedisCacheIter<'c, C> {
     cache: &'c RedisCache<C>,
-}
-
-macro_rules! def_getter {
-    ( $fn:ident, $ret:ident, $variant:ident, $prefix:ident ) => {
-        pub async fn $fn(self) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
-            let mut conn = self.cache.connection().await?;
-            let ids: Vec<u64> =
-                RedisCache::<C>::get_ids_static(RedisKey::$variant, &mut conn).await?;
-
-            let key_prefix = key_prefix_simple(RedisKey::$prefix);
-            let iter = AsyncIter::new(conn, ids, key_prefix);
-
-            Ok(iter)
-        }
-    };
-    ( Guild: $fn:ident, $ret:ident, $variant:ident, $prefix:ident ) => {
-        pub async fn $fn(
-            self,
-            guild_id: Id<GuildMarker>,
-        ) -> CacheResult<AsyncIter<'c, C::$ret<'static>>> {
-            let mut conn = self.cache.connection().await?;
-
-            let ids: Vec<u64> =
-                RedisCache::<C>::get_ids_static(RedisKey::$variant { id: guild_id }, &mut conn)
-                    .await?;
-
-            let (key_prefix, buf) = key_prefix_buffered(RedisKey::$prefix, guild_id);
-            let iter = AsyncIter::new_with_buf(conn, ids, key_prefix, buf);
-
-            Ok(iter)
-        }
-    };
 }
 
 impl<'c, C> RedisCacheIter<'c, C> {
@@ -58,40 +30,184 @@ impl<'c, C> RedisCacheIter<'c, C> {
     }
 }
 
-#[rustfmt::skip]
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
-    def_getter!(channels, Channel, Channels, CHANNEL_PREFIX);
-    def_getter!(emojis, Emoji, Emojis, EMOJI_PREFIX);
-    def_getter!(guilds, Guild, Guilds, GUILD_PREFIX);
-    def_getter!(messages, Message, Messages, MESSAGE_PREFIX);
-    def_getter!(roles, Role, Roles, ROLE_PREFIX);
-    def_getter!(stage_instances, StageInstance, StageInstances, STAGE_INSTANCE_PREFIX);
-    def_getter!(stickers, Sticker, Stickers, STICKER_PREFIX);
-    def_getter!(users, User, Users, USER_PREFIX);
+    pub async fn channels(self) -> CacheResult<AsyncIter<'c, C::Channel<'static>>> {
+        self.iter_all(RedisKey::Channels, RedisKey::CHANNEL_PREFIX)
+            .await
+    }
 
-    def_getter!(Guild: guild_channels, Channel, GuildChannels, CHANNEL_PREFIX);
-    def_getter!(Guild: guild_emojis, Emoji, GuildEmojis, EMOJI_PREFIX);
-    def_getter!(Guild: guild_integrations, Integration, GuildIntegrations, INTEGRATION_PREFIX);
-    def_getter!(Guild: guild_members, Member, GuildMembers, MEMBER_PREFIX);
-    def_getter!(Guild: guild_presences, Presence, GuildPresences, PRESENCE_PREFIX);
-    def_getter!(Guild: guild_roles, Role, GuildRoles, ROLE_PREFIX);
-    def_getter!(Guild: guild_stage_instances, StageInstance, GuildStageInstances, STAGE_INSTANCE_PREFIX);
-    def_getter!(Guild: guild_stickers, Sticker, GuildStickers, STICKER_PREFIX);
-    def_getter!(Guild: guild_voice_states, VoiceState, GuildVoiceStates, VOICE_STATE_PREFIX);
-
-    
     pub async fn channel_messages(
         self,
         channel_id: Id<ChannelMarker>,
     ) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+
+        self.iter_guild_simple(key, RedisKey::MESSAGE_PREFIX).await
+    }
+
+    pub async fn emojis(self) -> CacheResult<AsyncIter<'c, C::Emoji<'static>>> {
+        self.iter_all(RedisKey::Emojis, RedisKey::EMOJI_PREFIX)
+            .await
+    }
+
+    pub async fn guilds(self) -> CacheResult<AsyncIter<'c, C::Guild<'static>>> {
+        self.iter_all(RedisKey::Guilds, RedisKey::GUILD_PREFIX)
+            .await
+    }
+
+    pub async fn guild_channels(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Channel<'static>>> {
+        let key = RedisKey::GuildChannels { id: guild_id };
+
+        self.iter_guild_simple(key, RedisKey::CHANNEL_PREFIX).await
+    }
+
+    pub async fn guild_emojis(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Emoji<'static>>> {
+        let key = RedisKey::GuildEmojis { id: guild_id };
+
+        self.iter_guild_simple(key, RedisKey::EMOJI_PREFIX).await
+    }
+
+    pub async fn guild_integrations(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Integration<'static>>> {
+        let key = RedisKey::GuildIntegrations { id: guild_id };
+
+        self.iter_guild_buffered(guild_id, key, RedisKey::INTEGRATION_PREFIX)
+            .await
+    }
+
+    pub async fn guild_members(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Member<'static>>> {
+        let key = RedisKey::GuildMembers { id: guild_id };
+
+        self.iter_guild_buffered(guild_id, key, RedisKey::MEMBER_PREFIX)
+            .await
+    }
+
+    pub async fn guild_presences(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Presence<'static>>> {
+        let key = RedisKey::GuildPresences { id: guild_id };
+
+        self.iter_guild_buffered(guild_id, key, RedisKey::PRESENCE_PREFIX)
+            .await
+    }
+
+    pub async fn guild_roles(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
+        let key = RedisKey::GuildRoles { id: guild_id };
+
+        self.iter_guild_simple(key, RedisKey::ROLE_PREFIX).await
+    }
+
+    pub async fn guild_stage_instances(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
+        let key = RedisKey::GuildStageInstances { id: guild_id };
+
+        self.iter_guild_simple(key, RedisKey::STAGE_INSTANCE_PREFIX)
+            .await
+    }
+
+    pub async fn guild_stickers(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
+        let key = RedisKey::GuildStickers { id: guild_id };
+
+        self.iter_guild_simple(key, RedisKey::STICKER_PREFIX).await
+    }
+
+    pub async fn guild_voice_states(
+        self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<AsyncIter<'c, C::VoiceState<'static>>> {
+        let key = RedisKey::GuildVoiceStates { id: guild_id };
+
+        self.iter_guild_buffered(guild_id, key, RedisKey::VOICE_STATE_PREFIX)
+            .await
+    }
+
+    pub async fn messages(self) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
+        self.iter_all(RedisKey::Messages, RedisKey::MESSAGE_PREFIX)
+            .await
+    }
+
+    pub async fn roles(self) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
+        self.iter_all(RedisKey::Roles, RedisKey::ROLE_PREFIX).await
+    }
+
+    pub async fn stage_instances(self) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
+        self.iter_all(RedisKey::StageInstances, RedisKey::STAGE_INSTANCE_PREFIX)
+            .await
+    }
+
+    pub async fn stickers(self) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
+        self.iter_all(RedisKey::Stickers, RedisKey::STICKER_PREFIX)
+            .await
+    }
+
+    pub async fn users(self) -> CacheResult<AsyncIter<'c, C::User<'static>>> {
+        self.iter_all(RedisKey::Users, RedisKey::USER_PREFIX).await
+    }
+
+    async fn iter_all<T: Cacheable>(
+        self,
+        key: RedisKey,
+        prefix: &'static [u8],
+    ) -> CacheResult<AsyncIter<'c, T>> {
         let mut conn = self.cache.connection().await?;
 
-        let ids: Vec<u64> =
-            RedisCache::<C>::get_ids_static(RedisKey::ChannelMessages { channel: channel_id }, &mut conn)
-                .await?;
+        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
 
-        let key_prefix = key_prefix_simple(RedisKey::MESSAGE_PREFIX);
+        let key_prefix = key_prefix_simple(prefix);
         let iter = AsyncIter::new(conn, ids, key_prefix);
+
+        Ok(iter)
+    }
+
+    async fn iter_guild_simple<T: Cacheable>(
+        self,
+        key: RedisKey,
+        prefix: &'static [u8],
+    ) -> CacheResult<AsyncIter<'c, T>> {
+        let mut conn = self.cache.connection().await?;
+
+        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
+
+        let key_prefix = key_prefix_simple(prefix);
+        let iter = AsyncIter::new(conn, ids, key_prefix);
+
+        Ok(iter)
+    }
+
+    async fn iter_guild_buffered<T: Cacheable>(
+        self,
+        guild_id: Id<GuildMarker>,
+        key: RedisKey,
+        prefix: &'static [u8],
+    ) -> CacheResult<AsyncIter<'c, T>> {
+        let mut conn = self.cache.connection().await?;
+
+        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
+
+        let (key_prefix, buf) = key_prefix_buffered(prefix, guild_id);
+        let iter = AsyncIter::new_with_buf(conn, ids, key_prefix, buf);
 
         Ok(iter)
     }

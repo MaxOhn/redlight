@@ -100,9 +100,10 @@ async fn test_stickers() -> Result<(), CacheError> {
     let cache = RedisCache::<Config>::with_pool(pool()).await?;
 
     let expected = stickers();
+    let guild_id = expected[0].guild_id.unwrap();
 
     let update = GuildStickersUpdate {
-        guild_id: expected[0].guild_id.unwrap(),
+        guild_id,
         stickers: expected.clone(),
     };
 
@@ -116,9 +117,7 @@ async fn test_stickers() -> Result<(), CacheError> {
 
     assert_eq!(sticker.deref(), &expected[0]);
 
-    let ids = cache
-        .guild_sticker_ids(expected[0].guild_id.unwrap())
-        .await?;
+    let ids = cache.guild_sticker_ids(guild_id).await?;
 
     assert_eq!(ids.len(), expected.len());
 
@@ -127,6 +126,17 @@ async fn test_stickers() -> Result<(), CacheError> {
         .for_each(|sticker| assert!(ids.contains(&sticker.id)));
 
     let mut iter = cache.iter().stickers().await?;
+    let mut count = 0;
+
+    while let Some(res) = iter.next_item().await {
+        let archived = res?;
+        count += 1;
+        assert!(expected.iter().any(|sticker| archived.deref() == sticker));
+    }
+
+    assert_eq!(count, expected.len());
+
+    let mut iter = cache.iter().guild_stickers(guild_id).await?;
     let mut count = 0;
 
     while let Some(res) = iter.next_item().await {
