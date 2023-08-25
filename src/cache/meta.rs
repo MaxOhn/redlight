@@ -214,7 +214,7 @@ where
     type Serializer: CacheSerializer;
 
     /// Serialize and store this data in the cache.
-    fn store<'c, C>(&self, pipe: &mut Pipe<'c, C>, key: Key) -> Result<(), Box<dyn StdError>> {
+    fn store<C>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), Box<dyn StdError>> {
         let mut serializer = Self::Serializer::default();
         serializer.serialize_value(self)?;
         let bytes = serializer.finish();
@@ -244,7 +244,7 @@ pub(super) fn atoi<T>(bytes: &[u8]) -> Option<Id<T>> {
     bytes
         .iter()
         .try_fold(0_u64, |n, byte| {
-            if !(b'0'..=b'9').contains(byte) {
+            if !byte.is_ascii_digit() {
                 return None;
             }
 

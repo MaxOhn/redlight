@@ -1016,13 +1016,13 @@ fn del_keys<F>(
         }
 
         if let Some(key) = list_key {
-            pipe.srem(key, &ids).ignore();
+            pipe.srem(key, ids).ignore();
         }
 
         pipe.del(&*buf).ignore();
         buf.clear();
     }
 
-    buf.extend(ids.into_iter().map(f));
+    buf.extend(ids.iter().map(f));
     inner(pipe, buf, list_key, ids);
 }

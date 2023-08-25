@@ -48,7 +48,7 @@ impl<C: CacheConfig> RedisCache<C> {
             .await
             .map_err(ExpireError::GetConnection)?;
 
-        tokio::spawn(listen_to_expire::<C>(pubsub, conn));
+        tokio::spawn(listen_to_expire(pubsub, conn));
 
         Ok(())
     }
@@ -101,7 +101,7 @@ async fn prepare_setting(conn: &mut DedicatedConnection) -> CacheResult<()> {
     Ok(())
 }
 
-async fn listen_to_expire<C: CacheConfig>(pubsub: PubSub, mut conn: DedicatedConnection) {
+async fn listen_to_expire(pubsub: PubSub, mut conn: DedicatedConnection) {
     let mut msgs = pubsub.into_on_message();
     let mut pipe = Pipeline::new();
 
