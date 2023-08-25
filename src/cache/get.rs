@@ -217,14 +217,6 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_ids(RedisKey::UnavailableGuilds).await
     }
 
-    pub async fn unavailable_guilds_count(&self) -> CacheResult<usize> {
-        let mut conn = self.connection().await?;
-        let key = RedisKey::UnavailableGuilds;
-        let count = Cmd::scard(key).query_async(&mut conn).await?;
-
-        Ok(count)
-    }
-
     pub async fn user(
         &self,
         user_id: Id<UserMarker>,
