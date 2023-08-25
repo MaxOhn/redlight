@@ -253,10 +253,12 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::UserUpdate(event) => self.store_current_user(&mut pipe, event)?,
             Event::VoiceServerUpdate(_) => {}
             Event::VoiceStateUpdate(event) => {
-                if let Some(channel_id) = event.channel_id {
-                    self.store_voice_state(&mut pipe, channel_id, event)?;
-                } else if let Some(guild_id) = event.guild_id {
-                    self.delete_voice_state(&mut pipe, guild_id, event.user_id);
+                if let Some(guild_id) = event.guild_id {
+                    if let Some(channel_id) = event.channel_id {
+                        self.store_voice_state(&mut pipe, channel_id, guild_id, event)?;
+                    } else {
+                        self.delete_voice_state(&mut pipe, guild_id, event.user_id);
+                    }
                 }
             }
             Event::WebhooksUpdate(_) => {}

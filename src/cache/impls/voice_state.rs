@@ -28,12 +28,9 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         pipe: &mut Pipe<'_, C>,
         channel_id: Id<ChannelMarker>,
+        guild_id: Id<GuildMarker>,
         voice_state: &VoiceState,
     ) -> CacheResult<()> {
-        let Some(guild_id) = voice_state.guild_id else {
-            return Ok(());
-        };
-
         if C::VoiceState::WANTED {
             let user_id = voice_state.user_id;
             let key = RedisKey::VoiceState {
