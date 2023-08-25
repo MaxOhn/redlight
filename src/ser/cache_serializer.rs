@@ -18,10 +18,10 @@ use super::SerializerExt;
 pub trait CacheSerializer: Default + Serializer + SerializerExt {
     type Bytes: AsRef<[u8]>;
 
-    /// Finish up serialization by extracting the [`AlignedVec`] from the serializer.
+    /// Finish up serialization by extracting the `Self::Bytes` from the serializer.
     fn finish(self) -> Self::Bytes;
 
-    /// Finish up serialization by extracting the [`AlignedVec`] from the serializer
+    /// Finish up serialization by extracting the `Self::Bytes` from the serializer
     /// and resetting the serializer so that it can be used again.
     fn finish_and_reset(&mut self) -> Self::Bytes;
 }
