@@ -99,7 +99,17 @@ impl MetaKey {
                 meta.handle_expire(pipe);
                 meta.async_handle_expire(pipe, conn).await?;
             }
-            MetaKey::Message(meta) => meta.handle_expire(pipe),
+            MetaKey::Message(meta) => {
+                let key = meta.redis_key();
+
+                let Some(bytes) = Self::fetch_bytes(conn, pipe, key).await? else {
+                    return Ok(());
+                };
+
+                let archived = <MessageMetaKey as HasArchived>::Meta::as_archive(&bytes)?;
+                meta.handle_archived(pipe, archived);
+                meta.handle_expire(pipe);
+            }
             MetaKey::Presence(meta) => meta.handle_expire(pipe),
             MetaKey::Role(meta) => {
                 let key = meta.redis_key();
