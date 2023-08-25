@@ -219,6 +219,14 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Channels;
             pipe.srem(key, channel_ids.as_slice());
 
+            if C::Channel::expire().is_some() {
+                let channel_keys = channel_ids.iter().map(|channel_id| RedisKey::ChannelMeta {
+                    id: Id::new(*channel_id),
+                });
+
+                keys_to_delete.extend(channel_keys);
+            }
+
             let channel_keys = channel_ids.into_iter().map(|channel_id| RedisKey::Channel {
                 id: Id::new(channel_id),
             });
@@ -234,6 +242,14 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::Emojis;
             pipe.srem(key, emoji_ids.as_slice());
+
+            if C::Emoji::expire().is_some() {
+                let emoji_keys = emoji_ids.iter().map(|emoji_id| RedisKey::EmojiMeta {
+                    id: Id::new(*emoji_id),
+                });
+
+                keys_to_delete.extend(emoji_keys);
+            }
 
             let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
                 id: Id::new(emoji_id),
@@ -282,6 +298,14 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Roles;
             pipe.srem(key, role_ids.as_slice());
 
+            if C::Role::expire().is_some() {
+                let role_keys = role_ids.iter().map(|role_id| RedisKey::RoleMeta {
+                    id: Id::new(*role_id),
+                });
+
+                keys_to_delete.extend(role_keys);
+            }
+
             let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
                 id: Id::new(role_id),
             });
@@ -297,6 +321,16 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::StageInstances;
             pipe.srem(key, stage_instance_ids.as_slice());
+
+            if C::StageInstance::expire().is_some() {
+                let stage_instance_keys = stage_instance_ids.iter().map(|stage_instance_id| {
+                    RedisKey::StageInstanceMeta {
+                        id: Id::new(*stage_instance_id),
+                    }
+                });
+
+                keys_to_delete.extend(stage_instance_keys);
+            }
 
             let stage_instance_keys =
                 stage_instance_ids
@@ -316,6 +350,14 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::Stickers;
             pipe.srem(key, sticker_ids.as_slice());
+
+            if C::Sticker::expire().is_some() {
+                let sticker_keys = sticker_ids.iter().map(|sticker_id| RedisKey::StickerMeta {
+                    id: Id::new(*sticker_id),
+                });
+
+                keys_to_delete.extend(sticker_keys);
+            }
 
             let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
                 id: Id::new(sticker_id),
@@ -547,8 +589,16 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Channels;
             pipe.srem(key, channel_ids.as_slice());
 
-            let channel_keys = channel_ids.into_iter().map(|emoji_id| RedisKey::Channel {
-                id: Id::new(emoji_id),
+            if C::Channel::expire().is_some() {
+                let channel_keys = channel_ids.iter().map(|channel_id| RedisKey::ChannelMeta {
+                    id: Id::new(*channel_id),
+                });
+
+                keys_to_delete.extend(channel_keys);
+            }
+
+            let channel_keys = channel_ids.into_iter().map(|channel_id| RedisKey::Channel {
+                id: Id::new(channel_id),
             });
 
             keys_to_delete.extend(channel_keys);
@@ -568,6 +618,14 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::Emojis;
             pipe.srem(key, emoji_ids.as_slice());
+
+            if C::Emoji::expire().is_some() {
+                let emoji_keys = emoji_ids.iter().map(|emoji_id| RedisKey::EmojiMeta {
+                    id: Id::new(*emoji_id),
+                });
+
+                keys_to_delete.extend(emoji_keys);
+            }
 
             let emoji_keys = emoji_ids.into_iter().map(|emoji_id| RedisKey::Emoji {
                 id: Id::new(emoji_id),
@@ -638,6 +696,14 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Roles;
             pipe.srem(key, role_ids.as_slice());
 
+            if C::Role::expire().is_some() {
+                let role_keys = role_ids.iter().map(|role_id| RedisKey::RoleMeta {
+                    id: Id::new(*role_id),
+                });
+
+                keys_to_delete.extend(role_keys);
+            }
+
             let role_keys = role_ids.into_iter().map(|role_id| RedisKey::Role {
                 id: Id::new(role_id),
             });
@@ -660,6 +726,16 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::StageInstances;
             pipe.srem(key, stage_instance_ids.as_slice());
+
+            if C::StageInstance::expire().is_some() {
+                let stage_instance_keys = stage_instance_ids.iter().map(|stage_instance_id| {
+                    RedisKey::StageInstanceMeta {
+                        id: Id::new(*stage_instance_id),
+                    }
+                });
+
+                keys_to_delete.extend(stage_instance_keys);
+            }
 
             let stage_instance_keys =
                 stage_instance_ids
@@ -686,6 +762,14 @@ impl<C: CacheConfig> RedisCache<C> {
 
             let key = RedisKey::Stickers;
             pipe.srem(key, sticker_ids.as_slice());
+
+            if C::Sticker::expire().is_some() {
+                let sticker_keys = sticker_ids.iter().map(|sticker_id| RedisKey::StickerMeta {
+                    id: Id::new(*sticker_id),
+                });
+
+                keys_to_delete.extend(sticker_keys);
+            }
 
             let sticker_keys = sticker_ids.into_iter().map(|sticker_id| RedisKey::Sticker {
                 id: Id::new(sticker_id),
@@ -861,7 +945,7 @@ impl GuildMetaKey {
             }
         });
 
-        del_keys(pipe, buf, None, &emoji_ids, |emoji| RedisKey::Emoji {
+        del_keys(pipe, buf, None, &emoji_ids, |emoji| RedisKey::EmojiMeta {
             id: Id::new(*emoji),
         });
     }
