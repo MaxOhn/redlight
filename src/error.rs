@@ -20,10 +20,10 @@ pub enum CacheError {
     #[error("failed to get a connection")]
     GetConnection(#[source] bb8_redis::bb8::RunError<RedisError>),
 
-    #[cfg(feature = "deadpool")]
+    #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
     #[error("failed to create redis pool")]
     CreatePool(#[from] deadpool_redis::CreatePoolError),
-    #[cfg(feature = "deadpool")]
+    #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
     #[error("failed to get a connection")]
     GetConnection(#[source] deadpool_redis::PoolError),
 
