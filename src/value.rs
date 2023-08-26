@@ -51,7 +51,7 @@ impl<T: Cacheable> CachedArchive<T> {
         &mut self,
         f: impl FnOnce(&mut T),
         deserializer: &mut D,
-    ) -> Result<(), UpdateArchiveError<<D as Fallible>::Error, <T::Serializer as Fallible>::Error>>
+    ) -> Result<(), Box<dyn StdError>>
     where
         D: Fallible,
         D::Error: StdError,
@@ -61,14 +61,16 @@ impl<T: Cacheable> CachedArchive<T> {
 
         let mut deserialized: T = archived
             .deserialize(deserializer)
-            .map_err(UpdateArchiveError::Deserialization)?;
+            .map_err(UpdateArchiveError::<_, <T::Serializer as Fallible>::Error>::Deserialization)
+            .map_err(Box::new)?;
 
         f(&mut deserialized);
         let mut serializer = T::Serializer::default();
 
         serializer
             .serialize_value(&deserialized)
-            .map_err(UpdateArchiveError::Serialization)?;
+            .map_err(UpdateArchiveError::<<D as Fallible>::Error, _>::Serialization)
+            .map_err(Box::new)?;
 
         let bytes = serializer.finish();
         self.bytes = Box::from(bytes.as_ref());

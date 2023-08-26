@@ -111,24 +111,22 @@ async fn test_guild() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>>
         {
             Some(|archived, update| {
-                archived
-                    .update_by_deserializing(
-                        |deserialized| {
-                            deserialized.afk_timeout = update.afk_timeout;
-                            deserialized.default_message_notifications =
-                                update.default_message_notifications;
-                            deserialized.explicit_content_filter = update.explicit_content_filter;
-                            deserialized.features = update.features.to_owned();
-                            deserialized.mfa_level = update.mfa_level;
-                            deserialized.nsfw_level = update.nsfw_level;
-                            deserialized.permissions = update.permissions;
-                            deserialized.premium_tier = update.premium_tier;
-                            deserialized.system_channel_flags = update.system_channel_flags;
-                            deserialized.verification_level = update.verification_level;
-                        },
-                        &mut Infallible,
-                    )
-                    .map_err(Box::from)
+                archived.update_by_deserializing(
+                    |deserialized| {
+                        deserialized.afk_timeout = update.afk_timeout;
+                        deserialized.default_message_notifications =
+                            update.default_message_notifications;
+                        deserialized.explicit_content_filter = update.explicit_content_filter;
+                        deserialized.features = update.features.to_owned();
+                        deserialized.mfa_level = update.mfa_level;
+                        deserialized.nsfw_level = update.nsfw_level;
+                        deserialized.permissions = update.permissions;
+                        deserialized.premium_tier = update.premium_tier;
+                        deserialized.system_channel_flags = update.system_channel_flags;
+                        deserialized.verification_level = update.verification_level;
+                    },
+                    &mut Infallible,
+                )
             })
         }
     }

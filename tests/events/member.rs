@@ -72,12 +72,10 @@ async fn test_member() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn Error>>>
         {
             Some(|archived, update| {
-                archived
-                    .update_by_deserializing(
-                        |deserialized| deserialized.pending = update.pending,
-                        &mut Infallible,
-                    )
-                    .map_err(Box::from)
+                archived.update_by_deserializing(
+                    |deserialized| deserialized.pending = update.pending,
+                    &mut Infallible,
+                )
             })
         }
 

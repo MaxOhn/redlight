@@ -101,21 +101,11 @@ pub enum UpdateErrorKind {
 }
 
 #[derive(Debug, ThisError)]
-pub enum UpdateArchiveError<D: StdError, S: StdError> {
+pub(crate) enum UpdateArchiveError<D: StdError, S: StdError> {
     #[error("failed to deserialize")]
     Deserialization(#[source] D),
     #[error("failed to serialize")]
     Serialization(#[source] S),
-}
-
-impl<D, S> UpdateArchiveError<D, S>
-where
-    D: StdError + 'static,
-    S: StdError + 'static,
-{
-    pub fn boxed(self) -> Box<dyn StdError> {
-        Box::from(self)
-    }
 }
 
 #[derive(Debug, ThisError)]
