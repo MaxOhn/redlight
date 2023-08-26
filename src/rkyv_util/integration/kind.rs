@@ -39,20 +39,6 @@ impl ArchiveWith<GuildIntegrationType> for GuildIntegrationTypeRkyv {
     }
 }
 
-impl ArchiveWith<&GuildIntegrationType> for GuildIntegrationTypeRkyv {
-    type Archived = ArchivedString;
-    type Resolver = StringResolver;
-
-    unsafe fn resolve_with(
-        integration: &&GuildIntegrationType,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        <Self as ArchiveWith<GuildIntegrationType>>::resolve_with(*integration, pos, resolver, out);
-    }
-}
-
 impl<S: Fallible + Serializer + ?Sized> SerializeWith<GuildIntegrationType, S>
     for GuildIntegrationTypeRkyv
 {
@@ -61,17 +47,6 @@ impl<S: Fallible + Serializer + ?Sized> SerializeWith<GuildIntegrationType, S>
         serializer: &mut S,
     ) -> Result<Self::Resolver, <S as Fallible>::Error> {
         ArchivedString::serialize_from_str(integration_type_str(integration), serializer)
-    }
-}
-
-impl<S: Fallible + Serializer + ?Sized> SerializeWith<&GuildIntegrationType, S>
-    for GuildIntegrationTypeRkyv
-{
-    fn serialize_with(
-        integration: &&GuildIntegrationType,
-        serializer: &mut S,
-    ) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        <Self as SerializeWith<GuildIntegrationType, S>>::serialize_with(*integration, serializer)
     }
 }
 
@@ -90,6 +65,31 @@ impl<D: Fallible + ?Sized> DeserializeWith<ArchivedString, GuildIntegrationType,
         };
 
         Ok(this)
+    }
+}
+
+impl ArchiveWith<&GuildIntegrationType> for GuildIntegrationTypeRkyv {
+    type Archived = ArchivedString;
+    type Resolver = StringResolver;
+
+    unsafe fn resolve_with(
+        integration: &&GuildIntegrationType,
+        pos: usize,
+        resolver: Self::Resolver,
+        out: *mut Self::Archived,
+    ) {
+        <Self as ArchiveWith<GuildIntegrationType>>::resolve_with(*integration, pos, resolver, out);
+    }
+}
+
+impl<S: Fallible + Serializer + ?Sized> SerializeWith<&GuildIntegrationType, S>
+    for GuildIntegrationTypeRkyv
+{
+    fn serialize_with(
+        integration: &&GuildIntegrationType,
+        serializer: &mut S,
+    ) -> Result<Self::Resolver, <S as Fallible>::Error> {
+        <Self as SerializeWith<GuildIntegrationType, S>>::serialize_with(*integration, serializer)
     }
 }
 
