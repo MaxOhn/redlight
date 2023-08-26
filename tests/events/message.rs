@@ -119,7 +119,7 @@ async fn test_message() -> Result<(), CacheError> {
         }
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let mut expected = message();
 

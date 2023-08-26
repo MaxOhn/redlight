@@ -97,7 +97,7 @@ async fn test_stickers() -> Result<(), CacheError> {
         }
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let expected = stickers();
     let guild_id = expected[0].guild_id.unwrap();

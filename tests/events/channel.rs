@@ -146,7 +146,7 @@ async fn test_channel() -> Result<(), CacheError> {
         }
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let mut expected = text_channel();
 

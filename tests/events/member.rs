@@ -126,7 +126,7 @@ async fn test_member() -> Result<(), CacheError> {
     assert_ne!(expected_member.pending, expected_update.pending);
     assert_ne!(expected_member.flags, expected_partial.flags);
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let member_create = Event::MemberAdd(Box::new(MemberAdd {
         guild_id,

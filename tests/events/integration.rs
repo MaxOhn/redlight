@@ -120,7 +120,7 @@ async fn test_integration() -> Result<(), CacheError> {
         }
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let expected = integration();
 

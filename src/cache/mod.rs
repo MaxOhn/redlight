@@ -55,7 +55,7 @@ impl<C: CacheConfig> RedisCache<C> {
             .await
             .map_err(CacheError::CreatePool)?;
 
-        Self::with_pool(pool).await
+        Self::new_with_pool(pool).await
     }
 
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
@@ -69,7 +69,7 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
-    pub async fn with_pool(pool: Pool) -> CacheResult<Self> {
+    pub async fn new_with_pool(pool: Pool) -> CacheResult<Self> {
         Self::handle_expire(&pool).await?;
 
         #[cfg(feature = "metrics")]
