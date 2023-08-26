@@ -31,10 +31,9 @@ use twilight_model::{
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
     rkyv_util::{
-        flags::BitflagsRkyv,
         guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
         id::IdRkyv,
-        util::RkyvAsU8,
+        util::{BitflagsRkyv, RkyvAsU8},
     },
     CacheError, CachedArchive, RedisCache,
 };

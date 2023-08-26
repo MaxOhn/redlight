@@ -26,7 +26,7 @@ use twilight_model::{
 };
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
-    rkyv_util::{flags::BitflagsRkyv, util::RkyvAsU8},
+    rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
     CacheError, CachedArchive, RedisCache,
 };
 

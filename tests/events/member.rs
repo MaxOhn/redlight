@@ -20,7 +20,7 @@ use twilight_model::{
 };
 use twilight_redis::{
     config::{CacheConfig, Cacheable, ICachedMember, Ignore},
-    rkyv_util::flags::BitflagsRkyv,
+    rkyv_util::util::BitflagsRkyv,
     CacheError, CachedArchive, RedisCache,
 };
 
