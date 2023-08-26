@@ -73,7 +73,10 @@ where
         let id: Box<str> = archived.id.deserialize(d)?;
         let sequence = archived.sequence;
 
-        Ok(Session::new(sequence, String::from(id)))
+        // the .into() is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
+        Ok(Session::new(sequence.into(), String::from(id)))
     }
 }
 
@@ -115,7 +118,7 @@ const _: () = {
 };
 
 impl<S> ArchiveWith<&HashMap<u64, Session, S>> for SessionsRkyv {
-    type Archived = ArchivedVec<Entry<u64, ArchivedSession>>;
+    type Archived = ArchivedVec<Entry<Archived<u64>, ArchivedSession>>;
     type Resolver = VecResolver;
 
     unsafe fn resolve_with(
@@ -137,7 +140,10 @@ where
         serializer: &mut S,
     ) -> Result<Self::Resolver, S::Error> {
         let iter = map.iter().map(|(shard_id, session)| Entry {
-            key: shard_id,
+            // the .into() is necessary in case the `archive_le` or `archive_be`
+            // features are enabled in rkyv
+            #[allow(clippy::useless_conversion)]
+            key: shard_id.into(),
             value: With::<_, SessionRkyv>::cast(session),
         });
 
@@ -145,19 +151,25 @@ where
     }
 }
 
-impl<S, D> DeserializeWith<ArchivedVec<Entry<u64, ArchivedSession>>, HashMap<u64, Session, S>, D>
+impl<S, D>
+    DeserializeWith<ArchivedVec<Entry<Archived<u64>, ArchivedSession>>, HashMap<u64, Session, S>, D>
     for SessionsRkyv
 where
     D: Fallible + ?Sized,
     S: BuildHasher + Default,
 {
     fn deserialize_with(
-        map: &ArchivedVec<Entry<u64, ArchivedSession>>,
+        map: &ArchivedVec<Entry<Archived<u64>, ArchivedSession>>,
         d: &mut D,
     ) -> Result<HashMap<u64, Session, S>, D::Error> {
         map.iter()
             .map(|Entry { key, value }| {
-                SessionRkyv::deserialize_with(value, d).map(|session| (*key, session))
+                SessionRkyv::deserialize_with(value, d).map(|session| {
+                    // the .into() is necessary in case the `archive_le` or `archive_be`
+                    // features are enabled in rkyv
+                    #[allow(clippy::useless_conversion)]
+                    ((*key).into(), session)
+                })
             })
             .collect()
     }
@@ -199,7 +211,7 @@ const _: () = {
             value: *const Self,
             context: &mut C,
         ) -> Result<&'bytecheck Self, Self::Error> {
-            ArchivedVec::<Entry<u64, ArchivedSession>>::check_bytes(
+            ArchivedVec::<Entry<Archived<u64>, ArchivedSession>>::check_bytes(
                 addr_of!((*value).sessions),
                 context,
             )?;

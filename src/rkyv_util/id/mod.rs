@@ -9,7 +9,7 @@ use std::{
 use rkyv::{
     out_field,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 use twilight_model::id::Id;
 
@@ -33,17 +33,20 @@ pub use self::map::IdRkyvMap;
 pub struct IdRkyv;
 
 pub struct ArchivedId<T> {
-    value: NonZeroU64,
+    value: Archived<NonZeroU64>,
     phantom: PhantomData<fn(T) -> T>,
 }
 
 impl<T> ArchivedId<T> {
     pub fn get(self) -> u64 {
-        self.value.get()
+        self.into_nonzero().get()
     }
 
     pub fn into_nonzero(self) -> NonZeroU64 {
-        self.value
+        // the .into() is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
+        self.value.into()
     }
 }
 
@@ -73,7 +76,10 @@ impl<T> Debug for ArchivedId<T> {
 impl<T> From<Id<T>> for ArchivedId<T> {
     fn from(value: Id<T>) -> Self {
         Self {
-            value: value.into_nonzero(),
+            // the .into() is necessary in case the `archive_le` or `archive_be`
+            // features are enabled in rkyv
+            #[allow(clippy::useless_conversion)]
+            value: value.into_nonzero().into(),
             phantom: PhantomData,
         }
     }
@@ -81,7 +87,10 @@ impl<T> From<Id<T>> for ArchivedId<T> {
 
 impl<T> From<ArchivedId<T>> for Id<T> {
     fn from(id: ArchivedId<T>) -> Self {
-        Id::from(id.value)
+        // the `from` is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
+        Id::from(NonZeroU64::from(id.value))
     }
 }
 
@@ -100,20 +109,24 @@ impl<T> PartialEq<Id<T>> for ArchivedId<T> {
 }
 
 #[cfg(feature = "validation")]
-impl<C: ?Sized, T> rkyv::CheckBytes<C> for ArchivedId<T> {
-    type Error = rkyv::bytecheck::NonZeroCheckError;
+const _: () = {
+    use std::ptr::addr_of;
 
-    unsafe fn check_bytes<'a>(
-        value: *const Self,
-        context: &mut C,
-    ) -> Result<&'a Self, Self::Error> {
-        if *u64::check_bytes(value.cast(), context)? == 0 {
-            Err(rkyv::bytecheck::NonZeroCheckError::IsZero)
-        } else {
+    use rkyv::{bytecheck::NonZeroCheckError, CheckBytes};
+
+    impl<C: ?Sized, T> CheckBytes<C> for ArchivedId<T> {
+        type Error = NonZeroCheckError;
+
+        unsafe fn check_bytes<'bytecheck>(
+            value: *const Self,
+            context: &mut C,
+        ) -> Result<&'bytecheck Self, Self::Error> {
+            Archived::<NonZeroU64>::check_bytes(addr_of!((*value).value), context)?;
+
             Ok(&*value)
         }
     }
-}
+};
 
 impl<T> ArchiveWith<Id<T>> for IdRkyv {
     type Archived = ArchivedId<T>;

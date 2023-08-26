@@ -1,7 +1,7 @@
 use rkyv::{
     out_field,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 use twilight_model::util::ImageHash;
 
@@ -24,8 +24,8 @@ pub struct ImageHashRkyv;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ArchivedImageHash {
-    animated: bool,
-    bytes: [u8; 16],
+    animated: Archived<bool>,
+    bytes: Archived<[u8; 16]>,
 }
 
 impl ArchivedImageHash {

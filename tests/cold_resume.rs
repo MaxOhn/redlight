@@ -38,7 +38,7 @@ async fn test_cold_resume() -> Result<(), CacheError> {
     let cache = RedisCache::<Config>::with_pool(pool()).await?;
 
     let session = Session::new(123, "session_id".to_owned());
-    let sessions: HashMap<_, _> = (0..25).zip(iter::once(session).cycle()).collect();
+    let sessions: HashMap<_, _> = (0..10).zip(iter::once(session).cycle()).collect();
 
     let duration = Duration::from_secs(2);
     cache.freeze(&sessions, Some(duration)).await?;

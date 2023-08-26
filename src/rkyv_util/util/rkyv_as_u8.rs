@@ -1,6 +1,6 @@
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 
 /// Used to archive any `T` for which `u8: From<T>` holds such as [`IntegrationExpireBehavior`](twilight_model::guild::IntegrationExpireBehavior) or [`StickerType`](twilight_model::channel::message::sticker::StickerType).
@@ -29,7 +29,7 @@ where
     T: Copy,
     u8: From<T>,
 {
-    type Archived = u8;
+    type Archived = Archived<u8>;
     type Resolver = ();
 
     unsafe fn resolve_with(
@@ -38,7 +38,7 @@ where
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        <u8 as Archive>::resolve(&u8::from(*field), pos, resolver, out);
+        u8::from(*field).resolve(pos, resolver, out);
     }
 }
 
@@ -52,11 +52,11 @@ where
     }
 }
 
-impl<D: Fallible + ?Sized, T> DeserializeWith<u8, T, D> for RkyvAsU8
+impl<D: Fallible + ?Sized, T> DeserializeWith<Archived<u8>, T, D> for RkyvAsU8
 where
     T: From<u8>,
 {
-    fn deserialize_with(archived: &u8, _: &mut D) -> Result<T, <D as Fallible>::Error> {
+    fn deserialize_with(archived: &Archived<u8>, _: &mut D) -> Result<T, <D as Fallible>::Error> {
         Ok(T::from(*archived))
     }
 }

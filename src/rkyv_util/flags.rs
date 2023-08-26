@@ -1,6 +1,6 @@
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 use twilight_model::{
     channel::{message::MessageFlags, ChannelFlags},
@@ -32,7 +32,7 @@ pub struct BitflagsRkyv;
 macro_rules! impl_bitflags {
     ( $ty:ident as $bits:ty ) => {
         impl ArchiveWith<$ty> for BitflagsRkyv {
-            type Archived = $bits;
+            type Archived = Archived<$bits>;
             type Resolver = ();
 
             unsafe fn resolve_with(
@@ -41,7 +41,7 @@ macro_rules! impl_bitflags {
                 resolver: Self::Resolver,
                 out: *mut Self::Archived,
             ) {
-                <$bits as Archive>::resolve(&flags.bits(), pos, resolver, out);
+                flags.bits().resolve(pos, resolver, out);
             }
         }
 
@@ -54,12 +54,12 @@ macro_rules! impl_bitflags {
             }
         }
 
-        impl<D: Fallible + ?Sized> DeserializeWith<u64, $ty, D> for BitflagsRkyv {
+        impl<D: Fallible + ?Sized> DeserializeWith<Archived<$bits>, $ty, D> for BitflagsRkyv {
             fn deserialize_with(
-                archived: &$bits,
+                archived: &Archived<$bits>,
                 _: &mut D,
             ) -> Result<$ty, <D as Fallible>::Error> {
-                Ok($ty::from_bits_truncate(*archived))
+                Ok($ty::from_bits_truncate((*archived).into()))
             }
         }
     };

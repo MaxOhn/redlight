@@ -103,7 +103,7 @@ async fn test_channel() -> Result<(), CacheError> {
 
                     *last_pin_timestamp = match update.last_pin_timestamp {
                         Some(new_timestamp) => {
-                            ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp))
+                            ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp).into())
                         }
                         None => ArchivedOption::None,
                     };

@@ -85,7 +85,9 @@ async fn test_member() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn Error>>>
         {
             Some(|archived, member| {
-                archived.update_archive(|pinned| pinned.get_mut().flags = member.flags.bits());
+                archived.update_archive(|pinned| {
+                    pinned.get_mut().flags = member.flags.bits().into();
+                });
 
                 Ok(())
             })

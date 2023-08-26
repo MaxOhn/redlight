@@ -1,6 +1,6 @@
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 use twilight_model::channel::stage_instance::PrivacyLevel;
 
@@ -22,7 +22,7 @@ use twilight_model::channel::stage_instance::PrivacyLevel;
 pub struct PrivacyLevelRkyv;
 
 impl ArchiveWith<PrivacyLevel> for PrivacyLevelRkyv {
-    type Archived = u8;
+    type Archived = Archived<u8>;
     type Resolver = ();
 
     unsafe fn resolve_with(
@@ -31,7 +31,7 @@ impl ArchiveWith<PrivacyLevel> for PrivacyLevelRkyv {
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        u8::resolve(&(*level as u8), pos, resolver, out);
+        (*level as u8).resolve(pos, resolver, out);
     }
 }
 
@@ -44,8 +44,11 @@ impl<S: Fallible + ?Sized> SerializeWith<PrivacyLevel, S> for PrivacyLevelRkyv {
     }
 }
 
-impl<D: Fallible + ?Sized> DeserializeWith<u8, PrivacyLevel, D> for PrivacyLevelRkyv {
-    fn deserialize_with(_: &u8, _: &mut D) -> Result<PrivacyLevel, <D as Fallible>::Error> {
+impl<D: Fallible + ?Sized> DeserializeWith<Archived<u8>, PrivacyLevel, D> for PrivacyLevelRkyv {
+    fn deserialize_with(
+        _: &Archived<u8>,
+        _: &mut D,
+    ) -> Result<PrivacyLevel, <D as Fallible>::Error> {
         Ok(PrivacyLevel::GuildOnly) // currently the only variant
     }
 }

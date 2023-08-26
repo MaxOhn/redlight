@@ -1,6 +1,6 @@
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Fallible,
+    Archive, Archived, Fallible,
 };
 use twilight_model::util::{datetime::TimestampParseError, Timestamp};
 
@@ -34,7 +34,7 @@ impl TimestampRkyv {
 }
 
 impl ArchiveWith<Timestamp> for TimestampRkyv {
-    type Archived = i64;
+    type Archived = Archived<i64>;
     type Resolver = ();
 
     unsafe fn resolve_with(
@@ -43,7 +43,7 @@ impl ArchiveWith<Timestamp> for TimestampRkyv {
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        Archive::resolve(&Self::archive(field), pos, resolver, out)
+        Self::archive(field).resolve(pos, resolver, out)
     }
 }
 
@@ -53,12 +53,18 @@ impl<S: Fallible + ?Sized> SerializeWith<Timestamp, S> for TimestampRkyv {
     }
 }
 
-impl<D> DeserializeWith<i64, Timestamp, D> for TimestampRkyv
+impl<D> DeserializeWith<Archived<i64>, Timestamp, D> for TimestampRkyv
 where
     D: Fallible + ?Sized,
     D::Error: From<TimestampParseError>,
 {
-    fn deserialize_with(field: &i64, _: &mut D) -> Result<Timestamp, <D as Fallible>::Error> {
-        Ok(Self::try_deserialize(*field)?)
+    fn deserialize_with(
+        archived: &Archived<i64>,
+        _: &mut D,
+    ) -> Result<Timestamp, <D as Fallible>::Error> {
+        // the .into() is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
+        Ok(Self::try_deserialize((*archived).into())?)
     }
 }
