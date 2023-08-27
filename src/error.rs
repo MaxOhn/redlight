@@ -15,24 +15,30 @@ type DedicatedConnectionError = deadpool_redis::PoolError;
 pub enum CacheError {
     #[cfg(feature = "bb8")]
     #[error("failed to create redis pool")]
+    /// Failed to create redis pool.
     CreatePool(#[source] RedisError),
     #[cfg(feature = "bb8")]
     #[error("failed to get a connection")]
+    /// Failed to get a connection.
     GetConnection(#[source] bb8_redis::bb8::RunError<RedisError>),
 
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
     #[error("failed to create redis pool")]
+    /// Failed to create redis pool.
     CreatePool(#[from] deadpool_redis::CreatePoolError),
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
     #[error("failed to get a connection")]
+    /// Failed to get a connection.
     GetConnection(#[source] deadpool_redis::PoolError),
 
     #[cfg(feature = "validation")]
     #[error("cached bytes did not correspond to the cached type")]
+    /// Cached bytes did not correspond to the cached type.
     Validation(#[source] Box<dyn StdError>),
 
     #[cfg(feature = "cold_resume")]
     #[error("failed to serialize sessions")]
+    /// Failed to serialize sessions.
     SerializeSessions(
         #[source]
         rkyv::ser::serializers::CompositeSerializerError<
@@ -43,21 +49,28 @@ pub enum CacheError {
     ),
 
     #[error(transparent)]
+    /// Expire-related error.
     Expire(#[from] ExpireError),
     #[error("received invalid response from redis")]
+    /// Received invalid response from redis
     InvalidResponse,
     #[error(transparent)]
+    /// Meta-related error.
     Meta(#[from] MetaError),
     #[error("redis error")]
+    /// Redis error.
     Redis(#[from] RedisError),
     #[error(transparent)]
+    /// Serialization-related error.
     Serialization(#[from] SerializeError),
     #[error("failed to update entry")]
+    /// Failed to update entry.
     Update(#[from] UpdateError),
 }
 
 #[derive(Debug, ThisError)]
 #[error("failed to serialize {kind:?}")]
+/// Failed to serialize some type.
 pub struct SerializeError {
     #[source]
     pub error: Box<dyn StdError>,
@@ -65,6 +78,9 @@ pub struct SerializeError {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The type that failed to serialize.
+///
+/// Used in [`SerializeError`].
 pub enum SerializeErrorKind {
     Channel,
     CurrentUser,
@@ -83,6 +99,7 @@ pub enum SerializeErrorKind {
 
 #[derive(Debug, ThisError)]
 #[error("failed to update through {kind:?}")]
+/// Failed to update some kind.
 pub struct UpdateError {
     #[source]
     pub error: Box<dyn StdError>,
@@ -90,6 +107,9 @@ pub struct UpdateError {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The type that failed to update.
+///
+/// Used in [`UpdateError`].
 pub enum UpdateErrorKind {
     ChannelPins,
     Guild,
@@ -110,6 +130,7 @@ pub(crate) enum UpdateArchiveError<D: StdError, S: StdError> {
 
 #[derive(Debug, ThisError)]
 #[error("failed to serialize {kind:?} meta")]
+/// Failed to serialize some type's meta.
 pub struct MetaError {
     #[source]
     pub error: Box<dyn StdError>,
@@ -117,6 +138,9 @@ pub struct MetaError {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The type whose meta failed to serialize.
+///
+/// Used in [`MetaError`].
 pub enum MetaErrorKind {
     Channel,
     Emoji,
@@ -133,21 +157,29 @@ pub enum MetaErrorKind {
 }
 
 #[derive(Debug, ThisError)]
+/// Expire-related error.
 pub enum ExpireError {
     #[error("failed to get a connection")]
+    /// Failed to get a connection
     GetConnection(#[source] DedicatedConnectionError),
     #[error("failed to get meta")]
+    /// Failed to get meta data.
     GetMeta(#[source] RedisError),
     #[error("failed to retrieve the 'notify-keyspace-events' config setting")]
+    /// Failed to retrieve the `notify-keyspace-events` config setting.
     GetSetting(#[source] RedisError),
     #[error("failed to execute pipe")]
+    /// Failed to execute pipe.
     Pipe(#[source] RedisError),
     #[error("failed to modify the 'notify-keyspace-events' config setting")]
+    /// Failed to modify the `notify-keyspace-events` config setting.
     SetSetting(#[source] RedisError),
     #[error("failed to subscribe to expire events")]
+    /// Failed to subscribe to events.
     Subscribe(#[source] RedisError),
 
     #[cfg(feature = "validation")]
     #[error("cached bytes did not correspond to the meta type")]
+    /// Cached bytes did not correspond to the expected meta type.
     Validation(#[source] Box<dyn StdError>),
 }

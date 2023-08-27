@@ -1,11 +1,13 @@
 mod cache;
-mod error;
 mod key;
 mod util;
 mod value;
 
 /// Types and traits to configure the cache.
 pub mod config;
+
+/// Types related to errors.
+pub mod error;
 
 /// Types related to iteration of cache entries.
 pub mod iter;
