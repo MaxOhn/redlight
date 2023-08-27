@@ -7,7 +7,7 @@ use std::{
 
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Deserialize, Fallible,
+    Archived, Deserialize, Fallible,
 };
 use twilight_model::id::Id;
 
@@ -29,7 +29,7 @@ use twilight_model::id::Id;
 pub struct IdRkyvMap;
 
 pub struct ArchivedIdOption<T> {
-    inner: u64,
+    inner: Archived<u64>,
     phantom: PhantomData<fn(T) -> T>,
 }
 
@@ -63,9 +63,9 @@ impl<T> ArchivedIdOption<T> {
         if self.inner != 0 {
             // SAFETY: NonZero types have the same memory layout and bit patterns as
             // their integer counterparts, regardless of endianness
-            let as_nonzero = unsafe { *(&self.inner as *const _ as *const NonZeroU64) };
+            let as_nonzero = unsafe { *(&self.inner as *const _ as *const Archived<NonZeroU64>) };
 
-            Some(as_nonzero)
+            Some(as_nonzero.into())
         } else {
             None
         }
@@ -82,12 +82,9 @@ impl<T> ArchivedIdOption<T> {
     /// - `pos` must be the position of `out` within the archive
     pub unsafe fn resolve_from_id(opt: Option<Id<T>>, out: *mut Self) {
         let fo = addr_of_mut!((*out).inner);
+        let id = opt.map_or(0, Id::get);
 
-        if let Some(id) = opt {
-            fo.write(id.get());
-        } else {
-            fo.write(0);
-        }
+        fo.write(id.into());
     }
 }
 
@@ -155,7 +152,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_rkyv_id() {
+    fn test_rkyv_id_map() {
         type Wrapper = With<Option<Id<()>>, IdRkyvMap>;
 
         let ids = [Some(Id::new(123)), None];
@@ -168,6 +165,8 @@ mod tests {
 
             #[cfg(feature = "validation")]
             let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            assert_eq!(id, archived.to_id_option());
 
             let deserialized: Option<Id<()>> = archived.deserialize(&mut Infallible).unwrap();
 

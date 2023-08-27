@@ -145,7 +145,7 @@ async fn test_guild() -> Result<(), CacheError> {
 
     impl PartialEq<Guild> for ArchivedCachedGuild {
         fn eq(&self, other: &Guild) -> bool {
-            self.afk_timeout == other.afk_timeout
+            u16::from(self.afk_timeout) == other.afk_timeout.get()
                 && self.default_message_notifications
                     == u8::from(other.default_message_notifications)
                 && self.explicit_content_filter == u8::from(other.explicit_content_filter)
@@ -156,7 +156,8 @@ async fn test_guild() -> Result<(), CacheError> {
                     .all(|(this, that)| this == Cow::from(that.clone()).as_ref())
                 && self.mfa_level == u8::from(other.mfa_level)
                 && self.nsfw_level == u8::from(other.nsfw_level)
-                && self.permissions.as_ref().copied() == other.permissions.map(|p| p.bits())
+                && self.permissions.as_ref().copied().map(Into::into)
+                    == other.permissions.map(|p| p.bits())
                 && self.premium_tier == u8::from(other.premium_tier)
                 && self.system_channel_flags == other.system_channel_flags.bits()
                 && self.verification_level == u8::from(other.verification_level)
