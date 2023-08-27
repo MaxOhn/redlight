@@ -15,13 +15,17 @@ use rkyv::{
 use super::SerializerExt;
 
 /// Trait that provides the option to pick and choose a custom serializer.
+///
+/// Out of the box, the trait is implemented for rkyv's [`AlignedSerializer`],
+/// [`BufferSerializer`], and [`CompositeSerializer`].
 pub trait CacheSerializer: Default + Serializer + SerializerExt {
+    /// The container on which the serializer operates.
     type Bytes: AsRef<[u8]>;
 
-    /// Finish up serialization by extracting the `Self::Bytes` from the serializer.
+    /// Finish up serialization by extracting `Self::Bytes` from the serializer.
     fn finish(self) -> Self::Bytes;
 
-    /// Finish up serialization by extracting the `Self::Bytes` from the serializer
+    /// Finish up serialization by extracting `Self::Bytes` from the serializer
     /// and resetting the serializer so that it can be used again.
     fn finish_and_reset(&mut self) -> Self::Bytes;
 }
@@ -66,6 +70,11 @@ where
 
     fn finish_and_reset(&mut self) -> Self::Bytes {
         let ptr = self as *const Self;
+
+        // SAFETY: We acquire temporary ownership of self.
+        // This is ok because the mutable reference is not accessed in the meanwhile.
+        // In order to prevent dropping self twice, once we're done with the owned
+        // instance, we get rid of it without dropping.
         let owned = unsafe { ptr.read() };
 
         let (mut serializer, scratch, shared) = owned.into_components();

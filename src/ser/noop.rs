@@ -4,7 +4,9 @@ use rkyv::{ser::Serializer, Archive, ArchiveUnsized, Fallible, Serialize, Serial
 
 use crate::ser::CacheSerializer;
 
-/// Serializer that doesn't serialize anything. Used by [`Ignore`](crate::config::Ignore).
+/// Serializer that doesn't serialize anything.
+///
+/// Used by [`Ignore`](crate::config::Ignore).
 #[derive(Default)]
 pub struct NoopSerializer;
 
