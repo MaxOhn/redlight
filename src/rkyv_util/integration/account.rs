@@ -55,20 +55,6 @@ impl ArchiveWith<IntegrationAccount> for IntegrationAccountRkyv {
     }
 }
 
-impl ArchiveWith<&IntegrationAccount> for IntegrationAccountRkyv {
-    type Archived = <IntegrationAccountRkyv as ArchiveWith<IntegrationAccount>>::Archived;
-    type Resolver = <IntegrationAccountRkyv as ArchiveWith<IntegrationAccount>>::Resolver;
-
-    unsafe fn resolve_with(
-        field: &&IntegrationAccount,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        <Self as ArchiveWith<IntegrationAccount>>::resolve_with(*field, pos, resolver, out)
-    }
-}
-
 impl<S: Fallible + Serializer + ?Sized> SerializeWith<IntegrationAccount, S>
     for IntegrationAccountRkyv
 {
@@ -83,6 +69,17 @@ impl<S: Fallible + Serializer + ?Sized> SerializeWith<IntegrationAccount, S>
     }
 }
 
+impl<D: Fallible + ?Sized> DeserializeWith<ArchivedIntegrationAccount, IntegrationAccount, D>
+    for IntegrationAccountRkyv
+{
+    fn deserialize_with(
+        archived: &ArchivedIntegrationAccount,
+        deserializer: &mut D,
+    ) -> Result<IntegrationAccount, <D as Fallible>::Error> {
+        archived.deserialize(deserializer)
+    }
+}
+
 impl<S: Fallible + Serializer + ?Sized> SerializeWith<&IntegrationAccount, S>
     for IntegrationAccountRkyv
 {
@@ -94,16 +91,28 @@ impl<S: Fallible + Serializer + ?Sized> SerializeWith<&IntegrationAccount, S>
     }
 }
 
-impl<D: Fallible + ?Sized> DeserializeWith<ArchivedIntegrationAccount, IntegrationAccount, D>
-    for IntegrationAccountRkyv
-{
-    fn deserialize_with(
-        archived: &ArchivedIntegrationAccount,
+impl ArchiveWith<&IntegrationAccount> for IntegrationAccountRkyv {
+    type Archived = <IntegrationAccountRkyv as ArchiveWith<IntegrationAccount>>::Archived;
+    type Resolver = <IntegrationAccountRkyv as ArchiveWith<IntegrationAccount>>::Resolver;
+
+    unsafe fn resolve_with(
+        field: &&IntegrationAccount,
+        pos: usize,
+        resolver: Self::Resolver,
+        out: *mut Self::Archived,
+    ) {
+        <Self as ArchiveWith<IntegrationAccount>>::resolve_with(*field, pos, resolver, out)
+    }
+}
+
+impl<D: Fallible + ?Sized> Deserialize<IntegrationAccount, D> for ArchivedIntegrationAccount {
+    fn deserialize(
+        &self,
         deserializer: &mut D,
     ) -> Result<IntegrationAccount, <D as Fallible>::Error> {
         Ok(IntegrationAccount {
-            id: archived.id.deserialize(deserializer)?,
-            name: archived.name.deserialize(deserializer)?,
+            id: self.id.deserialize(deserializer)?,
+            name: self.name.deserialize(deserializer)?,
         })
     }
 }
@@ -143,3 +152,32 @@ const _: () = {
         }
     }
 };
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_integration_account() {
+        type Wrapper = With<IntegrationAccount, IntegrationAccountRkyv>;
+
+        let integration_account = IntegrationAccount {
+            id: "id".to_owned(),
+            name: "name".to_owned(),
+        };
+
+        let bytes = rkyv::to_bytes::<_, 32>(Wrapper::cast(&integration_account)).unwrap();
+
+        #[cfg(not(feature = "validation"))]
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        let deserialized: IntegrationAccount = archived.deserialize(&mut Infallible).unwrap();
+
+        assert_eq!(integration_account, deserialized);
+    }
+}

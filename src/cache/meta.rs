@@ -204,7 +204,7 @@ pub(crate) trait IMetaKey: Sized {
     fn handle_expire(&self, pipe: &mut Pipeline);
 }
 
-/// Specified that a [`IMetaKey`] has additional archived data.
+/// Specifies that a [`IMetaKey`] has additional archived data.
 pub(crate) trait HasArchived: Sized {
     type Meta: IMeta<Self>;
 

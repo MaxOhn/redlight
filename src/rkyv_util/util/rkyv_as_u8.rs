@@ -60,3 +60,30 @@ where
         Ok(T::from(*archived))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+    use twilight_model::guild::IntegrationExpireBehavior;
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_as_u8() {
+        type Wrapper = With<IntegrationExpireBehavior, RkyvAsU8>;
+
+        let behaviors = [
+            IntegrationExpireBehavior::RemoveRole,
+            IntegrationExpireBehavior::Unknown(u8::MAX),
+        ];
+
+        for behavior in behaviors {
+            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&behavior)).unwrap();
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            let deserialized: IntegrationExpireBehavior =
+                RkyvAsU8::deserialize_with(archived, &mut Infallible).unwrap();
+
+            assert_eq!(behavior, deserialized);
+        }
+    }
+}

@@ -106,3 +106,29 @@ fn integration_type_str(integration: &GuildIntegrationType) -> &str {
         _ => "non_exhaustive",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_integration_kind() {
+        type Wrapper = With<GuildIntegrationType, GuildIntegrationTypeRkyv>;
+
+        let kinds = [
+            GuildIntegrationType::Twitch,
+            GuildIntegrationType::Unknown("other".to_owned()),
+        ];
+
+        for kind in kinds {
+            let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&kind)).unwrap();
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            let deserialized: GuildIntegrationType =
+                GuildIntegrationTypeRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+            assert_eq!(kind, deserialized);
+        }
+    }
+}

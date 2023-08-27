@@ -1,6 +1,9 @@
 #![cfg(feature = "cold_resume")]
 
-use std::{collections::HashMap, hash::BuildHasher};
+use std::{
+    collections::{hash_map::RandomState, HashMap},
+    hash::BuildHasher,
+};
 
 use rkyv::{
     collections::util::Entry,
@@ -16,7 +19,7 @@ struct SessionRkyv;
 pub(crate) struct SessionsRkyv;
 
 #[derive(Archive, Serialize)]
-pub(crate) struct SessionsWrapper<'a, S> {
+pub(crate) struct SessionsWrapper<'a, S = RandomState> {
     #[with(SessionsRkyv)]
     sessions: &'a HashMap<u64, Session, S>,
 }
@@ -220,3 +223,51 @@ const _: () = {
         }
     }
 };
+
+#[cfg(test)]
+mod tests {
+
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    fn session() -> Session {
+        Session::new(123, "session_id".to_owned())
+    }
+
+    #[test]
+    fn test_rkyv_session() {
+        type Wrapper = With<Session, SessionRkyv>;
+
+        let session = session();
+        let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&session)).unwrap();
+
+        #[cfg(not(feature = "validation"))]
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        let deserialized: Session =
+            SessionRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+        assert_eq!(session, deserialized);
+    }
+
+    #[test]
+    fn test_rkyv_sessions() {
+        let sessions: HashMap<_, _> = (0..).zip(std::iter::repeat(session()).take(10)).collect();
+        let wrapper = SessionsWrapper::new(&sessions);
+        let bytes = rkyv::to_bytes::<_, 64>(&wrapper).unwrap();
+
+        #[cfg(not(feature = "validation"))]
+        let archived = unsafe { rkyv::archived_root::<SessionsWrapper>(&bytes) };
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<SessionsWrapper>(&bytes).unwrap();
+
+        let deserialized: HashMap<u64, Session> = archived.deserialize(&mut Infallible).unwrap();
+
+        assert_eq!(sessions, deserialized);
+    }
+}

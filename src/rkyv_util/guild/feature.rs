@@ -190,3 +190,29 @@ fn guild_feature_str(feature: &GuildFeature) -> &str {
         _ => "non_exhaustive",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_guild_feature() {
+        type Wrapper = With<GuildFeature, GuildFeatureRkyv>;
+
+        let features = [
+            GuildFeature::Banner,
+            GuildFeature::Unknown("other".to_owned()),
+        ];
+
+        for feature in features {
+            let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&feature)).unwrap();
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            let deserialized: GuildFeature =
+                GuildFeatureRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+            assert_eq!(feature, deserialized);
+        }
+    }
+}

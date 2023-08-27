@@ -52,3 +52,22 @@ impl<D: Fallible + ?Sized> DeserializeWith<Archived<u8>, PrivacyLevel, D> for Pr
         Ok(PrivacyLevel::GuildOnly) // currently the only variant
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_privacy_level() {
+        type Wrapper = With<PrivacyLevel, PrivacyLevelRkyv>;
+
+        let level = PrivacyLevel::GuildOnly;
+        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&level)).unwrap();
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        let deserialized = PrivacyLevelRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+        assert_eq!(level, deserialized);
+    }
+}

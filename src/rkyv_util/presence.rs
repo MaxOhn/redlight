@@ -1,6 +1,6 @@
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Fallible,
+    Deserialize, Fallible,
 };
 use twilight_model::gateway::presence::Status;
 
@@ -58,9 +58,15 @@ impl<S: Fallible + ?Sized> SerializeWith<Status, S> for StatusRkyv {
 impl<D: Fallible + ?Sized> DeserializeWith<ArchivedStatus, Status, D> for StatusRkyv {
     fn deserialize_with(
         archived: &ArchivedStatus,
-        _: &mut D,
+        deserializer: &mut D,
     ) -> Result<Status, <D as Fallible>::Error> {
-        Ok(Status::from(*archived))
+        archived.deserialize(deserializer)
+    }
+}
+
+impl<D: Fallible + ?Sized> Deserialize<Status, D> for ArchivedStatus {
+    fn deserialize(&self, _: &mut D) -> Result<Status, <D as Fallible>::Error> {
+        Ok(Status::from(*self))
     }
 }
 
@@ -101,3 +107,37 @@ const _: () = {
         }
     }
 };
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_status() {
+        type Wrapper = With<Status, StatusRkyv>;
+
+        let statuses = [
+            Status::DoNotDisturb,
+            Status::Idle,
+            Status::Invisible,
+            Status::Offline,
+            Status::Online,
+        ];
+
+        for status in statuses {
+            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&status)).unwrap();
+
+            #[cfg(not(feature = "validation"))]
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
+            #[cfg(feature = "validation")]
+            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            let deserialized: Status = archived.deserialize(&mut Infallible).unwrap();
+
+            assert_eq!(status, deserialized);
+        }
+    }
+}

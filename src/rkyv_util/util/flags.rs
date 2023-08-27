@@ -17,7 +17,7 @@ use twilight_model::{
 /// # use rkyv::Archive;
 /// use rkyv::with::Map;
 /// use twilight_model::guild::{MemberFlags, Permissions};
-/// use twilight_redis::rkyv_util::flags::BitflagsRkyv;
+/// use twilight_redis::rkyv_util::util::BitflagsRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {
@@ -72,3 +72,23 @@ impl_bitflags!(MessageFlags as u64);
 impl_bitflags!(Permissions as u64);
 impl_bitflags!(SystemChannelFlags as u64);
 impl_bitflags!(UserFlags as u64);
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_bitflags() {
+        type Wrapper = With<MemberFlags, BitflagsRkyv>;
+
+        let flags = MemberFlags::COMPLETED_ONBOARDING | MemberFlags::DID_REJOIN;
+        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&flags)).unwrap();
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        let deserialized: MemberFlags =
+            BitflagsRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+        assert_eq!(flags, deserialized);
+    }
+}

@@ -37,3 +37,26 @@ impl<D: Fallible + ?Sized> DeserializeWith<Archived<u16>, AfkTimeout, D> for Afk
         Ok(u16::from(*archived).into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_afk_timeout() {
+        type Wrapper = With<AfkTimeout, AfkTimeoutRkyv>;
+
+        let timeouts = [AfkTimeout::FIFTEEN_MINUTES, AfkTimeout::from(12345_u16)];
+
+        for timeout in timeouts {
+            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timeout)).unwrap();
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            let deserialized: AfkTimeout =
+                AfkTimeoutRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+
+            assert_eq!(timeout, deserialized);
+        }
+    }
+}

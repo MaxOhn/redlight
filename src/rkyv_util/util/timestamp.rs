@@ -68,3 +68,38 @@ where
         Ok(Self::try_deserialize((*archived).into())?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rkyv::with::With;
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_timestamp() {
+        struct TimestampDeserializer;
+
+        #[derive(Debug)]
+        struct TimestampDeserializerError;
+
+        impl Fallible for TimestampDeserializer {
+            type Error = TimestampDeserializerError;
+        }
+
+        impl From<TimestampParseError> for TimestampDeserializerError {
+            fn from(_: TimestampParseError) -> Self {
+                Self
+            }
+        }
+
+        type Wrapper = With<Timestamp, TimestampRkyv>;
+
+        let timestamp = Timestamp::parse("2021-01-01T01:01:01.010000+00:00").unwrap();
+        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timestamp)).unwrap();
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        let deserialized: Timestamp =
+            TimestampRkyv::deserialize_with(archived, &mut TimestampDeserializer).unwrap();
+
+        assert_eq!(timestamp, deserialized);
+    }
+}

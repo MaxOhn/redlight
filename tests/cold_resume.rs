@@ -35,7 +35,7 @@ async fn test_cold_resume() -> Result<(), CacheError> {
         type VoiceState<'a> = Ignore;
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool()).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let session = Session::new(123, "session_id".to_owned());
     let sessions: HashMap<_, _> = (0..10).zip(iter::once(session).cycle()).collect();

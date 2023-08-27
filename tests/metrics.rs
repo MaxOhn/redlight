@@ -187,7 +187,7 @@ async fn test_metrics() -> Result<(), CacheError> {
             .await?;
     }
 
-    let cache = RedisCache::<Config>::with_pool(pool).await?;
+    let cache = RedisCache::<Config>::new_with_pool(pool).await?;
 
     let create_channel = Event::ChannelCreate(Box::new(ChannelCreate(text_channel())));
     cache.update(&create_channel).await?;

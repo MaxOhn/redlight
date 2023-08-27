@@ -1,7 +1,7 @@
 use rkyv::{
     out_field,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Fallible,
+    Archive, Archived, Deserialize, Fallible,
 };
 use twilight_model::util::ImageHash;
 
@@ -75,9 +75,15 @@ impl<S: Fallible + ?Sized> SerializeWith<ImageHash, S> for ImageHashRkyv {
 impl<D: Fallible + ?Sized> DeserializeWith<ArchivedImageHash, ImageHash, D> for ImageHashRkyv {
     fn deserialize_with(
         archived: &ArchivedImageHash,
-        _: &mut D,
+        deserializer: &mut D,
     ) -> Result<ImageHash, <D as Fallible>::Error> {
-        Ok(ImageHash::new(archived.bytes, archived.animated))
+        archived.deserialize(deserializer)
+    }
+}
+
+impl<D: Fallible + ?Sized> Deserialize<ImageHash, D> for ArchivedImageHash {
+    fn deserialize(&self, _: &mut D) -> Result<ImageHash, <D as Fallible>::Error> {
+        Ok(ImageHash::new(self.bytes, self.animated))
     }
 }
 
@@ -114,3 +120,28 @@ const _: () =
             }
         }
     };
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_image_hash() {
+        type Wrapper = With<ImageHash, ImageHashRkyv>;
+
+        let image_hash = ImageHash::new([1; 16], false);
+        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&image_hash)).unwrap();
+
+        #[cfg(not(feature = "validation"))]
+        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        let deserialized: ImageHash = archived.deserialize(&mut Infallible).unwrap();
+
+        assert_eq!(image_hash, deserialized);
+    }
+}

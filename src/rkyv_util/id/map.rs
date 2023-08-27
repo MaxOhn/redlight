@@ -7,7 +7,7 @@ use std::{
 
 use rkyv::{
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Fallible,
+    Deserialize, Fallible,
 };
 use twilight_model::id::Id;
 
@@ -136,8 +136,42 @@ impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedIdOption<T>, Option<Id<T>>
     #[inline]
     fn deserialize_with(
         archived: &ArchivedIdOption<T>,
-        _: &mut D,
+        deserializer: &mut D,
     ) -> Result<Option<Id<T>>, D::Error> {
-        Ok(archived.to_id_option())
+        archived.deserialize(deserializer)
+    }
+}
+
+impl<D: Fallible + ?Sized, T> Deserialize<Option<Id<T>>, D> for ArchivedIdOption<T> {
+    fn deserialize(&self, _: &mut D) -> Result<Option<Id<T>>, <D as Fallible>::Error> {
+        Ok(self.to_id_option())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rkyv::{with::With, Infallible};
+
+    use super::*;
+
+    #[test]
+    fn test_rkyv_id() {
+        type Wrapper = With<Option<Id<()>>, IdRkyvMap>;
+
+        let ids = [Some(Id::new(123)), None];
+
+        for id in ids {
+            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&id)).unwrap();
+
+            #[cfg(not(feature = "validation"))]
+            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
+            #[cfg(feature = "validation")]
+            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            let deserialized: Option<Id<()>> = archived.deserialize(&mut Infallible).unwrap();
+
+            assert_eq!(id, deserialized);
+        }
     }
 }
