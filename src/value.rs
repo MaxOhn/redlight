@@ -7,6 +7,56 @@ use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 /// Archived form of a cache entry.
 ///
 /// Implements [`Deref`] to `T::Archived` so fields and methods of the archived type are easily accessible.
+///
+/// # Example
+///
+/// ```
+/// use rkyv::{boxed::ArchivedBox, with::RefAsBox};
+/// use rkyv::{Archive, Archived, Deserialize, Infallible};
+/// use twilight_redis::CachedArchive;
+///
+/// #[derive(Archive)]
+/// struct CachedEntry<'a> {
+///     id: u32,
+///     #[with(RefAsBox)]
+///     name: &'a str,
+///     opt: Option<[u8; 4]>,
+///     list: Vec<Inner>,
+/// }
+///
+/// #[derive(Archive, Deserialize)]
+/// struct Inner {
+///     field: String,
+/// }
+///
+/// fn foo(archive: CachedArchive<CachedEntry<'_>>) {
+///     // The key property of `CachedArchive` is that it derefs
+///     // into the archived form of the generic type.
+///     let _: &ArchivedCachedEntry<'_> = &archive;
+///
+///     // Unless rkyv's `archived_le` or `archived_be` features are enabled,
+///     // `Archived<u32>` is just a `u32`.
+///     let id: Archived<u32> = archive.id;
+///
+///     // The `name` field is archived through the `RefAsBox` wrapper,
+///     // making its archived form an `ArchivedBox`.
+///     let name: &ArchivedBox<str> = &archive.name;
+///
+///     let opt = archive.opt // ArchivedOption<[u8; 4]>
+///         .as_ref()         // Option<&[u8; 4]>
+///         .copied();        // Option<[u8; 4]>
+///
+///     // Archived types even provide partial deserialization
+///     let inner = archive.inner         // ArchivedVec<ArchivedInner>
+///         .deserialize(&mut Infallible)
+///         .unwrap();                    // Vec<Inner>
+///
+///     let first_inner: Inner = archive.inner
+///         .first()
+///         .deserialize(&mut Infallible)
+///         .unwrap();
+/// }
+/// ```
 pub struct CachedArchive<T> {
     bytes: Box<[u8]>,
     phantom: PhantomData<T>,
@@ -32,6 +82,26 @@ impl<T: Archive> CachedArchive<T> {
     /// This should be preferred over [`update_by_deserializing`] when possible
     /// as it is much more performant.
     ///
+    /// # Example
+    ///
+    /// ```
+    /// # use rkyv::Archive;
+    /// use twilight_redis::CachedArchive;
+    ///
+    /// #[derive(Archive)]
+    /// struct CachedData {
+    ///     num: u32,
+    /// }
+    ///
+    /// struct UpdateEvent {
+    ///     new_num: u32,
+    /// }
+    ///
+    /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) {
+    ///     archive.update_archive(|mut pinned| pinned.num = update.new_num);
+    /// }
+    /// ```
+    ///
     /// [`update_by_deserializing`]: CachedArchive::update_by_deserializing
     pub fn update_archive(&mut self, f: impl FnOnce(Pin<&mut T::Archived>)) {
         let bytes = self.bytes.as_mut();
@@ -45,6 +115,47 @@ impl<T: Cacheable> CachedArchive<T> {
     /// mutating it, and then serializing again.
     ///
     /// If possible, [`update_archive`] should be used instead as it is much more performant.
+    ///
+    /// Returns a boxed [`std::error::Error`] if either deserialization or serialization failed.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::error::Error;
+    /// # use rkyv::{Archive, Deserialize, Serialize};
+    /// use rkyv::Infallible;
+    /// use twilight_redis::{config::Cacheable, CachedArchive};
+    ///
+    /// #[derive(Archive, Serialize, Deserialize)]
+    /// # #[cfg_attr(feature = "validation", archive(check_bytes))]
+    /// # /*
+    /// #[archive(check_bytes)] // only if the `validation` feature is enabled
+    /// # */
+    /// struct CachedData {
+    ///     nums: Vec<u32>,
+    /// }
+    ///
+    /// impl Cacheable for CachedData {
+    ///     # /*
+    ///     // ...
+    ///     # */
+    ///     # type Serializer = rkyv::ser::serializers::AllocSerializer<32>;
+    ///     # fn expire() -> Option<std::time::Duration> { None }
+    /// }
+    ///
+    /// struct UpdateEvent {
+    ///     new_nums: Vec<u32>,
+    /// }
+    ///
+    /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) -> Result<(), Box<dyn Error>> {
+    ///     // Updating a Vec like this generally cannot be done through a pinned mutable reference
+    ///     // so we're using `update_by_deserializing` instead of `update_archive`.
+    ///     archive.update_by_deserializing(
+    ///         |deserialized| deserialized.nums = update.new_nums.clone(),
+    ///         &mut Infallible,
+    ///     )
+    /// }
+    /// ```
     ///
     /// [`update_archive`]: CachedArchive::update_archive
     pub fn update_by_deserializing<D>(
@@ -80,19 +191,24 @@ impl<T: Cacheable> CachedArchive<T> {
 }
 
 #[cfg(feature = "validation")]
-impl<T> CachedArchive<T>
-where
-    T: Archive,
-    <T as Archive>::Archived:
-        for<'a> rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
-{
-    pub(crate) fn new(bytes: Box<[u8]>) -> crate::CacheResult<Self> {
-        rkyv::check_archived_root::<T>(bytes.as_ref())
-            .map_err(|e| crate::CacheError::Validation(Box::new(e)))?;
+const _: () = {
+    use rkyv::{validation::validators::DefaultValidator, CheckBytes};
 
-        Ok(Self::new_unchecked(bytes))
+    use crate::{CacheError, CacheResult};
+
+    impl<T> CachedArchive<T>
+    where
+        T: Archive,
+        <T as Archive>::Archived: for<'a> CheckBytes<DefaultValidator<'a>>,
+    {
+        pub(crate) fn new(bytes: Box<[u8]>) -> CacheResult<Self> {
+            rkyv::check_archived_root::<T>(bytes.as_ref())
+                .map_err(|e| CacheError::Validation(Box::new(e)))?;
+
+            Ok(Self::new_unchecked(bytes))
+        }
     }
-}
+};
 
 impl<T: Archive> Deref for CachedArchive<T> {
     type Target = <T as Archive>::Archived;
