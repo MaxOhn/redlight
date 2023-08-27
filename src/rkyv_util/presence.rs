@@ -4,10 +4,26 @@ use rkyv::{
 };
 use twilight_model::gateway::presence::Status;
 
+/// Used to archive [`Status`].
+///
+/// # Example
+///
+/// ```
+/// # use rkyv::Archive;
+/// use twilight_model::gateway::presence::Status;
+/// use twilight_redis::rkyv_util::presence::StatusRkyv;
+///
+/// #[derive(Archive)]
+/// struct Cached {
+///     #[with(StatusRkyv)]
+///     status: Status,
+/// }
+/// ```
 pub struct StatusRkyv;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
+/// An archived [`Status`].
 pub enum ArchivedStatus {
     DoNotDisturb,
     Idle,

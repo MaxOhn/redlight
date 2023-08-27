@@ -23,13 +23,14 @@ use twilight_model::util::ImageHash;
 pub struct ImageHashRkyv;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+/// An archived [`ImageHash`].
 pub struct ArchivedImageHash {
     animated: Archived<bool>,
     bytes: Archived<[u8; 16]>,
 }
 
 impl ArchivedImageHash {
-    /// Efficient packed bytes of the hash.
+    /// Efficiently packed bytes of the hash.
     pub const fn bytes(self) -> [u8; 16] {
         self.bytes
     }

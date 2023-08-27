@@ -27,14 +27,18 @@ use twilight_model::guild::IntegrationAccount;
 pub struct IntegrationAccountRkyv;
 
 #[derive(Debug, Eq, PartialEq)]
+/// An archived [`IntegrationAccount`].
 pub struct ArchivedIntegrationAccount {
+    /// The archived counterpart of [`IntegrationAccount::id`].
     pub id: ArchivedString,
+    /// The archived counterpart of [`IntegrationAccount::name`].
     pub name: ArchivedString,
 }
 
+/// The resolver for an archived [`IntegrationAccount`].
 pub struct IntegrationAccountResolver {
-    pub id: StringResolver,
-    pub name: StringResolver,
+    id: StringResolver,
+    name: StringResolver,
 }
 
 impl ArchiveWith<IntegrationAccount> for IntegrationAccountRkyv {

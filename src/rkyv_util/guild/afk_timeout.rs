@@ -4,6 +4,21 @@ use rkyv::{
 };
 use twilight_model::guild::AfkTimeout;
 
+/// Used to archive [`AfkTimeout`].
+///
+/// # Example
+///
+/// ```
+/// # use rkyv::Archive;
+/// use twilight_model::guild::AfkTimeout;
+/// use twilight_redis::rkyv_util::guild::AfkTimeoutRkyv;
+///
+/// #[derive(Archive)]
+/// struct Cached {
+///     #[with(AfkTimeoutRkyv)]
+///     afk_timeout: AfkTimeout,
+/// }
+/// ```
 pub struct AfkTimeoutRkyv;
 
 impl ArchiveWith<AfkTimeout> for AfkTimeoutRkyv {

@@ -28,6 +28,7 @@ use twilight_model::id::Id;
 /// ```
 pub struct IdRkyvMap;
 
+/// An efficiently archived `Option<Id<T>>`.
 pub struct ArchivedIdOption<T> {
     inner: Archived<u64>,
     phantom: PhantomData<fn(T) -> T>,
@@ -59,18 +60,23 @@ impl<T> PartialEq<Option<Id<T>>> for ArchivedIdOption<T> {
 }
 
 impl<T> ArchivedIdOption<T> {
+    /// Convert into an `Option<NonZeroU64>`.
     pub fn to_nonzero_option(self) -> Option<NonZeroU64> {
         if self.inner != 0 {
             // SAFETY: NonZero types have the same memory layout and bit patterns as
             // their integer counterparts, regardless of endianness
             let as_nonzero = unsafe { *(&self.inner as *const _ as *const Archived<NonZeroU64>) };
 
+            // the .into() is necessary in case the `archive_le` or `archive_be`
+            // features are enabled in rkyv
+            #[allow(clippy::useless_conversion)]
             Some(as_nonzero.into())
         } else {
             None
         }
     }
 
+    /// Convert into an `Option<Id<T>>`.
     pub fn to_id_option(self) -> Option<Id<T>> {
         self.to_nonzero_option().map(Id::from)
     }
@@ -84,6 +90,9 @@ impl<T> ArchivedIdOption<T> {
         let fo = addr_of_mut!((*out).inner);
         let id = opt.map_or(0, Id::get);
 
+        // the .into() is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
         fo.write(id.into());
     }
 }

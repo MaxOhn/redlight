@@ -13,7 +13,7 @@ use rkyv::{
 };
 use twilight_model::id::Id;
 
-pub use self::map::IdRkyvMap;
+pub use self::map::{ArchivedIdOption, IdRkyvMap};
 
 /// Used to archive [`Id<T>`].
 ///
@@ -32,16 +32,19 @@ pub use self::map::IdRkyvMap;
 /// ```
 pub struct IdRkyv;
 
+/// An archived [`Id<T>`].
 pub struct ArchivedId<T> {
     value: Archived<NonZeroU64>,
     phantom: PhantomData<fn(T) -> T>,
 }
 
 impl<T> ArchivedId<T> {
+    /// Return the inner primitive value.
     pub fn get(self) -> u64 {
         self.into_nonzero().get()
     }
 
+    /// Return the [`NonZeroU64`] representation of the ID.
     pub fn into_nonzero(self) -> NonZeroU64 {
         // the .into() is necessary in case the `archive_le` or `archive_be`
         // features are enabled in rkyv
