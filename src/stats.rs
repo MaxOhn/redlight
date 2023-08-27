@@ -1,4 +1,3 @@
-use futures_util::future::BoxFuture;
 use twilight_model::id::{
     marker::{ChannelMarker, GuildMarker, UserMarker},
     Id,
@@ -10,8 +9,11 @@ use crate::{
     CacheError, CacheResult, RedisCache,
 };
 
-pub struct RedisCacheStats<'c> {
-    conn: ConnectionState<'c>,
+/// Retrieve the size count of various cached collections.
+///
+/// Created via [`RedisCache::stats`].
+pub struct RedisCacheStats<'c, C> {
+    conn: ConnectionState<'c, C>,
 }
 
 macro_rules! impl_stats_fn {
@@ -37,15 +39,15 @@ macro_rules! impl_stats_fn {
     };
 }
 
-impl<'c> RedisCacheStats<'c> {
-    pub(crate) fn new<C: Send + Sync + 'static>(cache: &'c RedisCache<C>) -> RedisCacheStats<'c> {
+impl<'c, C> RedisCacheStats<'c, C> {
+    pub(crate) fn new(cache: &'c RedisCache<C>) -> RedisCacheStats<'c, C> {
         Self {
             conn: ConnectionState::new(cache),
         }
     }
 }
 
-impl RedisCacheStats<'_> {
+impl<C> RedisCacheStats<'_, C> {
     impl_stats_fn!(channels, Channels);
     impl_stats_fn!(emojis, Emojis);
     impl_stats_fn!(guilds, Guilds);
@@ -89,27 +91,30 @@ impl RedisCacheStats<'_> {
     }
 }
 
-enum ConnectionState<'c> {
-    Future(BoxFuture<'c, CacheResult<Connection<'c>>>),
-    Ready(Connection<'c>),
+enum ConnectionState<'c, C> {
+    Cache(&'c RedisCache<C>),
+    Connection(Connection<'c>),
 }
 
-impl<'c> ConnectionState<'c> {
-    fn new<C: Send + Sync + 'static>(cache: &'c RedisCache<C>) -> Self {
-        Self::Future(Box::pin(cache.connection()))
+impl<'c, C> ConnectionState<'c, C> {
+    fn new(cache: &'c RedisCache<C>) -> Self {
+        Self::Cache(cache)
     }
 
     async fn get(&mut self) -> CacheResult<&mut Connection<'c>> {
         match self {
-            ConnectionState::Future(fut) => {
-                *self = Self::Ready(fut.await?);
-                let Self::Ready(conn) = self else {
-                    unreachable!()
+            ConnectionState::Cache(cache) => {
+                let conn = cache.connection().await?;
+                *self = Self::Connection(conn);
+
+                let Self::Connection(conn) = self else {
+                    // SAFETY: we just assigned a connection
+                    unsafe { std::hint::unreachable_unchecked() }
                 };
 
                 Ok(conn)
             }
-            ConnectionState::Ready(conn) => Ok(conn),
+            ConnectionState::Connection(conn) => Ok(conn),
         }
     }
 }

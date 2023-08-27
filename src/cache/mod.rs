@@ -35,10 +35,8 @@ impl<C> RedisCache<C> {
     pub fn iter(&self) -> RedisCacheIter<'_, C> {
         RedisCacheIter::new(self)
     }
-}
 
-impl<C: Send + Sync + 'static> RedisCache<C> {
-    pub fn stats(&self) -> RedisCacheStats<'_> {
+    pub fn stats(&self) -> RedisCacheStats<'_, C> {
         RedisCacheStats::new(self)
     }
 }
