@@ -325,6 +325,34 @@ impl<C> RedisCache<C> {
 }
 
 fn convert_ids<T>(ids: HashSet<u64>) -> HashSet<Id<T>> {
-    // SAFETY: Id<T> is a transparent wrapper around NonZeroU64
+    #[cfg(feature = "validation")]
+    if ids.iter().any(|&id| id == 0) {
+        tracing::warn!("IDs must not be zero");
+
+        return ids.into_iter().filter_map(Id::new_checked).collect();
+    }
+
+    // SAFETY: we ensured that all u64s are non-zero
     unsafe { std::mem::transmute(ids) }
+}
+
+#[cfg(test)]
+#[cfg(feature = "validation")]
+mod tests {
+    use std::collections::HashSet;
+
+    use twilight_model::id::{marker::GenericMarker, Id};
+
+    use super::convert_ids;
+
+    #[test]
+    fn test_convert_ids_zero() {
+        let mut ids = HashSet::new();
+        ids.insert(3);
+        ids.insert(0);
+        ids.insert(5);
+        let converted: HashSet<Id<GenericMarker>> = convert_ids(ids);
+
+        assert_eq!(converted.len(), 2);
+    }
 }
