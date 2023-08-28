@@ -38,12 +38,9 @@ pub use self::{
 ///
 /// impl CacheConfig for Config {
 /// #    #[cfg(feature = "metrics")]
-/// #   const METRICS_INTERVAL_DURATION: Duration;
-/// # /*
 ///     // Only if the `metrics` feature is enabled
-///     const METRICS_INTERVAL_DURATION: Duration;
+///     const METRICS_INTERVAL_DURATION: Duration = Duration::from_secs(30);
 ///
-/// # */
 ///     type Channel<'a> = CachedChannel; // <-
 ///     type CurrentUser<'a> = Ignore;
 ///     type Emoji<'a> = Ignore;

@@ -11,7 +11,7 @@ use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 /// # Example
 ///
 /// ```
-/// use rkyv::{boxed::ArchivedBox, with::RefAsBox};
+/// use rkyv::{boxed::ArchivedBox, option::ArchivedOption, with::RefAsBox};
 /// use rkyv::{Archive, Archived, Deserialize, Infallible};
 /// use twilight_redis::CachedArchive;
 ///
@@ -47,14 +47,13 @@ use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 ///         .copied();        // Option<[u8; 4]>
 ///
 ///     // Archived types even provide partial deserialization
-///     let inner = archive.inner         // ArchivedVec<ArchivedInner>
-///         .deserialize(&mut Infallible)
-///         .unwrap();                    // Vec<Inner>
-///
-///     let first_inner: Inner = archive.inner
-///         .first()
+///     let list: Vec<Inner> = archive.list // ArchivedVec<ArchivedInner>
 ///         .deserialize(&mut Infallible)
 ///         .unwrap();
+///
+///     let first_inner: Option<Inner> = archive.list
+///         .first()
+///         .map(|inner| inner.deserialize(&mut Infallible).unwrap());
 /// }
 /// ```
 pub struct CachedArchive<T> {
