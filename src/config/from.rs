@@ -85,7 +85,7 @@ pub trait ICachedIntegration<'a>: Cacheable {
     fn from_integration(integration: &'a GuildIntegration) -> Self;
 }
 
-/// Create a type from a [`Member`], [`PartialMember`], or [`MemberUpdate`] reference.
+/// Create a type from a [`Member`] reference.
 pub trait ICachedMember<'a>: Cacheable {
     /// Create an instance from a [`Member`] reference.
     fn from_member(guild_id: Id<GuildMarker>, member: &'a Member) -> Self;
@@ -125,7 +125,7 @@ pub trait ICachedMember<'a>: Cacheable {
     ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>>;
 }
 
-/// Create a type from a [`Message`] or [`MessageUpdate`] reference.
+/// Create a type from a [`Message`] reference.
 pub trait ICachedMessage<'a>: Cacheable {
     /// Create an instance from a [`Message`] reference.
     fn from_message(message: &'a Message) -> Self;
@@ -149,7 +149,7 @@ pub trait ICachedMessage<'a>: Cacheable {
 
     /// Specify how reaction events are handled.
     ///
-    /// If the events is not of interest, return `None`.
+    /// If the events are not of interest, return `None`.
     /// Otherwise, return a function that updates the currently cached message.
     ///
     /// The returned function should take two arguments:
@@ -189,7 +189,7 @@ pub trait ICachedSticker<'a>: Cacheable {
     fn from_sticker(sticker: &'a Sticker) -> Self;
 }
 
-/// Create a type from a [`User`] or [`PartialUser`] reference.
+/// Create a type from a [`User`] reference.
 pub trait ICachedUser<'a>: Cacheable {
     /// Create an instance from a [`User`] reference.
     fn from_user(user: &'a User) -> Self;

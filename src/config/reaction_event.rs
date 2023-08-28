@@ -22,6 +22,7 @@ pub enum ReactionEvent<'a> {
 }
 
 impl ReactionEvent<'_> {
+    /// The message id of the [`ReactionEvent`].
     pub fn message_id(self) -> Id<MessageMarker> {
         match self {
             ReactionEvent::Add(event) => event.message_id,
@@ -31,6 +32,7 @@ impl ReactionEvent<'_> {
         }
     }
 
+    /// The channel id of the [`ReactionEvent`].
     pub fn channel_id(self) -> Id<ChannelMarker> {
         match self {
             ReactionEvent::Add(event) => event.channel_id,
