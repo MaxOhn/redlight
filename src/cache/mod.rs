@@ -32,10 +32,12 @@ impl<C> RedisCache<C> {
             .map_err(CacheError::GetConnection)
     }
 
+    /// Create a [`RedisCacheIter`] instance to iterate over various cached collections.
     pub fn iter(&self) -> RedisCacheIter<'_, C> {
         RedisCacheIter::new(self)
     }
 
+    /// Create a [`RedisCacheStats`] instance to inspect sizes of cached collections.
     pub fn stats(&self) -> RedisCacheStats<'_, C> {
         RedisCacheStats::new(self)
     }
@@ -43,6 +45,9 @@ impl<C> RedisCache<C> {
 
 impl<C: CacheConfig> RedisCache<C> {
     #[cfg(feature = "bb8")]
+    /// Create a new [`RedisCache`].
+    ///
+    /// The cache will connect to a new default bb8 connection pool through the given url.
     pub async fn new(url: &str) -> CacheResult<Self> {
         use bb8_redis::RedisConnectionManager;
 
@@ -57,6 +62,9 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
+    /// Create a new [`RedisCache`].
+    ///
+    /// The cache will connect to a new default deadpool connection pool through the given url.
     pub async fn new(url: &str) -> CacheResult<Self> {
         use deadpool_redis::{Config, Runtime};
 
@@ -67,6 +75,9 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
+    /// Create a new [`RedisCache`] by using the given connection pool.
+    ///
+    /// This provides a way to customize the pool configuration manually.
     pub async fn new_with_pool(pool: Pool) -> CacheResult<Self> {
         Self::handle_expire(&pool).await?;
 
@@ -79,6 +90,13 @@ impl<C: CacheConfig> RedisCache<C> {
         })
     }
 
+    #[cfg(any(feature = "bb8", feature = "deadpool"))]
+    /// Get a reference to the underlying redis connection pool.
+    pub fn pool(&self) -> &Pool {
+        &self.pool
+    }
+
+    /// Update the cache with an [`Event`] from the gateway.
     #[instrument(skip_all, fields(event = ?event.kind()))]
     pub async fn update(&self, event: &Event) -> CacheResult<()> {
         let mut pipe = Pipe::new(self);

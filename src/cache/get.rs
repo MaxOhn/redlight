@@ -18,6 +18,7 @@ use crate::{
 use super::Connection;
 
 impl<C: CacheConfig> RedisCache<C> {
+    /// Get a channel entry.
     pub async fn channel(
         &self,
         channel_id: Id<ChannelMarker>,
@@ -25,34 +26,14 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(channel_id).await
     }
 
-    pub async fn channel_ids(&self) -> CacheResult<HashSet<Id<ChannelMarker>>> {
-        self.get_ids(RedisKey::Channels).await
-    }
-
-    pub async fn channel_msg_ids(
-        &self,
-        channel_id: Id<ChannelMarker>,
-    ) -> CacheResult<HashSet<Id<MessageMarker>>> {
-        let key = RedisKey::ChannelMessages {
-            channel: channel_id,
-        };
-
-        self.get_ids(key).await
-    }
-
-    pub async fn common_guild_ids(
-        &self,
-        user_id: Id<UserMarker>,
-    ) -> CacheResult<HashSet<Id<GuildMarker>>> {
-        self.get_ids(RedisKey::UserGuilds { id: user_id }).await
-    }
-
+    /// Get the current user entry.
     pub async fn current_user(
         &self,
     ) -> CacheResult<Option<CachedArchive<C::CurrentUser<'static>>>> {
         self.get_single(RedisKey::CurrentUser).await
     }
 
+    /// Get an emoji entry.
     pub async fn emoji(
         &self,
         emoji_id: Id<EmojiMarker>,
@@ -60,6 +41,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(emoji_id).await
     }
 
+    /// Get a guild entry.
     pub async fn guild(
         &self,
         guild_id: Id<GuildMarker>,
@@ -67,77 +49,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(guild_id).await
     }
 
-    pub async fn guild_channel_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<ChannelMarker>>> {
-        self.get_ids(RedisKey::GuildChannels { id: guild_id }).await
-    }
-
-    pub async fn guild_emoji_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<EmojiMarker>>> {
-        self.get_ids(RedisKey::GuildEmojis { id: guild_id }).await
-    }
-
-    pub async fn guild_integration_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<IntegrationMarker>>> {
-        self.get_ids(RedisKey::GuildIntegrations { id: guild_id })
-            .await
-    }
-
-    pub async fn guild_member_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<UserMarker>>> {
-        self.get_ids(RedisKey::GuildMembers { id: guild_id }).await
-    }
-
-    pub async fn guild_presence_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<UserMarker>>> {
-        self.get_ids(RedisKey::GuildPresences { id: guild_id })
-            .await
-    }
-
-    pub async fn guild_role_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<RoleMarker>>> {
-        self.get_ids(RedisKey::GuildRoles { id: guild_id }).await
-    }
-
-    pub async fn guild_stage_instance_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<StageMarker>>> {
-        self.get_ids(RedisKey::GuildStageInstances { id: guild_id })
-            .await
-    }
-
-    pub async fn guild_sticker_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<StickerMarker>>> {
-        self.get_ids(RedisKey::GuildStickers { id: guild_id }).await
-    }
-
-    pub async fn guild_voice_state_ids(
-        &self,
-        guild_id: Id<GuildMarker>,
-    ) -> CacheResult<HashSet<Id<UserMarker>>> {
-        self.get_ids(RedisKey::GuildVoiceStates { id: guild_id })
-            .await
-    }
-
-    pub async fn guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
-        self.get_ids(RedisKey::Guilds).await
-    }
-
+    /// Get an integration entry.
     pub async fn integration(
         &self,
         guild_id: Id<GuildMarker>,
@@ -151,6 +63,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(key).await
     }
 
+    /// Get a member entry.
     pub async fn member(
         &self,
         guild_id: Id<GuildMarker>,
@@ -164,6 +77,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(key).await
     }
 
+    /// Get a message entry.
     pub async fn message(
         &self,
         msg_id: Id<MessageMarker>,
@@ -171,10 +85,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(msg_id).await
     }
 
-    pub async fn message_ids(&self) -> CacheResult<HashSet<Id<MessageMarker>>> {
-        self.get_ids(RedisKey::Messages).await
-    }
-
+    /// Get a presence entry.
     pub async fn presence(
         &self,
         guild_id: Id<GuildMarker>,
@@ -188,6 +99,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(key).await
     }
 
+    /// Get a role entry.
     pub async fn role(
         &self,
         role_id: Id<RoleMarker>,
@@ -195,10 +107,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(role_id).await
     }
 
-    pub async fn role_ids(&self) -> CacheResult<HashSet<Id<RoleMarker>>> {
-        self.get_ids(RedisKey::Roles).await
-    }
-
+    /// Get a stage instance entry.
     pub async fn stage_instance(
         &self,
         stage_instance_id: Id<StageMarker>,
@@ -206,6 +115,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(stage_instance_id).await
     }
 
+    /// Get a sticker entry.
     pub async fn sticker(
         &self,
         sticker_id: Id<StickerMarker>,
@@ -213,10 +123,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(sticker_id).await
     }
 
-    pub async fn unavailable_guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
-        self.get_ids(RedisKey::UnavailableGuilds).await
-    }
-
+    /// Get a user entry.
     pub async fn user(
         &self,
         user_id: Id<UserMarker>,
@@ -224,10 +131,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.get_single(user_id).await
     }
 
-    pub async fn user_ids(&self) -> CacheResult<HashSet<Id<UserMarker>>> {
-        self.get_ids(RedisKey::Users).await
-    }
-
+    /// Get a voice state entry.
     pub async fn voice_state(
         &self,
         guild_id: Id<GuildMarker>,
@@ -239,6 +143,132 @@ impl<C: CacheConfig> RedisCache<C> {
         };
 
         self.get_single(key).await
+    }
+
+    /// Get all cached channel ids.
+    pub async fn channel_ids(&self) -> CacheResult<HashSet<Id<ChannelMarker>>> {
+        self.get_ids(RedisKey::Channels).await
+    }
+
+    /// Get all cached message ids for a channel.
+    pub async fn channel_msg_ids(
+        &self,
+        channel_id: Id<ChannelMarker>,
+    ) -> CacheResult<HashSet<Id<MessageMarker>>> {
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
+
+        self.get_ids(key).await
+    }
+
+    /// Get all cached guild ids that a user is in.
+    pub async fn common_guild_ids(
+        &self,
+        user_id: Id<UserMarker>,
+    ) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        self.get_ids(RedisKey::UserGuilds { id: user_id }).await
+    }
+
+    /// Get all cached guild ids.
+    pub async fn guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        self.get_ids(RedisKey::Guilds).await
+    }
+
+    /// Get all cached message ids.
+    pub async fn message_ids(&self) -> CacheResult<HashSet<Id<MessageMarker>>> {
+        self.get_ids(RedisKey::Messages).await
+    }
+
+    /// Get all cached role ids.
+    pub async fn role_ids(&self) -> CacheResult<HashSet<Id<RoleMarker>>> {
+        self.get_ids(RedisKey::Roles).await
+    }
+
+    /// Get all currently unavailable guild ids.
+    pub async fn unavailable_guild_ids(&self) -> CacheResult<HashSet<Id<GuildMarker>>> {
+        self.get_ids(RedisKey::UnavailableGuilds).await
+    }
+
+    /// Get all cached user ids.
+    pub async fn user_ids(&self) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::Users).await
+    }
+
+    /// Get all cached channel ids for a guild.
+    pub async fn guild_channel_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<ChannelMarker>>> {
+        self.get_ids(RedisKey::GuildChannels { id: guild_id }).await
+    }
+
+    /// Get all cached emoji ids for a guild.
+    pub async fn guild_emoji_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<EmojiMarker>>> {
+        self.get_ids(RedisKey::GuildEmojis { id: guild_id }).await
+    }
+
+    /// Get all cached integration ids for a guild.
+    pub async fn guild_integration_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<IntegrationMarker>>> {
+        self.get_ids(RedisKey::GuildIntegrations { id: guild_id })
+            .await
+    }
+
+    /// Get all cached member ids for a guild.
+    pub async fn guild_member_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildMembers { id: guild_id }).await
+    }
+
+    /// Get all cached user ids of presences for a guild.
+    pub async fn guild_presence_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildPresences { id: guild_id })
+            .await
+    }
+
+    /// Get all cached role ids for a guild.
+    pub async fn guild_role_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<RoleMarker>>> {
+        self.get_ids(RedisKey::GuildRoles { id: guild_id }).await
+    }
+
+    /// Get all cached stage instance ids for a guild.
+    pub async fn guild_stage_instance_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<StageMarker>>> {
+        self.get_ids(RedisKey::GuildStageInstances { id: guild_id })
+            .await
+    }
+
+    /// Get all cached sticker ids for a guild.
+    pub async fn guild_sticker_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<StickerMarker>>> {
+        self.get_ids(RedisKey::GuildStickers { id: guild_id }).await
+    }
+
+    /// Get all cached user ids of voice states in a guild.
+    pub async fn guild_voice_state_ids(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> CacheResult<HashSet<Id<UserMarker>>> {
+        self.get_ids(RedisKey::GuildVoiceStates { id: guild_id })
+            .await
     }
 }
 

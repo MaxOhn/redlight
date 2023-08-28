@@ -22,6 +22,14 @@ use crate::{
 };
 
 impl<C> RedisCache<C> {
+    /// Given a map of shard ids and sessions, store those sessions
+    /// in the cache and optionally add an expiration duration.
+    ///
+    /// The suggested expire duration is 3 minutes.
+    /// Longer durations would likely cause the gateway to invalidate
+    /// the sessions and instruct a reconnect.
+    ///
+    /// To retrieve the stored sessions, use [`defrost`].
     #[instrument(level = "trace", skip_all)]
     pub async fn freeze<S>(
         &self,
@@ -64,6 +72,13 @@ impl<C> RedisCache<C> {
         Ok(())
     }
 
+    /// Retrieve stored sessions and provide them in a [`HashMap`] with the given hasher.
+    ///
+    /// If `flush_if_missing` is set to `true` and there are no stored sessions,
+    /// the redis command `FLUSHDB` will be executed, clearing **all** data from the database
+    /// and ensuring that no invalid cached data remains.
+    ///
+    /// To store sessions, use [`freeze`].
     #[instrument(level = "trace", name = "defrost", skip_all)]
     pub async fn defrost_with_hasher<S>(
         &self,
@@ -98,6 +113,13 @@ impl<C> RedisCache<C> {
         Ok(Some(sessions))
     }
 
+    /// Retrieve stored sessions and provide them in a default [`HashMap`].
+    ///
+    /// If `flush_if_missing` is set to `true` and there are no stored sessions,
+    /// the redis command `FLUSHDB` will be executed, clearing **all** data from the database
+    /// and ensuring that no invalid cached data remains.
+    ///
+    /// To store sessions, use [`freeze`].
     pub async fn defrost(
         &self,
         flush_if_missing: bool,
