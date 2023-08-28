@@ -20,6 +20,9 @@ use crate::{
     CacheError, CacheResult, CachedArchive,
 };
 
+/// An iterator that fetches cached entries asynchronously.
+///
+/// The items are of type [`CachedArchive`] wrapped in a [`Result`].
 #[pin_project(project = AsyncIterProj)]
 pub struct AsyncIter<'c, T> {
     ids: IntoIter<u64>,
@@ -54,14 +57,9 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
         }
     }
 
+    /// Retrieve the next item from the cache.
     pub async fn next_item(&mut self) -> Option<CacheResult<CachedArchive<T>>> {
         self.next().await
-    }
-
-    pub fn skip(mut self, n: usize) -> Self {
-        self.ids.by_ref().skip(n).for_each(|_| ());
-
-        self
     }
 
     fn next_fut(
@@ -167,13 +165,15 @@ enum Next {
     Completed,
 }
 
-pub struct StaticData<'c> {
+// It will be crucial for this data to not move during future polling
+// so this should be boxed.
+struct StaticData<'c> {
     conn: Connection<'c>,
     cmd: MaybeUninit<Cmd>,
 }
 
 impl<'c> StaticData<'c> {
-    pub fn new(conn: Connection<'c>) -> Self {
+    fn new(conn: Connection<'c>) -> Self {
         Self {
             conn,
             cmd: MaybeUninit::uninit(),

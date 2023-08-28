@@ -15,6 +15,8 @@ use crate::{
 pub use self::async_iter::AsyncIter;
 
 /// Base type to create iterators for cached entries.
+///
+/// The iteration order of all iterators is arbitrary.
 pub struct RedisCacheIter<'c, C> {
     cache: &'c RedisCache<C>,
 }
@@ -31,11 +33,13 @@ impl<'c, C> RedisCacheIter<'c, C> {
 }
 
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
+    /// Iterate over all cached channel entries.
     pub async fn channels(self) -> CacheResult<AsyncIter<'c, C::Channel<'static>>> {
         self.iter_all(RedisKey::Channels, RedisKey::CHANNEL_PREFIX)
             .await
     }
 
+    /// Iterate over all cached message entries of a channel.
     pub async fn channel_messages(
         self,
         channel_id: Id<ChannelMarker>,
@@ -47,16 +51,47 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
         self.iter_guild_simple(key, RedisKey::MESSAGE_PREFIX).await
     }
 
+    /// Iterate over all cached emoji entries.
     pub async fn emojis(self) -> CacheResult<AsyncIter<'c, C::Emoji<'static>>> {
         self.iter_all(RedisKey::Emojis, RedisKey::EMOJI_PREFIX)
             .await
     }
 
+    /// Iterate over all cached guild entries.
     pub async fn guilds(self) -> CacheResult<AsyncIter<'c, C::Guild<'static>>> {
         self.iter_all(RedisKey::Guilds, RedisKey::GUILD_PREFIX)
             .await
     }
 
+    /// Iterate over all cached message entries.
+    pub async fn messages(self) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
+        self.iter_all(RedisKey::Messages, RedisKey::MESSAGE_PREFIX)
+            .await
+    }
+
+    /// Iterate over all cached role entries.
+    pub async fn roles(self) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
+        self.iter_all(RedisKey::Roles, RedisKey::ROLE_PREFIX).await
+    }
+
+    /// Iterate over all cached stage instance entries.
+    pub async fn stage_instances(self) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
+        self.iter_all(RedisKey::StageInstances, RedisKey::STAGE_INSTANCE_PREFIX)
+            .await
+    }
+
+    /// Iterate over all cached sticker entries.
+    pub async fn stickers(self) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
+        self.iter_all(RedisKey::Stickers, RedisKey::STICKER_PREFIX)
+            .await
+    }
+
+    /// Iterate over all cached user entries.
+    pub async fn users(self) -> CacheResult<AsyncIter<'c, C::User<'static>>> {
+        self.iter_all(RedisKey::Users, RedisKey::USER_PREFIX).await
+    }
+
+    /// Iterate over all cached channel entries of a guild.
     pub async fn guild_channels(
         self,
         guild_id: Id<GuildMarker>,
@@ -66,6 +101,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
         self.iter_guild_simple(key, RedisKey::CHANNEL_PREFIX).await
     }
 
+    /// Iterate over all cached emoji entries of a guild.
     pub async fn guild_emojis(
         self,
         guild_id: Id<GuildMarker>,
@@ -75,6 +111,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
         self.iter_guild_simple(key, RedisKey::EMOJI_PREFIX).await
     }
 
+    /// Iterate over all cached integration entries of a guild.
     pub async fn guild_integrations(
         self,
         guild_id: Id<GuildMarker>,
@@ -85,6 +122,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
             .await
     }
 
+    /// Iterate over all cached member entries of a guild.
     pub async fn guild_members(
         self,
         guild_id: Id<GuildMarker>,
@@ -95,6 +133,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
             .await
     }
 
+    /// Iterate over all cached presence entries of a guild.
     pub async fn guild_presences(
         self,
         guild_id: Id<GuildMarker>,
@@ -105,6 +144,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
             .await
     }
 
+    /// Iterate over all cached role entries of a guild.
     pub async fn guild_roles(
         self,
         guild_id: Id<GuildMarker>,
@@ -114,6 +154,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
         self.iter_guild_simple(key, RedisKey::ROLE_PREFIX).await
     }
 
+    /// Iterate over all cached stage instance entries of a guild.
     pub async fn guild_stage_instances(
         self,
         guild_id: Id<GuildMarker>,
@@ -124,6 +165,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
             .await
     }
 
+    /// Iterate over all cached sticker entries of a guild.
     pub async fn guild_stickers(
         self,
         guild_id: Id<GuildMarker>,
@@ -133,6 +175,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
         self.iter_guild_simple(key, RedisKey::STICKER_PREFIX).await
     }
 
+    /// Iterate over all cached voice state entries of a guild.
     pub async fn guild_voice_states(
         self,
         guild_id: Id<GuildMarker>,
@@ -141,29 +184,6 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
 
         self.iter_guild_buffered(guild_id, key, RedisKey::VOICE_STATE_PREFIX)
             .await
-    }
-
-    pub async fn messages(self) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
-        self.iter_all(RedisKey::Messages, RedisKey::MESSAGE_PREFIX)
-            .await
-    }
-
-    pub async fn roles(self) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
-        self.iter_all(RedisKey::Roles, RedisKey::ROLE_PREFIX).await
-    }
-
-    pub async fn stage_instances(self) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
-        self.iter_all(RedisKey::StageInstances, RedisKey::STAGE_INSTANCE_PREFIX)
-            .await
-    }
-
-    pub async fn stickers(self) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
-        self.iter_all(RedisKey::Stickers, RedisKey::STICKER_PREFIX)
-            .await
-    }
-
-    pub async fn users(self) -> CacheResult<AsyncIter<'c, C::User<'static>>> {
-        self.iter_all(RedisKey::Users, RedisKey::USER_PREFIX).await
     }
 
     async fn iter_all<T: Cacheable>(
