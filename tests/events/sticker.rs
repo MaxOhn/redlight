@@ -4,6 +4,11 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedSticker, Ignore},
+    rkyv_util::util::RkyvAsU8,
+    CacheError, RedisCache,
+};
 use rkyv::{
     ser::serializers::AlignedSerializer,
     with::{Map, RefAsBox},
@@ -17,11 +22,6 @@ use twilight_model::{
     },
     gateway::{event::Event, payload::incoming::GuildStickersUpdate},
     id::Id,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedSticker, Ignore},
-    rkyv_util::util::RkyvAsU8,
-    CacheError, RedisCache,
 };
 
 use crate::pool;

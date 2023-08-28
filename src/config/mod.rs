@@ -26,13 +26,13 @@ pub use self::{
 ///
 /// ```
 /// # use std::{time::Duration, error::Error};
+/// # use redlight::{CachedArchive, config::ReactionEvent};
 /// # use rkyv::{Archive, Serialize, ser::serializers::AllocSerializer};
 /// # use twilight_model::{channel::{message::Message, Channel}, gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}};
-/// # use twilight_redis::{CachedArchive, config::ReactionEvent};
+/// use redlight::config::{CacheConfig, Cacheable, ICachedChannel, ICachedMessage, Ignore};
+/// use redlight::rkyv_util::{id::IdRkyv, util::BitflagsRkyv};
 /// use rkyv::with::{Map, RefAsBox};
 /// use twilight_model::{channel::ChannelFlags, id::{Id, marker::ChannelMarker}};
-/// use twilight_redis::config::{CacheConfig, Cacheable, ICachedChannel, ICachedMessage, Ignore};
-/// use twilight_redis::rkyv_util::{id::IdRkyv, util::BitflagsRkyv};
 ///
 /// struct Config;
 ///

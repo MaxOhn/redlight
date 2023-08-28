@@ -10,8 +10,8 @@ use twilight_model::channel::stage_instance::PrivacyLevel;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::stage_instance::PrivacyLevelRkyv;
 /// use twilight_model::channel::stage_instance::PrivacyLevel;
-/// use twilight_redis::rkyv_util::stage_instance::PrivacyLevelRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

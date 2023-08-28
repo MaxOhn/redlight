@@ -9,10 +9,10 @@ use rkyv::{
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::util::RkyvAsU8;
 /// use rkyv::with::Map;
 /// use twilight_model::channel::message::sticker::StickerType;
 /// use twilight_model::guild::IntegrationExpireBehavior;
-/// use twilight_redis::rkyv_util::util::RkyvAsU8;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

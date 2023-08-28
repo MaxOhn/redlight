@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use rkyv::{ser::serializers::AlignedSerializer, with::RefAsBox, AlignedVec, Archive, Serialize};
-use twilight_model::{guild::Role, id::Id};
-use twilight_redis::{
+use redlight::{
     config::{CacheConfig, Cacheable, ICachedRole, Ignore},
     RedisCache,
 };
+use rkyv::{ser::serializers::AlignedSerializer, with::RefAsBox, AlignedVec, Archive, Serialize};
+use twilight_model::{guild::Role, id::Id};
 
 struct Config;
 

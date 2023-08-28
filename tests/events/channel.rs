@@ -5,6 +5,14 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedChannel, Ignore},
+    rkyv_util::{
+        id::{IdRkyv, IdRkyvMap},
+        util::TimestampRkyv,
+    },
+    CacheError, CachedArchive, RedisCache,
+};
 use rkyv::{
     option::ArchivedOption,
     ser::serializers::AlignedSerializer,
@@ -20,14 +28,6 @@ use twilight_model::{
     },
     id::{marker::ChannelMarker, Id},
     util::{ImageHash, Timestamp},
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedChannel, Ignore},
-    rkyv_util::{
-        id::{IdRkyv, IdRkyvMap},
-        util::TimestampRkyv,
-    },
-    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::pool;

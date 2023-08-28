@@ -5,6 +5,11 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
+    rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
+    CacheError, CachedArchive, RedisCache,
+};
 use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
@@ -23,11 +28,6 @@ use twilight_model::{
     id::Id,
     user::UserFlags,
     util::Timestamp,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
-    rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
-    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::pool;

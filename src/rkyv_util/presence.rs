@@ -10,8 +10,8 @@ use twilight_model::gateway::presence::Status;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::presence::StatusRkyv;
 /// use twilight_model::gateway::presence::Status;
-/// use twilight_redis::rkyv_util::presence::StatusRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

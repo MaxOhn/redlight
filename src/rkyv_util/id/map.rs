@@ -17,8 +17,8 @@ use twilight_model::id::Id;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::id::IdRkyvMap;
 /// use twilight_model::id::Id;
-/// use twilight_redis::rkyv_util::id::IdRkyvMap;
 ///
 /// #[derive(Archive)]
 /// struct Cached<T> {

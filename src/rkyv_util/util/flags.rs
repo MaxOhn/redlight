@@ -16,8 +16,8 @@ use twilight_model::{
 /// ```
 /// # use rkyv::Archive;
 /// use rkyv::with::Map;
+/// use redlight::rkyv_util::util::BitflagsRkyv;
 /// use twilight_model::guild::{MemberFlags, Permissions};
-/// use twilight_redis::rkyv_util::util::BitflagsRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

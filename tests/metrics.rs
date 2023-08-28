@@ -10,6 +10,10 @@ use std::{
 
 use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
 use redis::Cmd;
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedChannel, ICachedSticker, Ignore},
+    CacheError, CachedArchive, RedisCache,
+};
 use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
@@ -18,10 +22,6 @@ use twilight_model::{
         event::Event,
         payload::incoming::{ChannelCreate, ChannelPinsUpdate, GuildStickersUpdate},
     },
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedChannel, ICachedSticker, Ignore},
-    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::{

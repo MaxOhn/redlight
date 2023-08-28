@@ -11,8 +11,8 @@ use twilight_model::util::ImageHash;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::util::ImageHashRkyv;
 /// use twilight_model::util::ImageHash;
-/// use twilight_redis::rkyv_util::util::ImageHashRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

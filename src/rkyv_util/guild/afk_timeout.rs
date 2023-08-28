@@ -10,8 +10,8 @@ use twilight_model::guild::AfkTimeout;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::guild::AfkTimeoutRkyv;
 /// use twilight_model::guild::AfkTimeout;
-/// use twilight_redis::rkyv_util::guild::AfkTimeoutRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

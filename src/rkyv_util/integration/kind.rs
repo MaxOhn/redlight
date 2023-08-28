@@ -12,8 +12,8 @@ use twilight_model::guild::GuildIntegrationType;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::integration::GuildIntegrationTypeRkyv;
 /// use twilight_model::guild::GuildIntegrationType;
-/// use twilight_redis::rkyv_util::integration::GuildIntegrationTypeRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a> {

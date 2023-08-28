@@ -12,8 +12,8 @@ use twilight_model::guild::GuildFeature;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::guild::GuildFeatureRkyv;
 /// use twilight_model::guild::GuildFeature;
-/// use twilight_redis::rkyv_util::guild::GuildFeatureRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a> {

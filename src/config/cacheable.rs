@@ -15,10 +15,10 @@ type SerializeResult<T> = Result<
 /// # Example
 /// ```
 /// # use std::time::Duration;
+/// use redlight::config::Cacheable;
 /// use rkyv::{Archive, Fallible, Serialize};
 /// use rkyv::{ser::serializers::AlignedSerializer, util::AlignedVec};
 /// use rkyv::with::RefAsBox;
-/// use twilight_redis::config::Cacheable;
 ///
 /// #[derive(Archive, Serialize)]
 /// # #[cfg_attr(feature = "validation", archive(check_bytes))]

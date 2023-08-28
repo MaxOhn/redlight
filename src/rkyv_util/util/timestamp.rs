@@ -10,8 +10,8 @@ use twilight_model::util::{datetime::TimestampParseError, Timestamp};
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::util::TimestampRkyv;
 /// use twilight_model::util::Timestamp;
-/// use twilight_redis::rkyv_util::util::TimestampRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached {

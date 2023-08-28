@@ -6,6 +6,15 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
+    rkyv_util::{
+        guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
+        id::IdRkyv,
+        util::{BitflagsRkyv, RkyvAsU8},
+    },
+    CacheError, CachedArchive, RedisCache,
+};
 use rkyv::{
     ser::serializers::{
         AlignedSerializer, AllocScratch, BufferSerializer, CompositeSerializer, FallbackScratch,
@@ -27,15 +36,6 @@ use twilight_model::{
         VerificationLevel,
     },
     id::{marker::StickerMarker, Id},
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
-    rkyv_util::{
-        guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
-        id::IdRkyv,
-        util::{BitflagsRkyv, RkyvAsU8},
-    },
-    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::pool;

@@ -21,8 +21,8 @@ pub use self::map::{ArchivedIdOption, IdRkyvMap};
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::id::IdRkyv;
 /// use twilight_model::id::Id;
-/// use twilight_redis::rkyv_util::id::IdRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached<T> {

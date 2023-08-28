@@ -2,12 +2,12 @@
 
 use std::{collections::HashMap, iter, time::Duration};
 
-use serial_test::serial;
-use twilight_gateway::Session;
-use twilight_redis::{
+use redlight::{
     config::{CacheConfig, Ignore},
     CacheError, RedisCache,
 };
+use serial_test::serial;
+use twilight_gateway::Session;
 
 use crate::pool;
 

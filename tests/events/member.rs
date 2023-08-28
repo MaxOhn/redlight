@@ -5,6 +5,11 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedMember, Ignore},
+    rkyv_util::util::BitflagsRkyv,
+    CacheError, CachedArchive, RedisCache,
+};
 use rkyv::{
     ser::serializers::BufferSerializer, AlignedBytes, Archive, Deserialize, Infallible, Serialize,
 };
@@ -17,11 +22,6 @@ use twilight_model::{
     guild::{Member, MemberFlags, PartialMember},
     id::{marker::GuildMarker, Id},
     util::Timestamp,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedMember, Ignore},
-    rkyv_util::util::BitflagsRkyv,
-    CacheError, CachedArchive, RedisCache,
 };
 
 use crate::{events::message::message, pool};

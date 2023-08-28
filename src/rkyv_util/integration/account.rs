@@ -13,8 +13,8 @@ use twilight_model::guild::IntegrationAccount;
 ///
 /// ```
 /// # use rkyv::Archive;
+/// use redlight::rkyv_util::integration::IntegrationAccountRkyv;
 /// use twilight_model::guild::IntegrationAccount;
-/// use twilight_redis::rkyv_util::integration::IntegrationAccountRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a> {

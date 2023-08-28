@@ -5,6 +5,14 @@ use std::{
     time::Duration,
 };
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedIntegration, Ignore},
+    rkyv_util::{
+        integration::{GuildIntegrationTypeRkyv, IntegrationAccountRkyv},
+        util::RkyvAsU8,
+    },
+    CacheError, RedisCache,
+};
 use rkyv::{
     ser::serializers::{
         AlignedSerializer, AllocScratch, CompositeSerializer, FallbackScratch, HeapScratch,
@@ -20,14 +28,6 @@ use twilight_model::{
         IntegrationExpireBehavior,
     },
     id::Id,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedIntegration, Ignore},
-    rkyv_util::{
-        integration::{GuildIntegrationTypeRkyv, IntegrationAccountRkyv},
-        util::RkyvAsU8,
-    },
-    CacheError, RedisCache,
 };
 
 use crate::pool;

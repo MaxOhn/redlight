@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedCurrentUser, Ignore},
+    rkyv_util::{id::IdRkyv, util::ImageHashRkyv},
+    CacheError, RedisCache,
+};
 use rkyv::{
     ser::serializers::AlignedSerializer,
     with::{Map, RefAsBox},
@@ -11,11 +16,6 @@ use twilight_model::{
     id::{marker::UserMarker, Id},
     user::{CurrentUser, PremiumType, UserFlags},
     util::ImageHash,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedCurrentUser, Ignore},
-    rkyv_util::{id::IdRkyv, util::ImageHashRkyv},
-    CacheError, RedisCache,
 };
 
 use crate::pool;

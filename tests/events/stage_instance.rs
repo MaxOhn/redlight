@@ -1,16 +1,16 @@
 use std::time::Duration;
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedStageInstance, Ignore},
+    rkyv_util::stage_instance::PrivacyLevelRkyv,
+    CacheError, RedisCache,
+};
 use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
     channel::{stage_instance::PrivacyLevel, StageInstance},
     gateway::{event::Event, payload::incoming::StageInstanceCreate},
     id::Id,
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedStageInstance, Ignore},
-    rkyv_util::stage_instance::PrivacyLevelRkyv,
-    CacheError, RedisCache,
 };
 
 use crate::pool;

@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use redlight::{
+    config::{CacheConfig, Cacheable, ICachedPresence, Ignore},
+    rkyv_util::{id::IdRkyv, presence::StatusRkyv},
+    CacheError, RedisCache,
+};
 use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
 use serial_test::serial;
 use twilight_model::{
@@ -9,11 +14,6 @@ use twilight_model::{
         presence::{ClientStatus, Presence, Status, UserOrId},
     },
     id::{marker::UserMarker, Id},
-};
-use twilight_redis::{
-    config::{CacheConfig, Cacheable, ICachedPresence, Ignore},
-    rkyv_util::{id::IdRkyv, presence::StatusRkyv},
-    CacheError, RedisCache,
 };
 
 use crate::pool;

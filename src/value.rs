@@ -11,9 +11,9 @@ use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
 /// # Example
 ///
 /// ```
+/// use redlight::CachedArchive;
 /// use rkyv::{boxed::ArchivedBox, option::ArchivedOption, with::RefAsBox};
 /// use rkyv::{Archive, Archived, Deserialize, Infallible};
-/// use twilight_redis::CachedArchive;
 ///
 /// #[derive(Archive)]
 /// struct CachedEntry<'a> {
@@ -85,7 +85,7 @@ impl<T: Archive> CachedArchive<T> {
     ///
     /// ```
     /// # use rkyv::Archive;
-    /// use twilight_redis::CachedArchive;
+    /// use redlight::CachedArchive;
     ///
     /// #[derive(Archive)]
     /// struct CachedData {
@@ -122,8 +122,8 @@ impl<T: Cacheable> CachedArchive<T> {
     /// ```
     /// use std::error::Error;
     /// # use rkyv::{Archive, Deserialize, Serialize};
+    /// use redlight::{config::Cacheable, CachedArchive};
     /// use rkyv::Infallible;
-    /// use twilight_redis::{config::Cacheable, CachedArchive};
     ///
     /// #[derive(Archive, Serialize, Deserialize)]
     /// # #[cfg_attr(feature = "validation", archive(check_bytes))]
