@@ -5,7 +5,7 @@ use twilight_model::id::{
 
 use crate::{
     key::RedisKey,
-    redis::{Cmd, Connection},
+    redis::{Cmd, ConnectionState},
     CacheError, CacheResult, RedisCache,
 };
 
@@ -189,33 +189,5 @@ impl<C> RedisCacheStats<'_, C> {
             .query_async(conn)
             .await
             .map_err(CacheError::Redis)
-    }
-}
-
-enum ConnectionState<'c, C> {
-    Cache(&'c RedisCache<C>),
-    Connection(Connection<'c>),
-}
-
-impl<'c, C> ConnectionState<'c, C> {
-    fn new(cache: &'c RedisCache<C>) -> Self {
-        Self::Cache(cache)
-    }
-
-    async fn get(&mut self) -> CacheResult<&mut Connection<'c>> {
-        match self {
-            ConnectionState::Cache(cache) => {
-                let conn = cache.connection().await?;
-                *self = Self::Connection(conn);
-
-                let Self::Connection(conn) = self else {
-                    // SAFETY: we just assigned a connection
-                    unsafe { std::hint::unreachable_unchecked() }
-                };
-
-                Ok(conn)
-            }
-            ConnectionState::Connection(conn) => Ok(conn),
-        }
     }
 }

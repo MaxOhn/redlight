@@ -5,6 +5,9 @@ pub(crate) use bb8::*;
 
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 pub(crate) use deadpool::*;
+use tracing::trace;
+
+use crate::{CacheResult, RedisCache};
 
 #[cfg(feature = "bb8")]
 mod bb8 {
@@ -110,5 +113,39 @@ impl aio::ConnectionLike for DedicatedConnection {
 
     fn get_db(&self) -> i64 {
         aio::ConnectionLike::get_db(&self.0)
+    }
+}
+
+pub(crate) enum ConnectionState<'c, C> {
+    Cache(&'c RedisCache<C>),
+    Connection(Connection<'c>),
+}
+
+impl<'c, C> ConnectionState<'c, C> {
+    pub(crate) fn new(cache: &'c RedisCache<C>) -> Self {
+        Self::Cache(cache)
+    }
+
+    pub(crate) async fn get(&mut self) -> CacheResult<&mut Connection<'c>> {
+        match self {
+            ConnectionState::Cache(cache) => {
+                trace!(conn_ready = false);
+
+                let conn = cache.connection().await?;
+                *self = Self::Connection(conn);
+
+                let Self::Connection(conn) = self else {
+                    // SAFETY: we just assigned a connection
+                    unsafe { std::hint::unreachable_unchecked() }
+                };
+
+                Ok(conn)
+            }
+            ConnectionState::Connection(conn) => {
+                trace!(conn_ready = true);
+
+                Ok(conn)
+            }
+        }
     }
 }

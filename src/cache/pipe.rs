@@ -5,23 +5,19 @@ use tracing::{instrument, trace};
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
-    redis::{Cmd, FromRedisValue, Pipeline, ToRedisArgs},
+    redis::{Cmd, ConnectionState, FromRedisValue, Pipeline, ToRedisArgs},
     CacheResult, CachedArchive, RedisCache,
 };
 
-use super::Connection;
-
 pub(crate) struct Pipe<'c, C> {
-    cache: &'c RedisCache<C>,
-    conn: Option<Connection<'c>>,
+    conn: ConnectionState<'c, C>,
     pipe: Pipeline,
 }
 
 impl<'c, C> Pipe<'c, C> {
     pub(crate) fn new(cache: &'c RedisCache<C>) -> Self {
         Self {
-            cache,
-            conn: None,
+            conn: ConnectionState::new(cache),
             pipe: Pipeline::new(),
         }
     }
@@ -31,13 +27,9 @@ impl<'c, C> Pipe<'c, C> {
     }
 
     pub(crate) async fn query<T: FromRedisValue>(&mut self) -> CacheResult<T> {
-        trace!(conn_ready = self.conn.is_some(), piped = self.len());
+        trace!(piped = self.len());
 
-        let conn = match self.conn.as_mut() {
-            Some(conn) => conn,
-            None => self.conn.insert(self.cache.connection().await?),
-        };
-
+        let conn = self.conn.get().await?;
         let res = self.pipe.query_async(conn).await?;
         self.pipe.clear();
 
@@ -99,13 +91,7 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
     where
         T: Cacheable,
     {
-        trace!(conn_ready = self.conn.is_some());
-
-        let conn = match self.conn.as_mut() {
-            Some(conn) => conn,
-            None => self.conn.insert(self.cache.connection().await?),
-        };
-
+        let conn = self.conn.get().await?;
         let bytes: Vec<u8> = Cmd::get(key).query_async(conn).await?;
 
         if bytes.is_empty() {
