@@ -47,6 +47,15 @@ impl From<ArchivedImageHash> for ImageHash {
     }
 }
 
+impl From<ImageHash> for ArchivedImageHash {
+    fn from(hash: ImageHash) -> Self {
+        Self {
+            animated: hash.is_animated(),
+            bytes: hash.bytes(),
+        }
+    }
+}
+
 impl ArchiveWith<ImageHash> for ImageHashRkyv {
     type Archived = ArchivedImageHash;
     type Resolver = ();
