@@ -8,7 +8,7 @@ use tracing::{instrument, trace};
 use twilight_model::id::Id;
 
 use crate::{
-    config::checked::CheckedArchive,
+    config::CheckedArchive,
     error::ExpireError,
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},

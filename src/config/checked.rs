@@ -4,6 +4,9 @@ pub use validation::CheckedArchive;
 mod validation {
     use rkyv::{validation::validators::DefaultValidator, Archive, CheckBytes};
 
+    /// Auxiliary trait ensuring properties related to the `validation` feature flag.
+    ///
+    /// Automatically implemented for all appropriate types.
     pub trait CheckedArchive: Archive<Archived = Self::CheckedArchived> {
         type CheckedArchived: for<'a> CheckBytes<DefaultValidator<'a>>;
     }
@@ -19,6 +22,9 @@ mod validation {
 
 #[cfg(not(feature = "validation"))]
 mod validation {
+    /// Auxiliary trait ensuring properties related to the `validation` feature flag.
+    ///
+    /// Automatically implemented for all appropriate types.
     pub trait CheckedArchive: Archive {}
 
     impl<T: Archive> CheckedArchive for T {}

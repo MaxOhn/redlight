@@ -1,12 +1,12 @@
 mod cacheable;
+mod checked;
 mod from;
 mod ignore;
 mod reaction_event;
 
-pub(crate) mod checked;
-
 pub use self::{
     cacheable::Cacheable,
+    checked::CheckedArchive,
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
         ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedStageInstance,
