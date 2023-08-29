@@ -97,7 +97,8 @@ impl<T: Archive> CachedArchive<T> {
     /// }
     ///
     /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) {
-    ///     archive.update_archive(|mut pinned| pinned.num = update.new_num);
+    ///     // the `.into()` is only required if rkyv's `archive_le` or `archive_be` features are enabled
+    ///     archive.update_archive(|mut pinned| pinned.num = update.new_num.into());
     /// }
     /// ```
     ///
