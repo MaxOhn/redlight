@@ -83,6 +83,19 @@ impl<'c, C> Pipe<'c, C> {
     pub(crate) fn srem(&mut self, key: RedisKey, member: impl ToRedisArgs) {
         self.pipe.srem(key, member).ignore();
     }
+
+    pub(crate) fn zadd(
+        &mut self,
+        key: RedisKey,
+        member: impl ToRedisArgs,
+        score: impl ToRedisArgs,
+    ) {
+        self.pipe.zadd(key, member, score).ignore();
+    }
+
+    pub(crate) fn zrem(&mut self, key: RedisKey, members: impl ToRedisArgs) {
+        self.pipe.zrem(key, members).ignore();
+    }
 }
 
 impl<'c, C: CacheConfig> Pipe<'c, C> {

@@ -35,6 +35,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let msg_id = msg.id;
             let channel_id = msg.channel_id;
             let key = RedisKey::Message { id: msg_id };
+            let score = -msg.timestamp.as_micros();
             let msg = C::Message::from_message(msg);
 
             let bytes = msg.serialize().map_err(|e| SerializeError {
@@ -52,7 +53,7 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::ChannelMessages {
                 channel: channel_id,
             };
-            pipe.sadd(key, msg_id.get());
+            pipe.zadd(key, msg_id.get(), score);
 
             if C::Message::expire().is_some() {
                 let meta = MessageMeta {
@@ -125,11 +126,6 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Messages;
         pipe.sadd(key, update.id.get());
 
-        let key = RedisKey::ChannelMessages {
-            channel: update.channel_id,
-        };
-        pipe.sadd(key, update.id.get());
-
         if C::Message::expire().is_some() {
             let meta = MessageMeta {
                 channel: update.channel_id,
@@ -180,11 +176,6 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Messages;
         pipe.sadd(key, msg_id.get());
 
-        let key = RedisKey::ChannelMessages {
-            channel: channel_id,
-        };
-        pipe.sadd(key, msg_id.get());
-
         if C::Message::expire().is_some() {
             let meta = MessageMeta {
                 channel: channel_id,
@@ -219,7 +210,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::ChannelMessages {
             channel: channel_id,
         };
-        pipe.srem(key, msg_id.get());
+        pipe.zrem(key, msg_id.get());
 
         if C::Message::expire().is_some() {
             pipe.del(RedisKey::MessageMeta { id: msg_id });
@@ -266,7 +257,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::ChannelMessages {
             channel: channel_id,
         };
-        pipe.srem(key, raw_msg_ids);
+        pipe.zrem(key, raw_msg_ids);
     }
 }
 
@@ -297,7 +288,7 @@ impl HasArchived for MessageMetaKey {
         let key = RedisKey::ChannelMessages {
             channel: archived.channel.into(),
         };
-        pipe.srem(key, self.msg.get()).ignore();
+        pipe.zrem(key, self.msg.get()).ignore();
     }
 }
 

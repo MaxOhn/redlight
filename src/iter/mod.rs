@@ -9,14 +9,16 @@ use twilight_model::id::{
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
-    CacheResult, RedisCache,
+    redis::Cmd,
+    CacheError, CacheResult, RedisCache,
 };
 
 pub use self::async_iter::AsyncIter;
 
 /// Base type to create iterators for cached entries.
 ///
-/// The iteration order of all iterators is arbitrary.
+/// The iteration order of all iterators is arbitrary, except for [`RedisCacheIter::channel_messages`]
+/// whose order is the message timestamp i.e. from most recent to oldest.
 pub struct RedisCacheIter<'c, C> {
     cache: &'c RedisCache<C>,
 }
@@ -40,6 +42,8 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     }
 
     /// Iterate over all cached message entries of a channel.
+    ///
+    /// The items are ordered by message timestamp i.e. most recent to oldest.
     pub async fn channel_messages(
         self,
         channel_id: Id<ChannelMarker>,
@@ -48,7 +52,17 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
             channel: channel_id,
         };
 
-        self.iter_guild_simple(key, RedisKey::MESSAGE_PREFIX).await
+        let mut conn = self.cache.connection().await?;
+
+        let ids: Vec<u64> = Cmd::zrange(key, 0, -1)
+            .query_async(&mut conn)
+            .await
+            .map_err(CacheError::Redis)?;
+
+        let key_prefix = key_prefix_simple(RedisKey::MESSAGE_PREFIX);
+        let iter = AsyncIter::new(conn, ids, key_prefix);
+
+        Ok(iter)
     }
 
     /// Iterate over all cached emoji entries.

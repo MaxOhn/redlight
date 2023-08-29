@@ -175,7 +175,7 @@ impl<C> RedisCacheStats<'_, C> {
             channel: channel_id,
         };
 
-        Cmd::scard(key)
+        Cmd::zcard(key)
             .query_async(conn)
             .await
             .map_err(CacheError::Redis)

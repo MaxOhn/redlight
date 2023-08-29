@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use futures_util::TryStreamExt;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
     rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
@@ -65,6 +66,7 @@ async fn test_message() -> Result<(), CacheError> {
         flags: Option<MessageFlags>,
         #[with(RkyvAsU8)]
         kind: MessageType,
+        timestamp: i64,
     }
 
     impl<'a> ICachedMessage<'a> for CachedMessage {
@@ -72,6 +74,7 @@ async fn test_message() -> Result<(), CacheError> {
             Self {
                 flags: message.flags,
                 kind: message.kind,
+                timestamp: message.timestamp.as_micros(),
             }
         }
 
@@ -79,9 +82,13 @@ async fn test_message() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn Error>>>
         {
             Some(|archived, update| {
-                archived.update_archive(|pinned| {
+                archived.update_archive(|mut pinned| {
                     if let Some(kind) = update.kind {
-                        pinned.get_mut().kind = u8::from(kind);
+                        pinned.kind = u8::from(kind);
+
+                        if let Some(timestamp) = update.timestamp {
+                            pinned.timestamp = timestamp.as_micros().into();
+                        }
                     }
                 });
 
@@ -97,7 +104,7 @@ async fn test_message() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedMessage {
-        type Serializer = BufferSerializer<AlignedBytes<24>>;
+        type Serializer = BufferSerializer<AlignedBytes<32>>;
 
         fn expire() -> Option<Duration> {
             None
@@ -122,6 +129,7 @@ async fn test_message() -> Result<(), CacheError> {
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let mut expected = message();
+    expected.timestamp = Timestamp::from_micros(1_234_456_780).unwrap();
 
     let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
     cache.update(&message_create).await?;
@@ -140,7 +148,38 @@ async fn test_message() -> Result<(), CacheError> {
 
     assert_eq!(message.deref(), &expected);
 
-    // TODO: iter
+    // more recent message
+    expected.id = Id::new(expected.id.get() + 1);
+    expected.timestamp = Timestamp::from_secs(123_456_789).unwrap();
+    expected.flags = Some(MessageFlags::empty());
+
+    let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
+    cache.update(&message_create).await?;
+
+    // older message
+    expected.id = Id::new(expected.id.get() + 1);
+    expected.timestamp = Timestamp::from_secs(12_345_678_901).unwrap();
+    expected.flags = Some(MessageFlags::all());
+
+    let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
+    cache.update(&message_create).await?;
+
+    let messages: Vec<_> = cache
+        .iter()
+        .channel_messages(expected.channel_id)
+        .await?
+        .try_collect()
+        .await?;
+
+    assert_eq!(messages.len(), 3);
+
+    let is_sorted = messages.windows(2).all(|window| {
+        let [a, b] = window else { unreachable!() };
+
+        a.flags != b.flags && a.timestamp > b.timestamp
+    });
+
+    assert!(is_sorted);
 
     Ok(())
 }

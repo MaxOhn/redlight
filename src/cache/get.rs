@@ -151,15 +151,35 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     /// Get all cached message ids for a channel.
-    pub async fn channel_msg_ids(
+    ///
+    /// The ids are ordered by message timestamp i.e. most recent to oldest.
+    pub async fn channel_message_ids(
         &self,
         channel_id: Id<ChannelMarker>,
-    ) -> CacheResult<HashSet<Id<MessageMarker>>> {
+    ) -> CacheResult<Vec<Id<MessageMarker>>> {
+        let mut conn = self.connection().await?;
+
         let key = RedisKey::ChannelMessages {
             channel: channel_id,
         };
 
-        self.get_ids(key).await
+        fn convert_ids(ids: Vec<u64>) -> Vec<Id<MessageMarker>> {
+            #[cfg(feature = "validation")]
+            if ids.iter().any(|&id| id == 0) {
+                tracing::warn!("IDs must not be zero");
+
+                return ids.into_iter().filter_map(Id::new_checked).collect();
+            }
+
+            // SAFETY: we ensured that all u64s are non-zero
+            unsafe { std::mem::transmute(ids) }
+        }
+
+        Cmd::zrange(key, 0, -1)
+            .query_async::<_, Vec<u64>>(&mut conn)
+            .await
+            .map(convert_ids)
+            .map_err(CacheError::Redis)
     }
 
     /// Get all cached guild ids that a user is in.
