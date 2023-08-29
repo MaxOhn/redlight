@@ -122,6 +122,7 @@ impl<D: Fallible + ?Sized> Deserialize<IntegrationAccount, D> for ArchivedIntegr
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () = {
     use std::ptr::addr_of;
 

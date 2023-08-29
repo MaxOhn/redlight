@@ -87,6 +87,7 @@ impl<D: Fallible + ?Sized> Deserialize<Status, D> for ArchivedStatus {
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () = {
     use rkyv::{bytecheck::EnumCheckError, CheckBytes};
 

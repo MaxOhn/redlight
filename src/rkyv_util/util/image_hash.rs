@@ -98,6 +98,7 @@ impl<D: Fallible + ?Sized> Deserialize<ImageHash, D> for ArchivedImageHash {
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () =
     {
         use std::ptr::addr_of;

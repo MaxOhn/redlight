@@ -21,6 +21,7 @@ use crate::{
     RedisCache,
 };
 
+#[cfg_attr(docsrs, doc(cfg(feature = "cold_resume")))]
 impl<C> RedisCache<C> {
     /// Given a map of shard ids and sessions, store those sessions
     /// in the cache and optionally add an expiration duration.

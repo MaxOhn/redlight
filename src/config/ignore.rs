@@ -186,6 +186,7 @@ impl<'a> From<&'a ()> for Ignore {
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 impl<C> rkyv::CheckBytes<C> for Ignore {
     type Error = Infallible;
 

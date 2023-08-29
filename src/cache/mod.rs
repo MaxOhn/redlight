@@ -45,6 +45,7 @@ impl<C> RedisCache<C> {
 
 impl<C: CacheConfig> RedisCache<C> {
     #[cfg(feature = "bb8")]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "bb8", feature = "deadpool"))))]
     /// Create a new [`RedisCache`].
     ///
     /// The cache will connect to a new default bb8 connection pool through the given url.
@@ -62,6 +63,7 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "bb8", feature = "deadpool"))))]
     /// Create a new [`RedisCache`].
     ///
     /// The cache will connect to a new default deadpool connection pool through the given url.
@@ -75,6 +77,7 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "bb8", feature = "deadpool"))))]
     /// Create a new [`RedisCache`] by using the given connection pool.
     ///
     /// This provides a way to customize the pool configuration manually.
@@ -91,6 +94,7 @@ impl<C: CacheConfig> RedisCache<C> {
     }
 
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "bb8", feature = "deadpool"))))]
     /// Get a reference to the underlying redis connection pool.
     pub fn pool(&self) -> &Pool {
         &self.pool

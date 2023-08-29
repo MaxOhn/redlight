@@ -104,6 +104,7 @@ impl<T> Debug for ArchivedIdOption<T> {
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () = {
     use std::convert::Infallible;
 

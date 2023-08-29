@@ -226,7 +226,6 @@ const _: () = {
 
 #[cfg(test)]
 mod tests {
-
     use rkyv::{with::With, Infallible};
 
     use super::*;

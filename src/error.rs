@@ -32,11 +32,13 @@ pub enum CacheError {
     GetConnection(#[source] deadpool_redis::PoolError),
 
     #[cfg(feature = "validation")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
     #[error("cached bytes did not correspond to the cached type")]
     /// Cached bytes did not correspond to the cached type.
     Validation(#[source] Box<dyn StdError>),
 
     #[cfg(feature = "cold_resume")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "cold_resume")))]
     #[error("failed to serialize sessions")]
     /// Failed to serialize sessions.
     SerializeSessions(
@@ -179,6 +181,7 @@ pub enum ExpireError {
     Subscribe(#[source] RedisError),
 
     #[cfg(feature = "validation")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
     #[error("cached bytes did not correspond to the meta type")]
     /// Cached bytes did not correspond to the expected meta type.
     Validation(#[source] Box<dyn StdError>),

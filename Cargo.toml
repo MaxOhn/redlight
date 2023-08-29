@@ -38,3 +38,9 @@ twilight-gateway = { version = "0.15", default-features = false }
 [[test]]
 name = "integration"
 path = "tests/base.rs"
+
+[package.metadata.docs.rs]
+# document these features
+features = ["bb8", "validation", "cold_resume", "metrics"]
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

@@ -112,6 +112,7 @@ impl<T> PartialEq<Id<T>> for ArchivedId<T> {
 }
 
 #[cfg(feature = "validation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () = {
     use std::ptr::addr_of;
 

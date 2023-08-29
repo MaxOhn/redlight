@@ -78,6 +78,8 @@
 //! [`twilight-gateway`]: https://docs.rs/twilight-gateway/latest/twilight_gateway/
 //! [`metrics`]: https://docs.rs/metrics/latest/metrics/
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod cache;
 mod key;
 mod util;
