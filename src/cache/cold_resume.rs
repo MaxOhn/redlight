@@ -30,7 +30,7 @@ impl<C> RedisCache<C> {
     /// Longer durations would likely cause the gateway to invalidate
     /// the sessions and instruct a reconnect.
     ///
-    /// To retrieve the stored sessions, use [`defrost`].
+    /// To retrieve the stored sessions, use [`defrost`](RedisCache::defrost).
     #[instrument(level = "trace", skip_all)]
     pub async fn freeze<S>(
         &self,
@@ -79,7 +79,7 @@ impl<C> RedisCache<C> {
     /// the redis command `FLUSHDB` will be executed, clearing **all** data from the database
     /// and ensuring that no invalid cached data remains.
     ///
-    /// To store sessions, use [`freeze`].
+    /// To store sessions, use [`freeze`](RedisCache::freeze).
     #[instrument(level = "trace", name = "defrost", skip_all)]
     pub async fn defrost_with_hasher<S>(
         &self,
@@ -120,7 +120,7 @@ impl<C> RedisCache<C> {
     /// the redis command `FLUSHDB` will be executed, clearing **all** data from the database
     /// and ensuring that no invalid cached data remains.
     ///
-    /// To store sessions, use [`freeze`].
+    /// To store sessions, use [`freeze`](RedisCache::freeze).
     pub async fn defrost(
         &self,
         flush_if_missing: bool,

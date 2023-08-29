@@ -8,7 +8,7 @@
 //!     - Create a new type for each associated type you're interested in caching.
 //!     - Each associated type must implement its corresponding required traits.
 //!     - For associated types you don't want to cache, use [`Ignore`].
-//! 2. Create a cache instance via [`RedisCache::new`] or [`RedisCache::new_with_pool`].
+//! 2. Create a [`RedisCache`] instance via [`new`] or [`new_with_pool`].
 //! 3. In your gateway event loop, pass a reference of the event to [`RedisCache::update`].
 //!
 //! # What is `rkyv`?
@@ -66,6 +66,8 @@
 //! [twilight]: https://github.com/twilight-rs/twilight
 //! [examples]: https://github.com/MaxOhn/redlight/tree/main/examples
 //! [`CacheConfig`]: crate::config::CacheConfig
+//! [`new`]: RedisCache::new
+//! [`new_with_pool`]: RedisCache::new_with_pool
 //! [`Ignore`]: crate::config::Ignore
 //! [`serde`]: https://docs.rs/serde/latest/serde/
 //! [benchmark]: https://github.com/djkoloski/rust_serialization_benchmark#minecraft_savedata
