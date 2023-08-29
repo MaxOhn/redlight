@@ -13,10 +13,17 @@ autotests = false
 
 [features]
 default = ["bb8", "validation"]
+# Use `bb8` as underlying connection pool.
 bb8 = ["dep:bb8-redis"]
+# Use `deadpool` as underlying connection pool.
 deadpool = ["dep:deadpool-redis"]
+# Always validate data when fetched from the cache.
+# This adds a performance penalty but ensures that stored data always matches the defined types.
 validation = ["dep:bytecheck", "rkyv/validation"]
+# Enable the methods `RedisCache::freeze` and `RedisCache::defrost` to store and load discord gateway sessions.
 cold_resume = ["dep:twilight-gateway"]
+# Starts a background task that updates metrics in an interval.
+# Metrics will be recorded in the global recorder which should be set before creating a cache instance.
 metrics = ["dep:metrics"]
 
 [dependencies]
