@@ -49,6 +49,7 @@
 //!     - `redlight` fully depends on redis. If your connection is slow, so will be the cache.
 //!     - All `redlight` cache interactions are async and fallible.
 //!     - The configuration requires some setup. Types need to be defined, traits need to be implemented, and [`rkyv`] needs to be utilized which in itself might be a little dawning in the beginning.
+//!     - `redlight` comes with a fair bit of unsafe code. Some required due to [`rkyv`]'s unsafe methods, some just to optimize certain operations.
 //!
 //! # Features
 //!
