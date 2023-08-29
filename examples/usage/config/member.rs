@@ -2,12 +2,10 @@ use std::{error::Error, time::Duration};
 
 use redlight::{
     config::{Cacheable, ICachedMember},
-    rkyv_util::id::IdRkyv,
+    rkyv_util::id::IdRkyvMap,
     CachedArchive,
 };
-use rkyv::{
-    ser::serializers::AllocSerializer, with::Map, Archive, Deserialize, Infallible, Serialize,
-};
+use rkyv::{ser::serializers::AllocSerializer, Archive, Deserialize, Infallible, Serialize};
 use twilight_model::{
     gateway::payload::incoming::MemberUpdate,
     guild::{Member, PartialMember},
@@ -23,7 +21,7 @@ use twilight_model::{
 #[cfg_attr(feature = "validation", archive(check_bytes))]
 pub struct CachedMember {
     nick: Option<String>,
-    #[with(Map<IdRkyv>)]
+    #[with(IdRkyvMap)] // More efficient than `Map<IdRkyv>`
     roles: Vec<Id<RoleMarker>>,
 }
 

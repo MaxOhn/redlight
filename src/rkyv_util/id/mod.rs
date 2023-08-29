@@ -33,6 +33,7 @@ pub use self::map::{ArchivedIdOption, IdRkyvMap};
 pub struct IdRkyv;
 
 /// An archived [`Id<T>`].
+#[repr(transparent)]
 pub struct ArchivedId<T> {
     value: Archived<NonZeroU64>,
     phantom: PhantomData<fn(T) -> T>,
