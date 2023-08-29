@@ -3,6 +3,12 @@ name = "redlight"
 version = "0.1.0"
 edition = "2021"
 license = "ISC"
+description = "Third-party redis cache for twilight"
+repository = "https://github.com/MaxOhn/redlight"
+readme = "README.md"
+documentation = "https://docs.rs/redlight"
+keywords = ["twilight", "cache", "redis"]
+categories = ["database"]
 autotests = false
 
 [features]
