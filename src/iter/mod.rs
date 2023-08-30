@@ -249,7 +249,7 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
 
 impl<'c, C> Clone for RedisCacheIter<'c, C> {
     fn clone(&self) -> Self {
-        Self { cache: self.cache }
+        *self
     }
 }
 

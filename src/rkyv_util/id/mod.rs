@@ -56,10 +56,7 @@ impl<T> ArchivedId<T> {
 
 impl<T> Clone for ArchivedId<T> {
     fn clone(&self) -> Self {
-        Self {
-            value: self.value,
-            phantom: PhantomData,
-        }
+        *self
     }
 }
 

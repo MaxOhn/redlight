@@ -49,10 +49,7 @@ pub struct ArchivedIdOption<T> {
 
 impl<T> Clone for ArchivedIdOption<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner,
-            phantom: PhantomData,
-        }
+        *self
     }
 }
 
