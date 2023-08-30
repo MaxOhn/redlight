@@ -13,105 +13,95 @@ use crate::redis::{RedisWrite, ToRedisArgs};
 
 #[derive(Clone)]
 pub(crate) enum RedisKey {
-    Channel {
-        id: Id<ChannelMarker>,
-    },
-    ChannelMessages {
-        channel: Id<ChannelMarker>,
-    },
-    ChannelMeta {
-        id: Id<ChannelMarker>,
-    },
+    /// Serialized `CacheConfig::Channel`
+    Channel { id: Id<ChannelMarker> },
+    /// Sorted set of message ids ordered by timestamp i.e. most recent to oldest
+    ChannelMessages { channel: Id<ChannelMarker> },
+    /// Serialized `ChannelMeta`
+    ChannelMeta { id: Id<ChannelMarker> },
+    /// Set of channel ids
     Channels,
+    /// Serialized `CacheConfig::CurrentUser`
     CurrentUser,
-    Emoji {
-        id: Id<EmojiMarker>,
-    },
-    EmojiMeta {
-        id: Id<EmojiMarker>,
-    },
+    /// Serialized `CacheConfig::Emoji`
+    Emoji { id: Id<EmojiMarker> },
+    /// Serialized `EmojiMeta`
+    EmojiMeta { id: Id<EmojiMarker> },
+    /// Set of emoji ids
     Emojis,
-    Guild {
-        id: Id<GuildMarker>,
-    },
-    GuildChannels {
-        id: Id<GuildMarker>,
-    },
-    GuildEmojis {
-        id: Id<GuildMarker>,
-    },
-    GuildIntegrations {
-        id: Id<GuildMarker>,
-    },
-    GuildMembers {
-        id: Id<GuildMarker>,
-    },
-    GuildPresences {
-        id: Id<GuildMarker>,
-    },
-    GuildRoles {
-        id: Id<GuildMarker>,
-    },
-    GuildStageInstances {
-        id: Id<GuildMarker>,
-    },
-    GuildStickers {
-        id: Id<GuildMarker>,
-    },
-    GuildVoiceStates {
-        id: Id<GuildMarker>,
-    },
+    /// Serialized `CacheConfig::Guild`
+    Guild { id: Id<GuildMarker> },
+    /// Set of channel ids
+    GuildChannels { id: Id<GuildMarker> },
+    /// Set of emoji ids
+    GuildEmojis { id: Id<GuildMarker> },
+    /// Set of integration ids
+    GuildIntegrations { id: Id<GuildMarker> },
+    /// Set of user ids
+    GuildMembers { id: Id<GuildMarker> },
+    /// Set of user ids
+    GuildPresences { id: Id<GuildMarker> },
+    /// Set of role ids
+    GuildRoles { id: Id<GuildMarker> },
+    /// Set of stage instance ids
+    GuildStageInstances { id: Id<GuildMarker> },
+    /// Set of sticker ids
+    GuildStickers { id: Id<GuildMarker> },
+    /// Set of user ids
+    GuildVoiceStates { id: Id<GuildMarker> },
+    /// Set of guild ids
     Guilds,
+    /// Serialized `CacheConfig::Integration`
     Integration {
         guild: Id<GuildMarker>,
         id: Id<IntegrationMarker>,
     },
+    /// Serialized `CacheConfig::Member`
     Member {
         guild: Id<GuildMarker>,
         user: Id<UserMarker>,
     },
-    Message {
-        id: Id<MessageMarker>,
-    },
-    MessageMeta {
-        id: Id<MessageMarker>,
-    },
+    /// Serialized `CacheConfig::Message`
+    Message { id: Id<MessageMarker> },
+    /// Serialized `MessageMeta`
+    MessageMeta { id: Id<MessageMarker> },
+    /// Set of message ids
     Messages,
+    /// Serialized `CacheConfig::Presence`
     Presence {
         guild: Id<GuildMarker>,
         user: Id<UserMarker>,
     },
-    Role {
-        id: Id<RoleMarker>,
-    },
-    RoleMeta {
-        id: Id<RoleMarker>,
-    },
+    /// Serialized `CacheConfig::Role`
+    Role { id: Id<RoleMarker> },
+    /// Serialized `RoleMeta`
+    RoleMeta { id: Id<RoleMarker> },
+    /// Set of role ids
     Roles,
     #[cfg(feature = "cold_resume")]
+    /// Serialized `SessionsWrapper`
     Sessions,
-    StageInstance {
-        id: Id<StageMarker>,
-    },
-    StageInstanceMeta {
-        id: Id<StageMarker>,
-    },
+    /// Serialized `CacheConfig::StageInstance`
+    StageInstance { id: Id<StageMarker> },
+    /// Serialized `StageInstanceMeta`
+    StageInstanceMeta { id: Id<StageMarker> },
+    /// Set of stage instance ids
     StageInstances,
-    Sticker {
-        id: Id<StickerMarker>,
-    },
-    StickerMeta {
-        id: Id<StickerMarker>,
-    },
+    /// Serialized `CacheConfig::Sticker`
+    Sticker { id: Id<StickerMarker> },
+    /// Serialized `StickerMeta`
+    StickerMeta { id: Id<StickerMarker> },
+    /// Set of sticker ids
     Stickers,
+    /// Set of guild ids
     UnavailableGuilds,
-    User {
-        id: Id<UserMarker>,
-    },
-    UserGuilds {
-        id: Id<UserMarker>,
-    },
+    /// Serialized `CacheConfig::User`
+    User { id: Id<UserMarker> },
+    /// Set of guild ids
+    UserGuilds { id: Id<UserMarker> },
+    /// Set of user ids
     Users,
+    /// Serialized `CacheConfig::VoiceState`
     VoiceState {
         guild: Id<GuildMarker>,
         user: Id<UserMarker>,
