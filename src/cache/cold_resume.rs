@@ -59,6 +59,7 @@ impl<C> RedisCache<C> {
 
         let mut conn = self.connection().await?;
 
+        #[allow(clippy::cast_possible_truncation)]
         let cmd = match expire {
             Some(duration) => Cmd::set_ex(
                 RedisKey::Sessions,

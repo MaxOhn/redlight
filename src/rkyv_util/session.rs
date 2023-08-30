@@ -179,7 +179,7 @@ where
 }
 
 impl<'a, S> SessionsWrapper<'a, S> {
-    pub(crate) fn new(sessions: &'a HashMap<u64, Session, S>) -> Self {
+    pub(crate) const fn new(sessions: &'a HashMap<u64, Session, S>) -> Self {
         Self { sessions }
     }
 }
