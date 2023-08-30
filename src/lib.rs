@@ -35,17 +35,17 @@
 //! [`CachedArchive`] is essentially just a wrapper around some bytes but it also implements [`Deref`] with `Target = Archived<T>`,
 //! meaning that you can use it just like you would an archived `T`.
 //!
-//! # Comparison to `twilight-cache-inmemory`
+//! # Why use `redlight`?
 //!
-//! * Reasons to use `redlight`:
+//! * Pros:
 //!     - Data is stored in redis and thus *persistent*, it can remain across reboots. With the `cold_resume` feature there's even a built-in way to resume previous gateway sessions.
-//!     - The in-memory variant is required to *own* all its data, meaning it always needs to clone it out of incoming events. `redlight` on the other hand just needs to serialize it which is done via reference.
+//!     - `twilight-cache-inmemory` is required to *own* all its data, meaning it always needs to clone it out of incoming events. `redlight` on the other hand just needs to serialize it which is done via reference.
 //!     - The configuration offers a way to cache only the bits and fields that you're interested in instead of the whole thing.
 //!     - `redlight` provides redis' built-in expire feature, meaning you can configure cached entries to automatically be removed after a given time.
 //!     - There are no ways to deadlock yourself whereas storing data inmemory via `dashmap` hands you a potential foot gun.
 //!     - Since the underlying pool is accessible, you technically have full control over all stored data and don't need to rely on the provided API.
 //!
-//! * Reasons to use `twilight-cache-inmemory`:
+//! * Contras:
 //!     - `redlight` fully depends on redis. If your connection is slow, so will be the cache.
 //!     - All `redlight` cache interactions are async and fallible.
 //!     - The configuration requires some setup. Types need to be defined, traits need to be implemented, and [`rkyv`] needs to be utilized which in itself might be a little dawning in the beginning.
@@ -66,14 +66,14 @@
 //!
 //! [twilight]: https://github.com/twilight-rs/twilight
 //! [examples]: https://github.com/MaxOhn/redlight/tree/main/examples
-//! [`CacheConfig`]: crate::config::CacheConfig
-//! [`new`]: RedisCache::new
-//! [`new_with_pool`]: RedisCache::new_with_pool
-//! [`Ignore`]: crate::config::Ignore
+//! [`CacheConfig`]: https://docs.rs/redlight/latest/redlight/config/trait.CacheConfig.html
+//! [`new`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html#method.new
+//! [`new_with_pool`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html#method.new_with_pool
+//! [`Ignore`]: https://docs.rs/redlight/latest/redlight/config/struct.Ignore.html
 //! [`serde`]: https://docs.rs/serde/latest/serde/
 //! [benchmark]: https://github.com/djkoloski/rust_serialization_benchmark#minecraft_savedata
 //! [`rkyv`]: https://docs.rs/rkyv/latest/rkyv/
-//! [`Deref`]: core::ops::Deref
+//! [`Deref`]: https://doc.rust-lang.org/std/ops/trait.Deref.html
 //! [`bb8`]: https://docs.rs/bb8/latest/bb8/
 //! [`bb8-redis`]: https://docs.rs/bb8-redis/latest/bb8_redis/
 //! [`deadpool`]: https://docs.rs/deadpool/latest/deadpool/
