@@ -118,6 +118,6 @@ pub mod stats;
 /// Re-export of redis types and traits.
 pub(crate) mod redis;
 
-pub use self::{cache::RedisCache, error::CacheError, value::CachedArchive};
+pub use self::{cache::RedisCache, error::CacheError, key::RedisKey, value::CachedArchive};
 
 type CacheResult<T> = Result<T, CacheError>;

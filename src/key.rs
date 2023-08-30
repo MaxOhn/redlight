@@ -11,13 +11,22 @@ use twilight_model::id::{
 
 use crate::redis::{RedisWrite, ToRedisArgs};
 
-#[derive(Clone)]
-pub(crate) enum RedisKey {
+/// Keys for storing and loading data from redis.
+///
+/// Implements `redis::ToRedisArgs` so it can be passed as argument
+/// to `redis` commands.
+///
+/// Each variant is documented with the kind of data it points to.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RedisKey {
     /// Serialized `CacheConfig::Channel`
     Channel { id: Id<ChannelMarker> },
     /// Sorted set of message ids ordered by timestamp i.e. most recent to oldest
     ChannelMessages { channel: Id<ChannelMarker> },
-    /// Serialized `ChannelMeta`
+    /// Serialized `ChannelMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     ChannelMeta { id: Id<ChannelMarker> },
     /// Set of channel ids
     Channels,
@@ -25,7 +34,9 @@ pub(crate) enum RedisKey {
     CurrentUser,
     /// Serialized `CacheConfig::Emoji`
     Emoji { id: Id<EmojiMarker> },
-    /// Serialized `EmojiMeta`
+    /// Serialized `EmojiMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     EmojiMeta { id: Id<EmojiMarker> },
     /// Set of emoji ids
     Emojis,
@@ -63,7 +74,9 @@ pub(crate) enum RedisKey {
     },
     /// Serialized `CacheConfig::Message`
     Message { id: Id<MessageMarker> },
-    /// Serialized `MessageMeta`
+    /// Serialized `MessageMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     MessageMeta { id: Id<MessageMarker> },
     /// Set of message ids
     Messages,
@@ -74,7 +87,9 @@ pub(crate) enum RedisKey {
     },
     /// Serialized `CacheConfig::Role`
     Role { id: Id<RoleMarker> },
-    /// Serialized `RoleMeta`
+    /// Serialized `RoleMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     RoleMeta { id: Id<RoleMarker> },
     /// Set of role ids
     Roles,
@@ -83,13 +98,17 @@ pub(crate) enum RedisKey {
     Sessions,
     /// Serialized `CacheConfig::StageInstance`
     StageInstance { id: Id<StageMarker> },
-    /// Serialized `StageInstanceMeta`
+    /// Serialized `StageInstanceMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     StageInstanceMeta { id: Id<StageMarker> },
     /// Set of stage instance ids
     StageInstances,
     /// Serialized `CacheConfig::Sticker`
     Sticker { id: Id<StickerMarker> },
-    /// Serialized `StickerMeta`
+    /// Serialized `StickerMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
     StickerMeta { id: Id<StickerMarker> },
     /// Set of sticker ids
     Stickers,
