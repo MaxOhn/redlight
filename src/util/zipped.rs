@@ -4,6 +4,7 @@ pub(crate) struct ZippedVecs<L, R> {
 }
 
 impl<L, R> ZippedVecs<L, R> {
+    #[allow(clippy::missing_const_for_fn)]
     pub(crate) fn unzip(self) -> (Vec<L>, Vec<R>) {
         let Self { left, right } = self;
 

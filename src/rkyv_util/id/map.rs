@@ -1,9 +1,8 @@
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     marker::PhantomData,
-    mem,
     num::NonZeroU64,
-    ptr::addr_of_mut,
+    ptr::{addr_of, addr_of_mut},
 };
 
 use rkyv::{
@@ -76,10 +75,11 @@ impl<T> PartialEq<Option<Id<T>>> for ArchivedIdOption<T> {
 impl<T> ArchivedIdOption<T> {
     /// Convert into an `Option<NonZeroU64>`.
     pub fn to_nonzero_option(self) -> Option<NonZeroU64> {
+        #[allow(clippy::if_not_else)]
         if self.inner != 0 {
             // SAFETY: NonZero types have the same memory layout and bit patterns as
             // their integer counterparts, regardless of endianness
-            let as_nonzero = unsafe { *(&self.inner as *const _ as *const Archived<NonZeroU64>) };
+            let as_nonzero = unsafe { *(addr_of!(self.inner).cast::<Archived<NonZeroU64>>()) };
 
             // the .into() is necessary in case the `archive_le` or `archive_be`
             // features are enabled in rkyv
@@ -100,6 +100,7 @@ impl<T> ArchivedIdOption<T> {
     /// # Safety
     ///
     /// - `pos` must be the position of `out` within the archive
+    #[allow(clippy::similar_names)]
     pub unsafe fn resolve_from_id(opt: Option<Id<T>>, out: *mut Self) {
         let fo = addr_of_mut!((*out).inner);
         let id = opt.map_or(0, Id::get);
@@ -194,8 +195,10 @@ impl INonZeroU64 for NonZeroU64 {
         S: Fallible + Serializer + ScratchSpace + ?Sized,
     {
         fn wrap_ids<T>(ids: &[Id<T>]) -> &[With<Id<T>, IdRkyv>] {
+            let ptr = ids as *const [Id<T>] as *const [With<Id<T>, IdRkyv>];
+
             // SAFETY: `With` is just a transparent wrapper
-            unsafe { mem::transmute(ids) }
+            unsafe { &*ptr }
         }
 
         // SAFETY: The caller guarantees that `NonZeroU64` and
@@ -207,13 +210,13 @@ impl INonZeroU64 for NonZeroU64 {
         /// # Safety
         ///
         /// It must hold that `NonZeroU64` and `Archived<NonZerou64>` share the same layout.
-        unsafe fn transmute_archived<T>(ids: &[ArchivedId<T>]) -> &[Id<T>] {
-            mem::transmute(ids)
+        unsafe fn cast_archived<T>(ids: &[ArchivedId<T>]) -> &[Id<T>] {
+            &*(ids as *const [ArchivedId<T>] as *const [Id<T>])
         }
 
         // SAFETY: The caller guarantees that `NonZeroU64` and
         // `Archived<NonZeroU64>` share the same layout
-        unsafe { transmute_archived(archived.as_slice()) }.to_owned()
+        unsafe { cast_archived(archived.as_slice()) }.to_owned()
     }
 }
 
@@ -231,6 +234,7 @@ macro_rules! impl_endian {
                     return <NonZeroU64 as INonZeroU64>::serialize(list, serializer);
                 }
 
+                #[allow(clippy::items_after_statements)]
                 type Wrapper<T> = With<Id<T>, IdRkyv>;
                 let iter = list.iter().map(Wrapper::<T>::cast);
 

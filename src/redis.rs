@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 use tracing::trace;
 
 use crate::{CacheResult, RedisCache};
@@ -75,7 +73,7 @@ mod deadpool {
 
 impl aio::ConnectionLike for Connection<'_> {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
-        aio::ConnectionLike::req_packed_command(self.0.deref_mut(), cmd)
+        aio::ConnectionLike::req_packed_command(&mut *self.0, cmd)
     }
 
     fn req_packed_commands<'a>(
@@ -84,11 +82,11 @@ impl aio::ConnectionLike for Connection<'_> {
         offset: usize,
         count: usize,
     ) -> RedisFuture<'a, Vec<Value>> {
-        aio::ConnectionLike::req_packed_commands(self.0.deref_mut(), cmd, offset, count)
+        aio::ConnectionLike::req_packed_commands(&mut *self.0, cmd, offset, count)
     }
 
     fn get_db(&self) -> i64 {
-        aio::ConnectionLike::get_db(self.0.deref())
+        aio::ConnectionLike::get_db(&*self.0)
     }
 }
 
@@ -123,7 +121,7 @@ pub(crate) enum ConnectionState<'c, C> {
 }
 
 impl<'c, C> ConnectionState<'c, C> {
-    pub(crate) fn new(cache: &'c RedisCache<C>) -> Self {
+    pub(crate) const fn new(cache: &'c RedisCache<C>) -> Self {
         Self::Cache(cache)
     }
 

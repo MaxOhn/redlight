@@ -144,6 +144,9 @@ async fn test_guild() -> Result<(), CacheError> {
     }
 
     impl PartialEq<Guild> for ArchivedCachedGuild {
+        // the `from` is necessary in case the `archive_le` or `archive_be`
+        // features are enabled in rkyv
+        #[allow(clippy::useless_conversion)]
         fn eq(&self, other: &Guild) -> bool {
             u16::from(self.afk_timeout) == other.afk_timeout.get()
                 && self.default_message_notifications

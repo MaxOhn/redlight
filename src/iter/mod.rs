@@ -24,12 +24,12 @@ pub struct RedisCacheIter<'c, C> {
 }
 
 impl<'c, C> RedisCacheIter<'c, C> {
-    pub(crate) fn new(cache: &'c RedisCache<C>) -> Self {
+    pub(crate) const fn new(cache: &'c RedisCache<C>) -> Self {
         Self { cache }
     }
 
     /// Reference to the underlying cache.
-    pub fn cache_ref(&self) -> &RedisCache<C> {
+    pub const fn cache_ref(&self) -> &RedisCache<C> {
         self.cache
     }
 }

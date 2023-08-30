@@ -243,10 +243,13 @@ impl<C: CacheConfig> RedisCache<C> {
 
         pipe.del(keys);
 
+        #[allow(clippy::items_after_statements)]
         fn ids_to_u64(msg_ids: &[Id<MessageMarker>]) -> &[u64] {
+            let ptr = msg_ids as *const [Id<MessageMarker>] as *const [u64];
+
             // SAFETY: Id<T> is a transparent wrapper of NonZeroU64
             // which is a transparent wrapper of u64
-            unsafe { std::mem::transmute(msg_ids) }
+            unsafe { &*ptr }
         }
 
         let raw_msg_ids = ids_to_u64(msg_ids);

@@ -35,7 +35,7 @@ impl ArchiveWith<GuildFeature> for GuildFeatureRkyv {
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        ArchivedString::resolve_from_str(guild_feature_str(feature), pos, resolver, out)
+        ArchivedString::resolve_from_str(guild_feature_str(feature), pos, resolver, out);
     }
 }
 

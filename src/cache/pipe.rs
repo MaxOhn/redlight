@@ -53,6 +53,7 @@ impl<'c, C> Pipe<'c, C> {
 
         if let Some(duration) = expire {
             for (key, _) in items {
+                #[allow(clippy::cast_possible_truncation)]
                 self.pipe.expire(key, duration.as_secs() as usize).ignore();
             }
         }
@@ -68,6 +69,7 @@ impl<'c, C> Pipe<'c, C> {
 
     pub(crate) fn set(&mut self, key: RedisKey, bytes: &[u8], expire: Option<Duration>) {
         if let Some(duration) = expire {
+            #[allow(clippy::cast_possible_truncation)]
             self.pipe.set_ex(key, bytes, duration.as_secs() as usize);
         } else {
             self.pipe.set(key, bytes);

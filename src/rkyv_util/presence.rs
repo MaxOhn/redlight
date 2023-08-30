@@ -112,11 +112,11 @@ const _: () = {
             let tag = *value.cast::<u8>();
 
             match tag {
-                Discriminant::DoNotDisturb => {}
-                Discriminant::Idle => {}
-                Discriminant::Invisible => {}
-                Discriminant::Offline => {}
-                Discriminant::Online => {}
+                Discriminant::DoNotDisturb
+                | Discriminant::Idle
+                | Discriminant::Invisible
+                | Discriminant::Offline
+                | Discriminant::Online => {}
                 _ => return Err(EnumCheckError::InvalidTag(tag)),
             }
 

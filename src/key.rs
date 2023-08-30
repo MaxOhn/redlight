@@ -205,7 +205,7 @@ impl ToRedisArgs for RedisKey {
     where
         W: ?Sized + RedisWrite,
     {
-        fn name_id<T>(name: &[u8], id: &Id<T>) -> Cow<'static, [u8]> {
+        fn name_id<T>(name: &[u8], id: Id<T>) -> Cow<'static, [u8]> {
             fn inner(name: &[u8], id: u64) -> Cow<'static, [u8]> {
                 let mut buf = Buffer::new();
                 let id = buf.format(id).as_bytes();
@@ -221,12 +221,8 @@ impl ToRedisArgs for RedisKey {
             inner(name, id.get())
         }
 
-        fn name_guild_id<T>(
-            name: &[u8],
-            guild: &Id<GuildMarker>,
-            id: &Id<T>,
-        ) -> Cow<'static, [u8]> {
-            fn inner(name: &[u8], guild: &Id<GuildMarker>, id: u64) -> Cow<'static, [u8]> {
+        fn name_guild_id<T>(name: &[u8], guild: Id<GuildMarker>, id: Id<T>) -> Cow<'static, [u8]> {
+            fn inner(name: &[u8], guild: Id<GuildMarker>, id: u64) -> Cow<'static, [u8]> {
                 let mut buf = Buffer::new();
                 let guild = buf.format(guild.get()).as_bytes();
 
@@ -245,48 +241,48 @@ impl ToRedisArgs for RedisKey {
         }
 
         let bytes = match self {
-            Self::Channel { id } => name_id(Self::CHANNEL_PREFIX, id),
-            Self::ChannelMessages { channel } => name_id(Self::CHANNEL_MESSAGES_PREFIX, channel),
-            Self::ChannelMeta { id } => name_id(Self::CHANNEL_META_PREFIX, id),
+            Self::Channel { id } => name_id(Self::CHANNEL_PREFIX, *id),
+            Self::ChannelMessages { channel } => name_id(Self::CHANNEL_MESSAGES_PREFIX, *channel),
+            Self::ChannelMeta { id } => name_id(Self::CHANNEL_META_PREFIX, *id),
             Self::Channels => Cow::Borrowed(Self::CHANNELS_PREFIX),
             Self::CurrentUser => Cow::Borrowed(Self::CURRENT_USER_PREFIX),
-            Self::Emoji { id } => name_id(Self::EMOJI_PREFIX, id),
-            Self::EmojiMeta { id } => name_id(Self::EMOJI_META_PREFIX, id),
+            Self::Emoji { id } => name_id(Self::EMOJI_PREFIX, *id),
+            Self::EmojiMeta { id } => name_id(Self::EMOJI_META_PREFIX, *id),
             Self::Emojis => Cow::Borrowed(Self::EMOJIS_PREFIX),
-            Self::Guild { id } => name_id(Self::GUILD_PREFIX, id),
-            Self::GuildChannels { id } => name_id(Self::GUILD_CHANNELS_PREFIX, id),
-            Self::GuildEmojis { id } => name_id(Self::GUILD_EMOJIS_PREFIX, id),
-            Self::GuildIntegrations { id } => name_id(Self::GUILD_INTEGRATIONS_PREFIX, id),
-            Self::GuildMembers { id } => name_id(Self::GUILD_MEMBERS_PREFIX, id),
-            Self::GuildPresences { id } => name_id(Self::GUILD_PRESENCES_PREFIX, id),
-            Self::GuildRoles { id } => name_id(Self::GUILD_ROLES_PREFIX, id),
-            Self::GuildStageInstances { id } => name_id(Self::GUILD_STAGE_INSTANCES_PREFIX, id),
-            Self::GuildStickers { id } => name_id(Self::GUILD_STICKERS_PREFIX, id),
-            Self::GuildVoiceStates { id } => name_id(Self::GUILD_VOICE_STATES_PREFIX, id),
+            Self::Guild { id } => name_id(Self::GUILD_PREFIX, *id),
+            Self::GuildChannels { id } => name_id(Self::GUILD_CHANNELS_PREFIX, *id),
+            Self::GuildEmojis { id } => name_id(Self::GUILD_EMOJIS_PREFIX, *id),
+            Self::GuildIntegrations { id } => name_id(Self::GUILD_INTEGRATIONS_PREFIX, *id),
+            Self::GuildMembers { id } => name_id(Self::GUILD_MEMBERS_PREFIX, *id),
+            Self::GuildPresences { id } => name_id(Self::GUILD_PRESENCES_PREFIX, *id),
+            Self::GuildRoles { id } => name_id(Self::GUILD_ROLES_PREFIX, *id),
+            Self::GuildStageInstances { id } => name_id(Self::GUILD_STAGE_INSTANCES_PREFIX, *id),
+            Self::GuildStickers { id } => name_id(Self::GUILD_STICKERS_PREFIX, *id),
+            Self::GuildVoiceStates { id } => name_id(Self::GUILD_VOICE_STATES_PREFIX, *id),
             Self::Guilds => Cow::Borrowed(Self::GUILDS_PREFIX),
-            Self::Integration { guild, id } => name_guild_id(Self::INTEGRATION_PREFIX, guild, id),
-            Self::Member { user, guild } => name_guild_id(Self::MEMBER_PREFIX, guild, user),
-            Self::Message { id } => name_id(Self::MESSAGE_PREFIX, id),
-            Self::MessageMeta { id } => name_id(Self::MESSAGE_META_PREFIX, id),
+            Self::Integration { guild, id } => name_guild_id(Self::INTEGRATION_PREFIX, *guild, *id),
+            Self::Member { user, guild } => name_guild_id(Self::MEMBER_PREFIX, *guild, *user),
+            Self::Message { id } => name_id(Self::MESSAGE_PREFIX, *id),
+            Self::MessageMeta { id } => name_id(Self::MESSAGE_META_PREFIX, *id),
             Self::Messages => Cow::Borrowed(Self::MESSAGES_PREFIX),
-            Self::Presence { guild, user } => name_guild_id(Self::PRESENCE_PREFIX, guild, user),
-            Self::Role { id } => name_id(Self::ROLE_PREFIX, id),
-            Self::RoleMeta { id } => name_id(Self::ROLE_META_PREFIX, id),
+            Self::Presence { guild, user } => name_guild_id(Self::PRESENCE_PREFIX, *guild, *user),
+            Self::Role { id } => name_id(Self::ROLE_PREFIX, *id),
+            Self::RoleMeta { id } => name_id(Self::ROLE_META_PREFIX, *id),
             Self::Roles => Cow::Borrowed(Self::ROLES_PREFIX),
             #[cfg(feature = "cold_resume")]
             Self::Sessions => Cow::Borrowed(Self::SESSIONS_PREFIX),
-            Self::StageInstance { id } => name_id(Self::STAGE_INSTANCE_PREFIX, id),
-            Self::StageInstanceMeta { id } => name_id(Self::STAGE_INSTANCE_META_PREFIX, id),
+            Self::StageInstance { id } => name_id(Self::STAGE_INSTANCE_PREFIX, *id),
+            Self::StageInstanceMeta { id } => name_id(Self::STAGE_INSTANCE_META_PREFIX, *id),
             Self::StageInstances => Cow::Borrowed(Self::STAGE_INSTANCES_PREFIX),
-            Self::Sticker { id } => name_id(Self::STICKER_PREFIX, id),
-            Self::StickerMeta { id } => name_id(Self::STICKER_META_PREFIX, id),
+            Self::Sticker { id } => name_id(Self::STICKER_PREFIX, *id),
+            Self::StickerMeta { id } => name_id(Self::STICKER_META_PREFIX, *id),
             Self::Stickers => Cow::Borrowed(Self::STICKERS_PREFIX),
             Self::UnavailableGuilds => Cow::Borrowed(Self::UNAVAILABLE_GUILDS_PREFIX),
-            Self::User { id } => name_id(Self::USER_PREFIX, id),
-            Self::UserGuilds { id } => name_id(Self::USER_GUILDS_PREFIX, id),
+            Self::User { id } => name_id(Self::USER_PREFIX, *id),
+            Self::UserGuilds { id } => name_id(Self::USER_GUILDS_PREFIX, *id),
             Self::Users => Cow::Borrowed(Self::USERS_PREFIX),
             Self::VoiceState { guild, user } => {
-                name_guild_id(Self::VOICE_STATE_PREFIX, guild, user)
+                name_guild_id(Self::VOICE_STATE_PREFIX, *guild, *user)
             }
         };
 

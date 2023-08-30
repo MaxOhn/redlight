@@ -33,12 +33,13 @@ impl<C> RedisCache<C> {
     }
 
     /// Create a [`RedisCacheIter`] instance to iterate over various cached collections.
-    pub fn iter(&self) -> RedisCacheIter<'_, C> {
+    #[allow(clippy::iter_not_returning_iterator)]
+    pub const fn iter(&self) -> RedisCacheIter<'_, C> {
         RedisCacheIter::new(self)
     }
 
     /// Create a [`RedisCacheStats`] instance to inspect sizes of cached collections.
-    pub fn stats(&self) -> RedisCacheStats<'_, C> {
+    pub const fn stats(&self) -> RedisCacheStats<'_, C> {
         RedisCacheStats::new(self)
     }
 }
@@ -96,7 +97,7 @@ impl<C: CacheConfig> RedisCache<C> {
     #[cfg(any(feature = "bb8", feature = "deadpool"))]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "bb8", feature = "deadpool"))))]
     /// Get a reference to the underlying redis connection pool.
-    pub fn pool(&self) -> &Pool {
+    pub const fn pool(&self) -> &Pool {
         &self.pool
     }
 
@@ -105,6 +106,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn update(&self, event: &Event) -> CacheResult<()> {
         let mut pipe = Pipe::new(self);
 
+        #[allow(clippy::match_same_arms)]
         match event {
             Event::AutoModerationActionExecution(_) => {}
             Event::AutoModerationRuleCreate(_) => {}
@@ -115,7 +117,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::ChannelCreate(event) => self.store_channel(&mut pipe, event)?,
             Event::ChannelDelete(event) => self.delete_channel(&mut pipe, event.guild_id, event.id),
             Event::ChannelPinsUpdate(event) => {
-                self.store_channel_pins_update(&mut pipe, event).await?
+                self.store_channel_pins_update(&mut pipe, event).await?;
             }
             Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event)?,
             Event::CommandPermissionsUpdate(_) => {}
@@ -130,13 +132,13 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::GuildCreate(event) => self.store_guild(&mut pipe, event)?,
             Event::GuildDelete(event) => {
                 if event.unavailable {
-                    self.store_unavailable_guild(&mut pipe, event.id).await?
+                    self.store_unavailable_guild(&mut pipe, event.id).await?;
                 } else {
-                    self.delete_guild(&mut pipe, event.id).await?
+                    self.delete_guild(&mut pipe, event.id).await?;
                 }
             }
             Event::GuildEmojisUpdate(event) => {
-                self.store_emojis(&mut pipe, event.guild_id, &event.emojis)?
+                self.store_emojis(&mut pipe, event.guild_id, &event.emojis)?;
             }
             Event::GuildIntegrationsUpdate(_) => {}
             Event::GuildScheduledEventCreate(event) => {
@@ -157,7 +159,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::GuildScheduledEventUserAdd(_) => {}
             Event::GuildScheduledEventUserRemove(_) => {}
             Event::GuildStickersUpdate(event) => {
-                self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?
+                self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?;
             }
             Event::GuildUpdate(event) => self.store_guild_update(&mut pipe, event).await?,
             Event::IntegrationCreate(event) => {
@@ -166,7 +168,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 }
             }
             Event::IntegrationDelete(event) => {
-                self.delete_integration(&mut pipe, event.guild_id, event.id)
+                self.delete_integration(&mut pipe, event.guild_id, event.id);
             }
             Event::IntegrationUpdate(event) => {
                 if let Some(guild_id) = event.guild_id {
@@ -185,11 +187,11 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::InviteDelete(_) => {}
             Event::MemberAdd(event) => {
-                self.store_member(&mut pipe, event.guild_id, &event.member)?
+                self.store_member(&mut pipe, event.guild_id, &event.member)?;
             }
             Event::MemberRemove(event) => {
                 self.delete_member(&mut pipe, event.guild_id, event.user.id)
-                    .await?
+                    .await?;
             }
             Event::MemberUpdate(event) => self.store_member_update(&mut pipe, event).await?,
             Event::MemberChunk(event) => {
@@ -198,10 +200,10 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::MessageCreate(event) => self.store_message(&mut pipe, event).await?,
             Event::MessageDelete(event) => {
-                self.delete_message(&mut pipe, event.id, event.channel_id)
+                self.delete_message(&mut pipe, event.id, event.channel_id);
             }
             Event::MessageDeleteBulk(event) => {
-                self.delete_messages(&mut pipe, &event.ids, event.channel_id)
+                self.delete_messages(&mut pipe, &event.ids, event.channel_id);
             }
             Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event).await?,
             Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event)?,
@@ -241,15 +243,15 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::RoleUpdate(event) => self.store_role(&mut pipe, event.guild_id, &event.role)?,
             Event::StageInstanceCreate(event) => self.store_stage_instance(&mut pipe, event)?,
             Event::StageInstanceDelete(event) => {
-                self.delete_stage_instance(&mut pipe, event.guild_id, event.id)
+                self.delete_stage_instance(&mut pipe, event.guild_id, event.id);
             }
             Event::StageInstanceUpdate(event) => self.store_stage_instance(&mut pipe, event)?,
             Event::ThreadCreate(event) => self.store_channel(&mut pipe, event)?,
             Event::ThreadDelete(event) => {
-                self.delete_channel(&mut pipe, Some(event.guild_id), event.id)
+                self.delete_channel(&mut pipe, Some(event.guild_id), event.id);
             }
             Event::ThreadListSync(event) => {
-                self.store_channels(&mut pipe, event.guild_id, &event.threads)?
+                self.store_channels(&mut pipe, event.guild_id, &event.threads)?;
             }
             Event::ThreadMemberUpdate(event) => {
                 if let Some(ref presence) = event.presence {
@@ -268,7 +270,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 }
             }
             Event::UnavailableGuild(event) => {
-                self.store_unavailable_guild(&mut pipe, event.id).await?
+                self.store_unavailable_guild(&mut pipe, event.id).await?;
             }
             Event::UserUpdate(event) => self.store_current_user(&mut pipe, event)?,
             Event::VoiceServerUpdate(_) => {}

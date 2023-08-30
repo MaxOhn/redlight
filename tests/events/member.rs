@@ -83,6 +83,9 @@ async fn test_member() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn Error>>>
         {
             Some(|archived, member| {
+                // the `.into()` is necessary in case the `archive_le` or `archive_be`
+                // features are enabled in rkyv
+                #[allow(clippy::useless_conversion)]
                 archived.update_archive(|pinned| {
                     pinned.get_mut().flags = member.flags.bits().into();
                 });

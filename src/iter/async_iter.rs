@@ -114,6 +114,7 @@ impl<'c, T: Cacheable> Stream for AsyncIter<'c, T> {
 
         loop {
             match next {
+                #[allow(clippy::single_match_else)]
                 Next::Create => match Self::next_fut(ids, itoa_buf, *len, key_buf, data.as_mut()) {
                     Some(fut) => *next = Next::InFlight(fut),
                     None => {
@@ -173,7 +174,7 @@ struct StaticData<'c> {
 }
 
 impl<'c> StaticData<'c> {
-    fn new(conn: Connection<'c>) -> Self {
+    const fn new(conn: Connection<'c>) -> Self {
         Self {
             conn,
             cmd: MaybeUninit::uninit(),

@@ -55,12 +55,12 @@
 //!
 //! | Flag | Description | Dependencies
 //! | - | - | -
-//! | default | Enables the `bb8` and `validation` flag |
-//! | bb8 | Uses [`bb8`] as underlying connection pool | [`bb8-redis`]
-//! | deadpool | Uses [`deadpool`] as underlying connection pool | [`deadpool-redis`]
-//! | validation | Always validate data when fetched from the cache. This adds a performance penalty but ensures that stored data always matches the defined types. | `rkyv/validation`
-//! | cold_resume | Enables the methods `RedisCache::freeze` and `RedisCache::defrost` to store and load discord gateway sessions. | [`twilight-gateway`]
-//! | metrics | Starts a background task that updates metrics in an interval. Metrics will be recorded in the global recorder which should be set before creating a cache instance. | [`metrics`]
+//! | `default` | Enables the `bb8` and `validation` flag |
+//! | `bb8` | Uses [`bb8`] as underlying connection pool | [`bb8-redis`]
+//! | `deadpool` | Uses [`deadpool`] as underlying connection pool | [`deadpool-redis`]
+//! | `validation` | Always validate data when fetched from the cache. This adds a performance penalty but ensures that stored data always matches the defined types. | `rkyv/validation`
+//! | `cold_resume` | Enables the methods `RedisCache::freeze` and `RedisCache::defrost` to store and load discord gateway sessions. | [`twilight-gateway`]
+//! | `metrics` | Starts a background task that updates metrics in an interval. Metrics will be recorded in the global recorder which should be set before creating a cache instance. | [`metrics`]
 //!
 //! Either the `bb8` or `deadpool` feature *must* be enabled.
 //!
@@ -82,6 +82,15 @@
 //! [`metrics`]: https://docs.rs/metrics/latest/metrics/
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::missing_crate_level_docs)]
+#![warn(clippy::missing_const_for_fn, clippy::pedantic)]
+#![allow(
+    clippy::explicit_iter_loop,
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::unused_self
+)]
 
 mod cache;
 mod key;

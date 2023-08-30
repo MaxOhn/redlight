@@ -86,6 +86,9 @@ async fn test_message() -> Result<(), CacheError> {
                     if let Some(kind) = update.kind {
                         pinned.kind = u8::from(kind);
 
+                        // the `.into()` is necessary in case the `archive_le` or `archive_be`
+                        // features are enabled in rkyv
+                        #[allow(clippy::useless_conversion)]
                         if let Some(timestamp) = update.timestamp {
                             pinned.timestamp = timestamp.as_micros().into();
                         }

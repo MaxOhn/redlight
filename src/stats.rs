@@ -42,7 +42,7 @@ macro_rules! impl_stats_fn {
 }
 
 impl<'c, C> RedisCacheStats<'c, C> {
-    pub(crate) fn new(cache: &'c RedisCache<C>) -> RedisCacheStats<'c, C> {
+    pub(crate) const fn new(cache: &'c RedisCache<C>) -> RedisCacheStats<'c, C> {
         Self {
             conn: ConnectionState::new(cache),
         }

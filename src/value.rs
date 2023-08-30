@@ -70,6 +70,7 @@ impl<T> CachedArchive<T> {
     }
 
     /// Consume `self` and return the contained bytes.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn into_bytes(self) -> Box<[u8]> {
         self.bytes
     }
@@ -158,6 +159,7 @@ impl<T: Cacheable> CachedArchive<T> {
     /// ```
     ///
     /// [`update_archive`]: CachedArchive::update_archive
+    #[allow(clippy::similar_names)]
     pub fn update_by_deserializing<D>(
         &mut self,
         f: impl FnOnce(&mut T),

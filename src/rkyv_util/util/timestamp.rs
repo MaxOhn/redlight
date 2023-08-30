@@ -23,7 +23,7 @@ pub struct TimestampRkyv;
 
 impl TimestampRkyv {
     /// Turn a [`Timestamp`] into its archived form i.e. an `i64`.
-    pub fn archive(timestamp: &Timestamp) -> i64 {
+    pub const fn archive(timestamp: &Timestamp) -> i64 {
         timestamp.as_micros()
     }
 
@@ -43,7 +43,7 @@ impl ArchiveWith<Timestamp> for TimestampRkyv {
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        Self::archive(field).resolve(pos, resolver, out)
+        Self::archive(field).resolve(pos, resolver, out);
     }
 }
 

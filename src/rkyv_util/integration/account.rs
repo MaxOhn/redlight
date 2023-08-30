@@ -105,7 +105,7 @@ impl ArchiveWith<&IntegrationAccount> for IntegrationAccountRkyv {
         resolver: Self::Resolver,
         out: *mut Self::Archived,
     ) {
-        <Self as ArchiveWith<IntegrationAccount>>::resolve_with(*field, pos, resolver, out)
+        <Self as ArchiveWith<IntegrationAccount>>::resolve_with(*field, pos, resolver, out);
     }
 }
 

@@ -103,6 +103,9 @@ async fn test_channel() -> Result<(), CacheError> {
 
                     *last_pin_timestamp = match update.last_pin_timestamp {
                         Some(new_timestamp) => {
+                            // the `.into()` is necessary in case the `archive_le` or `archive_be`
+                            // features are enabled in rkyv
+                            #[allow(clippy::useless_conversion)]
                             ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp).into())
                         }
                         None => ArchivedOption::None,

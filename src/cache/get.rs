@@ -157,12 +157,6 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         channel_id: Id<ChannelMarker>,
     ) -> CacheResult<Vec<Id<MessageMarker>>> {
-        let mut conn = self.connection().await?;
-
-        let key = RedisKey::ChannelMessages {
-            channel: channel_id,
-        };
-
         fn convert_ids(ids: Vec<u64>) -> Vec<Id<MessageMarker>> {
             #[cfg(feature = "validation")]
             if ids.iter().any(|&id| id == 0) {
@@ -174,6 +168,12 @@ impl<C: CacheConfig> RedisCache<C> {
             // SAFETY: we ensured that all u64s are non-zero
             unsafe { std::mem::transmute(ids) }
         }
+
+        let mut conn = self.connection().await?;
+
+        let key = RedisKey::ChannelMessages {
+            channel: channel_id,
+        };
 
         Cmd::zrange(key, 0, -1)
             .query_async::<_, Vec<u64>>(&mut conn)

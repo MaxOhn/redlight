@@ -258,7 +258,7 @@ pub(super) fn atoi<T>(bytes: &[u8]) -> Option<Id<T>> {
                 return None;
             }
 
-            n.checked_mul(10)?.checked_add((*byte & 0xF) as u64)
+            n.checked_mul(10)?.checked_add(u64::from(*byte & 0xF))
         })
         .and_then(Id::new_checked)
 }

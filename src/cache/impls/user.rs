@@ -181,7 +181,7 @@ impl IMetaKey for UserMetaKey {
 }
 
 impl UserMetaKey {
-    pub(crate) fn new(user: Id<UserMarker>) -> Self {
+    pub(crate) const fn new(user: Id<UserMarker>) -> Self {
         Self { user }
     }
 }
