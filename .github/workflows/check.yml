@@ -1,0 +1,106 @@
+name: Check
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+
+env:
+    REDIS_PORT: 9736
+
+jobs:
+    build-docs:
+        name: Build docs
+        runs-on: ubuntu-latest
+    
+        steps:
+          - name: Checkout sources
+            uses: actions/checkout@v3
+    
+          - name: Cache dependencies
+            uses: Swatinem/rust-cache@v2
+    
+          - name: Install nightly toolchain
+            uses: dtolnay/rust-toolchain@nightly
+    
+          - name: Build docs
+            env:
+              RUSTDOCFLAGS: --cfg docsrs
+            run: cargo doc --no-deps -F bb8,validation,cold_resume,metrics
+    
+    clippy:
+        name: Clippy
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                features: ["--no-default-features -F bb8", "--all-features"]
+        
+        steps:
+          - name: Checkout sources
+            uses: actions/checkout@v3
+  
+          - name: Install stable toolchain
+            uses: dtolnay/rust-toolchain@stable
+  
+          - name: Cache dependencies
+            uses: Swatinem/rust-cache@v2
+  
+          - name: Run clippy
+            run: cargo clippy ${{ matrix.features }} --all-targets
+
+    rustfmt:
+        name: Format
+        runs-on: ubuntu-latest
+    
+        steps:
+          - name: Checkout sources
+            uses: actions/checkout@v3
+    
+          - name: Install nightly toolchain
+            uses: dtolnay/rust-toolchain@v1
+            with:
+                components: rustfmt
+                toolchain: nightly
+    
+          - name: Check code formatting
+            run: cargo fmt -- --check
+
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                features: ["--no-default-features -F bb8", "--all-features"]
+        
+        steps:
+          - name: Checkout sources
+            uses: actions/checkout@v3
+
+          - name: Start redis
+            uses: supercharge/redis-github-action@1.6.0
+            with:
+                redis-version: latest
+                redis-port: ${{ env.REDIS_PORT }}
+    
+          - name: Install stable toolchain
+            uses: dtolnay/rust-toolchain@stable
+    
+          - name: Cache dependencies
+            uses: Swatinem/rust-cache@v2
+    
+          - name: Install nextest
+            uses: taiki-e/install-action@nextest
+    
+          - name: Run integration tests
+            run: cargo nextest run ${{ matrix.features }} --no-fail-fast --failure-output=immediate-final --test integration --test-threads=1
+            env:
+                REDIS_URL: "redis://localhost:${{ env.REDIS_PORT }}"
+    
+          - name: Run unit tests
+            run: cargo nextest run ${{ matrix.features }} --no-fail-fast --failure-output=immediate-final --lib
+
+          - name: Run doctests
+            run: cargo test --doc ${{ matrix.features }}
