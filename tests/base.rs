@@ -4,6 +4,7 @@ mod metrics;
 
 use std::{env, sync::OnceLock};
 
+use tracing::warn;
 use tracing_subscriber::EnvFilter;
 
 #[cfg(feature = "bb8")]
@@ -16,7 +17,9 @@ static POOL: OnceLock<Pool> = OnceLock::new();
 
 pub fn pool() -> Pool {
     fn redis_url() -> String {
-        dotenvy::dotenv().unwrap();
+        if let Err(err) = dotenvy::dotenv() {
+            warn!(?err, "Failed to initialize env variables");
+        }
 
         tracing_subscriber::fmt()
             .with_test_writer()
