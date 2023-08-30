@@ -22,6 +22,8 @@ mod validation {
 
 #[cfg(not(feature = "validation"))]
 mod validation {
+    use rkyv::Archive;
+
     /// Auxiliary trait ensuring properties related to the `validation` feature flag.
     ///
     /// Automatically implemented for all appropriate types.
