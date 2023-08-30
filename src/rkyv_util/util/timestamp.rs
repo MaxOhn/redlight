@@ -96,7 +96,13 @@ mod tests {
 
         let timestamp = Timestamp::parse("2021-01-01T01:01:01.010000+00:00").unwrap();
         let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timestamp)).unwrap();
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        #[cfg(not(feature = "validation"))]
         let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
         let deserialized: Timestamp =
             TimestampRkyv::deserialize_with(archived, &mut TimestampDeserializer).unwrap();
 

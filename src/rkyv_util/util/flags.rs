@@ -85,7 +85,13 @@ mod tests {
 
         let flags = MemberFlags::COMPLETED_ONBOARDING | MemberFlags::DID_REJOIN;
         let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&flags)).unwrap();
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        #[cfg(not(feature = "validation"))]
         let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
         let deserialized: MemberFlags =
             BitflagsRkyv::deserialize_with(archived, &mut Infallible).unwrap();
 

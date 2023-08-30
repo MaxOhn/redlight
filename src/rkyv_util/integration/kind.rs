@@ -124,7 +124,13 @@ mod tests {
 
         for kind in kinds {
             let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&kind)).unwrap();
+
+            #[cfg(feature = "validation")]
+            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            #[cfg(not(feature = "validation"))]
             let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
             let deserialized: GuildIntegrationType =
                 GuildIntegrationTypeRkyv::deserialize_with(archived, &mut Infallible).unwrap();
 

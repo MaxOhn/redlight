@@ -67,7 +67,13 @@ mod tests {
 
         for timeout in timeouts {
             let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timeout)).unwrap();
+
+            #[cfg(feature = "validation")]
+            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            #[cfg(not(feature = "validation"))]
             let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
             let deserialized: AfkTimeout =
                 AfkTimeoutRkyv::deserialize_with(archived, &mut Infallible).unwrap();
 

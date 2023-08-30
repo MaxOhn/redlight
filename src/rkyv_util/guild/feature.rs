@@ -208,7 +208,13 @@ mod tests {
 
         for feature in features {
             let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&feature)).unwrap();
+
+            #[cfg(feature = "validation")]
+            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+            #[cfg(not(feature = "validation"))]
             let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
             let deserialized: GuildFeature =
                 GuildFeatureRkyv::deserialize_with(archived, &mut Infallible).unwrap();
 

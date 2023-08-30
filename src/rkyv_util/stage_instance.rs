@@ -65,7 +65,13 @@ mod tests {
 
         let level = PrivacyLevel::GuildOnly;
         let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&level)).unwrap();
+
+        #[cfg(feature = "validation")]
+        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+
+        #[cfg(not(feature = "validation"))]
         let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+
         let deserialized = PrivacyLevelRkyv::deserialize_with(archived, &mut Infallible).unwrap();
 
         assert_eq!(level, deserialized);
