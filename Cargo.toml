@@ -52,6 +52,10 @@ twilight-gateway = { version = "0.15", default-features = false }
 name = "integration"
 path = "tests/base.rs"
 
+[[example]]
+name = "metrics"
+required-features = ["metrics"]
+
 [package.metadata.docs.rs]
 # document these features
 features = ["bb8", "validation", "cold_resume", "metrics"]
