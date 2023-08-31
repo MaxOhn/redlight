@@ -1,7 +1,6 @@
 #![cfg(feature = "metrics")]
 
 use std::{
-    error::Error as StdError,
     fmt::Write,
     ops::DerefMut,
     sync::{Arc, Mutex},
@@ -12,6 +11,7 @@ use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, Shared
 use redis::Cmd;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedChannel, ICachedSticker, Ignore},
+    error::BoxedError,
     CacheError, CachedArchive, RedisCache,
 };
 use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
@@ -68,7 +68,7 @@ async fn test_metrics() -> Result<(), CacheError> {
         }
 
         fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>
         {
             None
         }

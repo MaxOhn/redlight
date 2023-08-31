@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
     time::Duration,
@@ -7,6 +6,7 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedChannel, Ignore},
+    error::BoxedError,
     rkyv_util::{
         id::{IdRkyv, IdRkyvMap},
         util::TimestampRkyv,
@@ -94,7 +94,7 @@ async fn test_channel() -> Result<(), CacheError> {
         }
 
         fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>
         {
             let update_fn = |value: &mut CachedArchive<Self>, update: &ChannelPinsUpdate| {
                 value.update_archive(|pinned| {

@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
     time::Duration,
@@ -7,6 +6,7 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMember, Ignore},
+    error::BoxedError,
     rkyv_util::util::BitflagsRkyv,
     CacheError, CachedArchive, RedisCache,
 };
@@ -69,8 +69,7 @@ async fn test_member() -> Result<(), CacheError> {
         }
 
         fn on_member_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn Error>>>
-        {
+        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>> {
             Some(|archived, update| {
                 archived.update_by_deserializing(
                     |deserialized| deserialized.pending = update.pending,
@@ -80,7 +79,7 @@ async fn test_member() -> Result<(), CacheError> {
         }
 
         fn update_via_partial(
-        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn Error>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>>
         {
             Some(|archived, member| {
                 // the `.into()` is necessary in case the `archive_le` or `archive_be`

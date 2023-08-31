@@ -2,7 +2,11 @@ use std::{error::Error as StdError, marker::PhantomData, ops::Deref, pin::Pin};
 
 use rkyv::{ser::Serializer, Archive, Deserialize, Fallible};
 
-use crate::{config::Cacheable, error::UpdateArchiveError, ser::CacheSerializer};
+use crate::{
+    config::Cacheable,
+    error::{BoxedError, UpdateArchiveError},
+    ser::CacheSerializer,
+};
 
 /// Archived form of a cache entry.
 ///
@@ -122,9 +126,8 @@ impl<T: Cacheable> CachedArchive<T> {
     /// # Example
     ///
     /// ```
-    /// use std::error::Error;
     /// # use rkyv::{Archive, Deserialize, Serialize};
-    /// use redlight::{config::Cacheable, CachedArchive};
+    /// use redlight::{config::Cacheable, error::BoxedError, CachedArchive};
     /// use rkyv::Infallible;
     ///
     /// #[derive(Archive, Serialize, Deserialize)]
@@ -148,7 +151,7 @@ impl<T: Cacheable> CachedArchive<T> {
     ///     new_nums: Vec<u32>,
     /// }
     ///
-    /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) -> Result<(), Box<dyn Error>> {
+    /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) -> Result<(), BoxedError> {
     ///     // Updating a Vec like this generally cannot be done through a pinned mutable reference
     ///     // so we're using `update_by_deserializing` instead of `update_archive`.
     ///     archive.update_by_deserializing(
@@ -164,10 +167,10 @@ impl<T: Cacheable> CachedArchive<T> {
         &mut self,
         f: impl FnOnce(&mut T),
         deserializer: &mut D,
-    ) -> Result<(), Box<dyn StdError>>
+    ) -> Result<(), BoxedError>
     where
         D: Fallible,
-        D::Error: StdError,
+        D::Error: StdError + Send + Sync + 'static,
         T::Archived: Deserialize<T, D>,
     {
         let archived: &T::Archived = &*self;

@@ -1,7 +1,4 @@
-use std::{
-    error::Error as StdError,
-    fmt::{Debug, Formatter, Result as FmtResult},
-};
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 use rkyv::{ser::Serializer, Archived, Serialize};
 use tracing::{instrument, trace};
@@ -9,7 +6,7 @@ use twilight_model::id::Id;
 
 use crate::{
     config::CheckedArchive,
-    error::ExpireError,
+    error::{BoxedError, ExpireError},
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},
     ser::CacheSerializer,
@@ -224,7 +221,7 @@ where
     type Serializer: CacheSerializer;
 
     /// Serialize and store this data in the cache.
-    fn store<C>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), Box<dyn StdError>> {
+    fn store<C>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), BoxedError> {
         let mut serializer = Self::Serializer::default();
         serializer.serialize_value(self)?;
         let bytes = serializer.finish();

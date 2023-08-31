@@ -15,6 +15,7 @@ mod validation {
     where
         T: Archive,
         <T as Archive>::Archived: for<'a> CheckBytes<DefaultValidator<'a>>,
+        for<'a> <<T as Archive>::Archived as CheckBytes<DefaultValidator<'a>>>::Error: Send + Sync,
     {
         type CheckedArchived = <T as Archive>::Archived;
     }

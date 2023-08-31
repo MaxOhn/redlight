@@ -28,7 +28,7 @@ metrics = ["dep:metrics"]
 
 [dependencies]
 bb8-redis = { version = "0.13.1", default-features = false, optional = true }
-bytecheck = { version = "0.6.7", default-features = false, optional = true } # rkyv/rend@0.4.0 pins bytecheck to ~0.6.7
+bytecheck = { version = "~0.7.0", default-features = false, optional = true }
 deadpool-redis = { version = "0.12.0", default-features = false, optional = true, features = ["rt_tokio_1"]}
 futures-util = { version = "0.3.28", default-features = false, features = ["std"] }
 itoa = { version = "~1.0.9", default-features = false }
@@ -61,3 +61,6 @@ required-features = ["metrics"]
 features = ["bb8", "validation", "cold_resume", "metrics"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
+
+[patch.crates-io]
+rkyv = { path = "../rkyv/rkyv" }

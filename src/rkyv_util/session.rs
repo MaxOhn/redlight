@@ -206,7 +206,7 @@ const _: () = {
     impl<'a, S, C> CheckBytes<C> for ArchivedSessionsWrapper<'a, S>
     where
         C: ArchiveContext + ?Sized,
-        C::Error: StdError,
+        C::Error: StdError + Send + Sync,
     {
         type Error = CheckOwnedPointerError<[Entry<u64, ArchivedSession>], C>;
 

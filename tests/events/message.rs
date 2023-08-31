@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
     time::Duration,
@@ -8,6 +7,7 @@ use std::{
 use futures_util::TryStreamExt;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
+    error::BoxedError,
     rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
     CacheError, CachedArchive, RedisCache,
 };
@@ -79,7 +79,7 @@ async fn test_message() -> Result<(), CacheError> {
         }
 
         fn on_message_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn Error>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>>
         {
             Some(|archived, update| {
                 archived.update_archive(|mut pinned| {
@@ -100,7 +100,7 @@ async fn test_message() -> Result<(), CacheError> {
         }
 
         fn on_reaction_event(
-        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn Error>>>
+        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>>
         {
             None
         }

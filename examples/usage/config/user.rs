@@ -1,7 +1,8 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use redlight::{
     config::{Cacheable, ICachedUser},
+    error::BoxedError,
     rkyv_util::{
         id::{ArchivedId, IdRkyv},
         util::{ArchivedImageHash, ImageHashRkyv},
@@ -43,7 +44,7 @@ impl<'a> ICachedUser<'a> for CachedUser {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Box<dyn Error>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), BoxedError>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Since we don't have any super complex types and `update_archive`

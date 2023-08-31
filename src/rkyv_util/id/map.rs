@@ -224,40 +224,41 @@ impl INonZeroU64 for NonZeroU64 {
 // *is* enabled, our build will currently fail.
 #[cfg(feature = "validation")]
 const _: () = {
-    macro_rules! impl_endian {
-        ( $endian:ident: $target_endian:literal ) => {
-            impl INonZeroU64 for ::rkyv::rend::$endian<NonZeroU64> {
-                fn serialize<S, T>(
-                    list: &[Id<T>],
-                    serializer: &mut S,
-                ) -> Result<VecResolver, <S as Fallible>::Error>
-                where
-                    S: Fallible + Serializer + ScratchSpace + ?Sized,
-                {
-                    if cfg!(target_endian = $target_endian) {
-                        return <NonZeroU64 as INonZeroU64>::serialize(list, serializer);
-                    }
+    // TODO
+    // macro_rules! impl_endian {
+    //     ( $endian:ident: $target_endian:literal ) => {
+    //         impl INonZeroU64 for ::rkyv::rend::$endian<NonZeroU64> {
+    //             fn serialize<S, T>(
+    //                 list: &[Id<T>],
+    //                 serializer: &mut S,
+    //             ) -> Result<VecResolver, <S as Fallible>::Error>
+    //             where
+    //                 S: Fallible + Serializer + ScratchSpace + ?Sized,
+    //             {
+    //                 if cfg!(target_endian = $target_endian) {
+    //                     return <NonZeroU64 as INonZeroU64>::serialize(list, serializer);
+    //                 }
 
-                    #[allow(clippy::items_after_statements)]
-                    type Wrapper<T> = With<Id<T>, IdRkyv>;
-                    let iter = list.iter().map(Wrapper::<T>::cast);
+    //                 #[allow(clippy::items_after_statements)]
+    //                 type Wrapper<T> = With<Id<T>, IdRkyv>;
+    //                 let iter = list.iter().map(Wrapper::<T>::cast);
 
-                    ArchivedVec::serialize_from_iter::<Wrapper<T>, _, _, _>(iter, serializer)
-                }
+    //                 ArchivedVec::serialize_from_iter::<Wrapper<T>, _, _, _>(iter, serializer)
+    //             }
 
-                fn deserialize<T>(archived: &ArchivedVec<ArchivedId<T>>) -> Vec<Id<T>> {
-                    if cfg!(target_endian = $target_endian) {
-                        <NonZeroU64 as INonZeroU64>::deserialize(archived)
-                    } else {
-                        archived.iter().copied().map(Id::from).collect()
-                    }
-                }
-            }
-        };
-    }
+    //             fn deserialize<T>(archived: &ArchivedVec<ArchivedId<T>>) -> Vec<Id<T>> {
+    //                 if cfg!(target_endian = $target_endian) {
+    //                     <NonZeroU64 as INonZeroU64>::deserialize(archived)
+    //                 } else {
+    //                     archived.iter().copied().map(Id::from).collect()
+    //                 }
+    //             }
+    //         }
+    //     };
+    // }
 
-    impl_endian!(BigEndian: "big");
-    impl_endian!(LittleEndian: "little");
+    // impl_endian!(BigEndian: "big");
+    // impl_endian!(LittleEndian: "little");
 };
 
 // Vec<Id<T>>

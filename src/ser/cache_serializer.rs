@@ -58,9 +58,9 @@ impl<S, C, H> CacheSerializer for CompositeSerializer<S, C, H>
 where
     S: CacheSerializer,
     C: Default + Fallible,
-    <C as Fallible>::Error: StdError,
+    <C as Fallible>::Error: StdError + Send + Sync,
     H: Default + Fallible,
-    <H as Fallible>::Error: StdError,
+    <H as Fallible>::Error: StdError + Send + Sync,
 {
     type Bytes = <S as CacheSerializer>::Bytes;
 

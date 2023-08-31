@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    error::Error as StdError,
     fmt::{Debug, Formatter, Result as FmtResult},
     ops::Deref,
     time::Duration,
@@ -8,6 +7,7 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
+    error::BoxedError,
     rkyv_util::{
         guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
         id::IdRkyv,
@@ -108,8 +108,7 @@ async fn test_guild() -> Result<(), CacheError> {
         }
 
         fn on_guild_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>>
-        {
+        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>> {
             Some(|archived, update| {
                 archived.update_by_deserializing(
                     |deserialized| {

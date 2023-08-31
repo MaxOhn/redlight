@@ -1,5 +1,3 @@
-use std::error::Error as StdError;
-
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
@@ -17,7 +15,7 @@ use twilight_model::{
     voice::VoiceState,
 };
 
-use crate::CachedArchive;
+use crate::{error::BoxedError, CachedArchive};
 
 use super::{Cacheable, ReactionEvent};
 
@@ -41,7 +39,7 @@ pub trait ICachedChannel<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_pins_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>;
 }
 
 /// Create a type from a [`CurrentUser`] reference.
@@ -76,7 +74,7 @@ pub trait ICachedGuild<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_guild_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>>;
 }
 
 /// Create a type from a [`GuildIntegration`] reference.
@@ -105,7 +103,7 @@ pub trait ICachedMember<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>>;
 
     /// Specify how [`MemberUpdate`] events are handled.
     ///
@@ -122,7 +120,7 @@ pub trait ICachedMember<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>>;
 }
 
 /// Create a type from a [`Message`] reference.
@@ -145,7 +143,7 @@ pub trait ICachedMessage<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_message_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>>;
 
     /// Specify how reaction events are handled.
     ///
@@ -162,7 +160,7 @@ pub trait ICachedMessage<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_reaction_event(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>>;
 }
 
 /// Create a type from a [`Presence`] reference.
@@ -209,7 +207,7 @@ pub trait ICachedUser<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Box<dyn StdError>>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), BoxedError>>;
 }
 
 /// Create a type from a [`VoiceState`] reference.

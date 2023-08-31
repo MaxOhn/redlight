@@ -7,13 +7,13 @@ use rkyv::{ser::Serializer, Fallible};
 ///
 /// This trait is implemented automatically for all appropriate types.
 pub trait SerializerExt: Serializer<Error = Self::ErrorExt> {
-    type ErrorExt: StdError + 'static;
+    type ErrorExt: StdError + Send + Sync + 'static;
 }
 
 impl<T> SerializerExt for T
 where
     T: Serializer,
-    <T as Fallible>::Error: StdError,
+    <T as Fallible>::Error: StdError + Send + Sync,
 {
     type ErrorExt = <Self as Fallible>::Error;
 }

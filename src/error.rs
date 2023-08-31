@@ -10,6 +10,9 @@ type DedicatedConnectionError = RedisError;
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 type DedicatedConnectionError = deadpool_redis::PoolError;
 
+// TODO: docs
+pub type BoxedError = Box<dyn StdError + Send + Sync + 'static>;
+
 /// Represents all the ways something can fail.
 #[derive(Debug, ThisError)]
 pub enum CacheError {
@@ -35,7 +38,7 @@ pub enum CacheError {
     #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
     #[error("cached bytes did not correspond to the cached type")]
     /// Cached bytes did not correspond to the cached type.
-    Validation(#[source] Box<dyn StdError>),
+    Validation(#[source] BoxedError),
 
     #[cfg(feature = "cold_resume")]
     #[cfg_attr(docsrs, doc(cfg(feature = "cold_resume")))]
@@ -75,7 +78,7 @@ pub enum CacheError {
 /// Failed to serialize some type.
 pub struct SerializeError {
     #[source]
-    pub error: Box<dyn StdError>,
+    pub error: BoxedError,
     pub kind: SerializeErrorKind,
 }
 
@@ -104,7 +107,7 @@ pub enum SerializeErrorKind {
 /// Failed to update some kind.
 pub struct UpdateError {
     #[source]
-    pub error: Box<dyn StdError>,
+    pub error: BoxedError,
     pub kind: UpdateErrorKind,
 }
 
@@ -135,7 +138,7 @@ pub(crate) enum UpdateArchiveError<D: StdError, S: StdError> {
 /// Failed to serialize some type's meta.
 pub struct MetaError {
     #[source]
-    pub error: Box<dyn StdError>,
+    pub error: BoxedError,
     pub kind: MetaErrorKind,
 }
 
@@ -184,5 +187,5 @@ pub enum ExpireError {
     #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
     #[error("cached bytes did not correspond to the meta type")]
     /// Cached bytes did not correspond to the expected meta type.
-    Validation(#[source] Box<dyn StdError>),
+    Validation(#[source] BoxedError),
 }

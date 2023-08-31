@@ -1,4 +1,4 @@
-use std::{convert::Infallible, error::Error as StdError, time::Duration};
+use std::{convert::Infallible, time::Duration};
 
 use rkyv::{Archive, Deserialize, Fallible, Serialize};
 use twilight_model::{
@@ -24,6 +24,7 @@ use crate::{
         ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
+    error::BoxedError,
     ser::NoopSerializer,
     CachedArchive,
 };
@@ -41,8 +42,7 @@ impl ICachedChannel<'_> for Ignore {
     }
 
     fn on_pins_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Box<dyn StdError>>>
-    {
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>> {
         None
     }
 }
@@ -71,7 +71,7 @@ impl ICachedGuild<'_> for Ignore {
     }
 
     fn on_guild_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>> {
         None
     }
 }
@@ -82,12 +82,12 @@ impl ICachedMember<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>> {
         None
     }
 
     fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>> {
         None
     }
 }
@@ -98,13 +98,12 @@ impl ICachedMessage<'_> for Ignore {
     }
 
     fn on_message_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>> {
         None
     }
 
     fn on_reaction_event(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Box<dyn StdError>>>
-    {
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>> {
         None
     }
 }
@@ -139,7 +138,7 @@ impl ICachedUser<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Box<dyn StdError>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), BoxedError>> {
         None
     }
 }

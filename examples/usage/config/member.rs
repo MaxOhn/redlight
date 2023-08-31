@@ -1,7 +1,8 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use redlight::{
     config::{Cacheable, ICachedMember},
+    error::BoxedError,
     rkyv_util::id::IdRkyvMap,
     CachedArchive,
 };
@@ -34,7 +35,7 @@ impl<'a> ICachedMember<'a> for CachedMember {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Box<dyn Error>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Our archived fields will be of variable length so we cannot update
@@ -52,7 +53,7 @@ impl<'a> ICachedMember<'a> for CachedMember {
     }
 
     fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Box<dyn Error>>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>> {
         Some(|archive, partial| {
             archive.update_by_deserializing(
                 |deserialized| {
