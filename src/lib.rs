@@ -67,12 +67,16 @@
 //! [twilight]: https://github.com/twilight-rs/twilight
 //! [examples]: https://github.com/MaxOhn/redlight/tree/main/examples
 //! [`CacheConfig`]: https://docs.rs/redlight/latest/redlight/config/trait.CacheConfig.html
+//! [`RedisCache`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html
 //! [`new`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html#method.new
 //! [`new_with_pool`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html#method.new_with_pool
+//! [`RedisCache::update`]: https://docs.rs/redlight/latest/redlight/struct.RedisCache.html#method.update
 //! [`Ignore`]: https://docs.rs/redlight/latest/redlight/config/struct.Ignore.html
 //! [`serde`]: https://docs.rs/serde/latest/serde/
 //! [benchmark]: https://github.com/djkoloski/rust_serialization_benchmark#minecraft_savedata
 //! [`rkyv`]: https://docs.rs/rkyv/latest/rkyv/
+//! [`CachedArchive<T>`]: https://docs.rs/redlight/latest/redlight/struct.CachedArchive.html
+//! [`CachedArchive`]: https://docs.rs/redlight/latest/redlight/struct.CachedArchive.html
 //! [`Deref`]: https://doc.rust-lang.org/std/ops/trait.Deref.html
 //! [`bb8`]: https://docs.rs/bb8/latest/bb8/
 //! [`bb8-redis`]: https://docs.rs/bb8-redis/latest/bb8_redis/
