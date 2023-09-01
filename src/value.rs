@@ -222,3 +222,12 @@ impl<T: Archive> Deref for CachedArchive<T> {
         unsafe { rkyv::archived_root::<T>(self.bytes.as_ref()) }
     }
 }
+
+impl<T> Clone for CachedArchive<T> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes.clone(),
+            phantom: PhantomData,
+        }
+    }
+}

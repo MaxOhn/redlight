@@ -117,6 +117,12 @@ impl<T> PartialEq<Id<T>> for ArchivedId<T> {
     }
 }
 
+impl<T> PartialEq<ArchivedId<T>> for Id<T> {
+    fn eq(&self, other: &ArchivedId<T>) -> bool {
+        other.eq(self)
+    }
+}
+
 #[cfg(feature = "validation")]
 #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
 const _: () = {
