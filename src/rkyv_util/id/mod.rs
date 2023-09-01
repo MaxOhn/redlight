@@ -52,6 +52,14 @@ impl<T> ArchivedId<T> {
         #[allow(clippy::useless_conversion)]
         self.value.into()
     }
+
+    /// Cast an archived ID from one type to another.
+    pub const fn cast<New>(self) -> ArchivedId<New> {
+        ArchivedId {
+            value: self.value,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<T> Clone for ArchivedId<T> {
