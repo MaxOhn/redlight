@@ -256,8 +256,7 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::ThreadMemberUpdate(event) => {
                 if let Some(ref presence) = event.presence {
                     self.store_presence(&mut pipe, presence)?;
-
-                    if let Some(ref member) = event.member {
+                    if let Some(ref member) = event.member.member {
                         self.store_member(&mut pipe, presence.guild_id, member)?;
                     }
                 }
