@@ -83,6 +83,9 @@ impl<'c, C> Pipe<'c, C> {
     }
 
     pub(crate) fn srem(&mut self, key: RedisKey, member: impl ToRedisArgs) {
+        if member.to_redis_args().is_empty() {
+            return;
+        };
         self.pipe.srem(key, member).ignore();
     }
 
