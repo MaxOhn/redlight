@@ -157,7 +157,7 @@ impl RedisKey {
     pub(crate) const ROLE_META_PREFIX: &'static [u8] = b"ROLE_META";
     pub(crate) const ROLES_PREFIX: &'static [u8] = b"ROLES";
     #[cfg(feature = "cold_resume")]
-    pub(crate) const SESSIONS_PREFIX: &[u8] = b"SESSIONS";
+    pub(crate) const SESSIONS_PREFIX: &'static [u8] = b"SESSIONS";
     pub(crate) const STAGE_INSTANCE_PREFIX: &'static [u8] = b"STAGE_INSTANCE";
     pub(crate) const STAGE_INSTANCE_META_PREFIX: &'static [u8] = b"STAGE_INSTANCE_META";
     pub(crate) const STAGE_INSTANCES_PREFIX: &'static [u8] = b"STAGE_INSTANCES";
