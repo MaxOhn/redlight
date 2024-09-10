@@ -4,6 +4,7 @@ use std::{
     mem,
     mem::MaybeUninit,
     pin::Pin,
+    ptr,
     task::{Context, Poll},
     vec::IntoIter,
 };
@@ -11,13 +12,16 @@ use std::{
 use futures_util::{stream::StreamExt, Stream};
 use itoa::Buffer;
 use pin_project::pin_project;
+use rkyv::util::AlignedVec;
 
 use crate::{
     config::Cacheable,
+    error::CacheError,
     redis::{
         aio::ConnectionLike, Cmd, Connection, FromRedisValue, RedisFuture, RedisResult, Value,
     },
-    CacheError, CacheResult, CachedArchive,
+    util::BytesWrap,
+    CacheResult, CachedArchive,
 };
 
 /// An iterator that fetches cached entries asynchronously.
@@ -74,12 +78,12 @@ impl<'c, T: Cacheable> AsyncIter<'c, T> {
         // which is boxed, ensuring that fields won't move.
         // We also know that the resulting future lives at most as long as that
         // Box so it is fine for us to consider the lifetime as static.
-        fn extend_cmd_lifetime(cmd: &Cmd) -> &'static Cmd {
-            unsafe { &*(cmd as *const _) }
+        const fn extend_cmd_lifetime(cmd: &Cmd) -> &'static Cmd {
+            unsafe { &*ptr::from_ref(cmd) }
         }
 
         fn extend_conn_lifetime(conn: &mut Connection<'_>) -> &'static mut Connection<'static> {
-            unsafe { &mut *(conn as *mut Connection<'_>).cast::<Connection<'static>>() }
+            unsafe { &mut *ptr::from_mut(conn).cast::<Connection<'static>>() }
         }
 
         let id = ids.next()?;
@@ -131,14 +135,12 @@ impl<'c, T: Cacheable> Stream for AsyncIter<'c, T> {
                     let res = mem::replace(res, Ok(Value::Nil));
                     *next = Next::Create;
 
-                    match res.and_then(|value| Option::<Vec<u8>>::from_redis_value(&value)) {
-                        Ok(Some(bytes)) => {
-                            let bytes = bytes.into_boxed_slice();
-
-                            #[cfg(feature = "validation")]
+                    match res.and_then(|value| Option::from_redis_value(&value)) {
+                        Ok(Some(BytesWrap::<AlignedVec<16>>(bytes))) => {
+                            #[cfg(feature = "bytecheck")]
                             let archived_res = CachedArchive::new(bytes);
 
-                            #[cfg(not(feature = "validation"))]
+                            #[cfg(not(feature = "bytecheck"))]
                             let archived_res = Ok(CachedArchive::new_unchecked(bytes));
 
                             return Poll::Ready(Some(archived_res));

@@ -15,9 +15,8 @@ use twilight_model::{
     voice::VoiceState,
 };
 
-use crate::{error::BoxedError, CachedArchive};
-
 use super::{Cacheable, ReactionEvent};
+use crate::CachedArchive;
 
 /// Create a type from a [`Channel`] reference.
 pub trait ICachedChannel<'a>: Cacheable {
@@ -31,15 +30,14 @@ pub trait ICachedChannel<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - the [`ChannelPinsUpdate`] event
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_pins_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>>;
 }
 
 /// Create a type from a [`CurrentUser`] reference.
@@ -66,15 +64,14 @@ pub trait ICachedGuild<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - the [`GuildUpdate`] event
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_guild_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Self::Error>>;
 }
 
 /// Create a type from a [`GuildIntegration`] reference.
@@ -95,15 +92,14 @@ pub trait ICachedMember<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - a reference to the [`PartialMember`] instance
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>>;
 
     /// Specify how [`MemberUpdate`] events are handled.
     ///
@@ -112,15 +108,14 @@ pub trait ICachedMember<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - the [`MemberUpdate`] event
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>>;
 }
 
 /// Create a type from a [`Message`] reference.
@@ -135,15 +130,14 @@ pub trait ICachedMessage<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - the [`MessageUpdate`] event
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_message_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Self::Error>>;
 
     /// Specify how reaction events are handled.
     ///
@@ -152,15 +146,14 @@ pub trait ICachedMessage<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - a [`ReactionEvent`]
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_reaction_event(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Self::Error>>;
 }
 
 /// Create a type from a [`Presence`] reference.
@@ -199,15 +192,14 @@ pub trait ICachedUser<'a>: Cacheable {
     ///
     /// The returned function should take two arguments:
     ///   - a mutable reference to the current entry which must be updated
-    ///     either through [`CachedArchive::update_archive`] or [`CachedArchive::update_by_deserializing`].
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
     ///   - a reference to the [`PartialUser`] instance
-    ///
-    /// The return type must be [`Result`] where the error is a boxed [`std::error::Error`].
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), BoxedError>>;
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Self::Error>>;
 }
 
 /// Create a type from a [`VoiceState`] reference.

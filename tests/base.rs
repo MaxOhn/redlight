@@ -1,6 +1,7 @@
 mod cold_resume;
 mod events;
 mod metrics;
+mod util;
 
 use std::{env, sync::OnceLock};
 
@@ -29,8 +30,8 @@ pub fn pool() -> Pool {
 
         env::var("REDIS_URL").unwrap_or_else(|_| {
             panic!(
-                "Integration tests require env variable `REDIS_URL`. \
-                You can specify it through a .env file."
+                "Integration tests require env variable `REDIS_URL`. You can specify it through a \
+                 .env file."
             )
         })
     }

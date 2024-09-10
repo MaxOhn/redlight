@@ -1,4 +1,4 @@
-mod bytes_arg;
+mod bytes_wrap;
 mod zipped;
 
-pub(crate) use self::{bytes_arg::BytesArg, zipped::ZippedVecs};
+pub(crate) use self::{bytes_wrap::BytesWrap, zipped::ZippedVecs};

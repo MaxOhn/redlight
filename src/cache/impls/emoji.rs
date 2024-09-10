@@ -1,4 +1,4 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     guild::Emoji,
@@ -13,16 +13,14 @@ use crate::{
         meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedEmoji},
+    config::{CacheConfig, Cacheable, ICachedEmoji, SerializeMany},
     error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type EmojiSerializer<'a, C> = <<C as CacheConfig>::Emoji<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -36,7 +34,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut serializer = EmojiSerializer::<C>::default();
+        let mut serializer = C::Emoji::serialize_many();
 
         let (emoji_entries, emoji_ids) = emojis
             .iter()
@@ -45,18 +43,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 let key = RedisKey::Emoji { id };
                 let emoji = C::Emoji::from_emoji(emoji);
 
-                let bytes = emoji
-                    .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError {
-                        error: Box::new(e),
-                        kind: SerializeErrorKind::Emoji,
-                    })?;
+                let bytes = serializer
+                    .serialize_next(&emoji)
+                    .map_err(|e| SerializeError::new(e, SerializeErrorKind::Emoji))?;
 
                 trace!(bytes = bytes.as_ref().len());
 
-                Ok(((key, BytesArg(bytes)), id.get()))
+                Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if emoji_entries.is_empty() {
@@ -79,10 +74,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     EmojiMeta { guild: guild_id }.store(pipe, key)
                 })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::Emoji,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Emoji))?;
         }
 
         Ok(())
@@ -121,12 +113,18 @@ impl HasArchived for EmojiMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct EmojiMeta {
-    #[with(IdRkyv)]
+    #[rkyv(with = IdRkyv)]
     guild: Id<GuildMarker>,
 }
 
 impl IMeta<EmojiMetaKey> for EmojiMeta {
-    type Serializer = BufferSerializer<AlignedBytes<8>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

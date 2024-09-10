@@ -14,15 +14,13 @@ use crate::{
         meta::{atoi, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedMember},
+    config::{CacheConfig, Cacheable, ICachedMember, SerializeMany},
     error::{ExpireError, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type MemberSerializer<'a, C> = <<C as CacheConfig>::Member<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -40,10 +38,9 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let member = C::Member::from_member(guild_id, member);
 
-            let bytes = member.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Member,
-            })?;
+            let bytes = member
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Member))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -101,10 +98,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut member, update).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::Member,
-        })?;
+        update_fn(&mut member, update).map_err(|e| UpdateError::new(e, UpdateErrorKind::Member))?;
 
         let key = RedisKey::Member {
             guild: update.guild_id,
@@ -126,7 +120,7 @@ impl<C: CacheConfig> RedisCache<C> {
         members: &[Member],
     ) -> CacheResult<()> {
         if C::Member::WANTED {
-            let mut serializer = MemberSerializer::<C>::default();
+            let mut serializer = C::Member::serialize_many();
 
             let (member_tuples, user_ids) = members
                 .iter()
@@ -138,19 +132,15 @@ impl<C: CacheConfig> RedisCache<C> {
                     };
                     let member = C::Member::from_member(guild_id, member);
 
-                    let bytes =
-                        member
-                            .serialize_with(&mut serializer)
-                            .map_err(|e| SerializeError {
-                                error: Box::new(e),
-                                kind: SerializeErrorKind::Member,
-                            })?;
+                    let bytes = serializer
+                        .serialize_next(&member)
+                        .map_err(|e| SerializeError::new(e, SerializeErrorKind::Member))?;
 
                     trace!(bytes = bytes.as_ref().len());
 
-                    Ok(((key, BytesArg(bytes)), user_id.get()))
+                    Ok(((key, BytesWrap(bytes)), user_id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
                 .unzip();
 
             if !member_tuples.is_empty() {
@@ -219,10 +209,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut member, partial_member).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::PartialMember,
-        })?;
+        update_fn(&mut member, partial_member)
+            .map_err(|e| UpdateError::new(e, UpdateErrorKind::PartialMember))?;
 
         let key = RedisKey::Member {
             guild: guild_id,

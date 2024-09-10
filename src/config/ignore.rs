@@ -1,6 +1,9 @@
-use std::{convert::Infallible, time::Duration};
+use std::time::Duration;
 
-use rkyv::{Archive, Deserialize, Fallible, Serialize};
+use rkyv::{
+    rancor::{Fallible, Panic},
+    Archive, Place,
+};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
@@ -18,22 +21,20 @@ use twilight_model::{
     voice::VoiceState,
 };
 
+use super::ReactionEvent;
 use crate::{
     config::{
         Cacheable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
         ICachedIntegration, ICachedMember, ICachedMessage, ICachedPresence, ICachedRole,
         ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
-    error::BoxedError,
-    ser::NoopSerializer,
     CachedArchive,
 };
 
-use super::ReactionEvent;
-
 /// Struct to indicate that a type should not be cached.
 ///
-/// Used by specifying [`Ignore`] for associated types of [`CacheConfig`](crate::config::CacheConfig).
+/// Used by specifying [`Ignore`] for associated types of
+/// [`CacheConfig`](crate::config::CacheConfig).
 pub struct Ignore;
 
 impl ICachedChannel<'_> for Ignore {
@@ -42,7 +43,7 @@ impl ICachedChannel<'_> for Ignore {
     }
 
     fn on_pins_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>> {
         None
     }
 }
@@ -71,7 +72,7 @@ impl ICachedGuild<'_> for Ignore {
     }
 
     fn on_guild_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Self::Error>> {
         None
     }
 }
@@ -82,12 +83,12 @@ impl ICachedMember<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>> {
         None
     }
 
     fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>> {
         None
     }
 }
@@ -98,12 +99,12 @@ impl ICachedMessage<'_> for Ignore {
     }
 
     fn on_message_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Self::Error>> {
         None
     }
 
     fn on_reaction_event(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Self::Error>> {
         None
     }
 }
@@ -138,7 +139,7 @@ impl ICachedUser<'_> for Ignore {
     }
 
     fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), BoxedError>> {
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Self::Error>> {
         None
     }
 }
@@ -150,12 +151,16 @@ impl ICachedVoiceState<'_> for Ignore {
 }
 
 impl Cacheable for Ignore {
-    type Serializer = NoopSerializer;
+    type Bytes = [u8; 0];
 
     const WANTED: bool = false;
 
     fn expire() -> Option<Duration> {
         None
+    }
+
+    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        Ok([])
     }
 }
 
@@ -163,33 +168,9 @@ impl Archive for Ignore {
     type Archived = ();
     type Resolver = ();
 
-    unsafe fn resolve(&self, _: usize, _: Self::Resolver, _: *mut Self::Archived) {}
+    fn resolve(&self, (): Self::Resolver, _: Place<Self::Archived>) {}
 }
 
-impl Serialize<NoopSerializer> for Ignore {
-    fn serialize(&self, _: &mut NoopSerializer) -> Result<(), Infallible> {
-        Ok(())
-    }
-}
-
-impl<D: Fallible + ?Sized> Deserialize<Self, D> for Ignore {
-    fn deserialize(&self, _: &mut D) -> Result<Self, D::Error> {
-        Ok(Self)
-    }
-}
-
-impl<'a> From<&'a ()> for Ignore {
-    fn from(_: &'a ()) -> Self {
-        Self
-    }
-}
-
-#[cfg(feature = "validation")]
-#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
-impl<C> rkyv::CheckBytes<C> for Ignore {
-    type Error = Infallible;
-
-    unsafe fn check_bytes<'a>(value: *const Self, _: &mut C) -> Result<&'a Self, Self::Error> {
-        Ok(&*value)
-    }
+impl Fallible for Ignore {
+    type Error = Panic;
 }

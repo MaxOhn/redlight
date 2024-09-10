@@ -7,23 +7,21 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
-    error::BoxedError,
+    error::{CacheError, UpdateArchiveError},
     rkyv_util::{
         guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
         id::IdRkyv,
         util::{BitflagsRkyv, RkyvAsU8},
     },
-    CacheError, CachedArchive, RedisCache,
+    CachedArchive, RedisCache,
 };
 use rkyv::{
-    ser::serializers::{
-        AlignedSerializer, AllocScratch, BufferSerializer, CompositeSerializer, FallbackScratch,
-        HeapScratch,
-    },
+    rancor::{Fallible, Panic},
+    ser::writer::Buffer,
+    util::{Align, AlignedVec},
     with::Map,
-    AlignedBytes, AlignedVec, Archive, Deserialize, Infallible, Serialize,
+    Archive, Deserialize, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     channel::message::Sticker,
     gateway::{
@@ -38,12 +36,10 @@ use twilight_model::{
     id::{marker::StickerMarker, Id},
 };
 
+use super::{channel::text_channel, sticker::stickers};
 use crate::pool;
 
-use super::{channel::text_channel, sticker::stickers};
-
 #[tokio::test]
-#[serial]
 async fn test_guild() -> Result<(), CacheError> {
     struct Config;
 
@@ -67,27 +63,26 @@ async fn test_guild() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize, Deserialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedGuild {
-        #[with(AfkTimeoutRkyv)]
+        #[rkyv(with = AfkTimeoutRkyv)]
         afk_timeout: AfkTimeout,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         default_message_notifications: DefaultMessageNotificationLevel,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         explicit_content_filter: ExplicitContentFilter,
-        #[with(Map<GuildFeatureRkyv>)]
+        #[rkyv(with = Map<GuildFeatureRkyv>)]
         features: Vec<GuildFeature>,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         mfa_level: MfaLevel,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         nsfw_level: NSFWLevel,
-        #[with(Map<BitflagsRkyv>)]
+        #[rkyv(with = Map<BitflagsRkyv>)]
         permissions: Option<Permissions>,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         premium_tier: PremiumTier,
-        #[with(BitflagsRkyv)]
+        #[rkyv(with = BitflagsRkyv)]
         system_channel_flags: SystemChannelFlags,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         verification_level: VerificationLevel,
     }
 
@@ -108,44 +103,47 @@ async fn test_guild() -> Result<(), CacheError> {
         }
 
         fn on_guild_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), BoxedError>> {
+        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Self::Error>> {
             Some(|archived, update| {
-                archived.update_by_deserializing(
-                    |deserialized| {
-                        deserialized.afk_timeout = update.afk_timeout;
-                        deserialized.default_message_notifications =
-                            update.default_message_notifications;
-                        deserialized.explicit_content_filter = update.explicit_content_filter;
-                        deserialized.features = update.features.to_owned();
-                        deserialized.mfa_level = update.mfa_level;
-                        deserialized.nsfw_level = update.nsfw_level;
-                        deserialized.permissions = update.permissions;
-                        deserialized.premium_tier = update.premium_tier;
-                        deserialized.system_channel_flags = update.system_channel_flags;
-                        deserialized.verification_level = update.verification_level;
-                    },
-                    &mut Infallible,
-                )
+                archived
+                    .update_by_deserializing(
+                        |deserialized| {
+                            deserialized.afk_timeout = update.afk_timeout;
+                            deserialized.default_message_notifications =
+                                update.default_message_notifications;
+                            deserialized.explicit_content_filter = update.explicit_content_filter;
+                            deserialized.features = update.features.to_owned();
+                            deserialized.mfa_level = update.mfa_level;
+                            deserialized.nsfw_level = update.nsfw_level;
+                            deserialized.permissions = update.permissions;
+                            deserialized.premium_tier = update.premium_tier;
+                            deserialized.system_channel_flags = update.system_channel_flags;
+                            deserialized.verification_level = update.verification_level;
+                        },
+                        &mut (),
+                    )
+                    .map_err(UpdateArchiveError::unwrap_ser)
             })
         }
     }
 
     impl Cacheable for CachedGuild {
-        type Serializer = CompositeSerializer<
-            AlignedSerializer<AlignedVec>,
-            FallbackScratch<HeapScratch<32>, AllocScratch>,
-            Infallible,
-        >;
+        type Bytes = AlignedVec;
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            rkyv::to_bytes(self)
+        }
+    }
+
+    impl Fallible for CachedGuild {
+        type Error = Panic;
     }
 
     impl PartialEq<Guild> for ArchivedCachedGuild {
-        // the `from` is necessary in case the `archive_le` or `archive_be`
-        // features are enabled in rkyv
-        #[allow(clippy::useless_conversion)]
         fn eq(&self, other: &Guild) -> bool {
             u16::from(self.afk_timeout) == other.afk_timeout.get()
                 && self.default_message_notifications
@@ -187,9 +185,8 @@ async fn test_guild() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedSticker {
-        #[with(IdRkyv)]
+        #[rkyv(with = IdRkyv)]
         id: Id<StickerMarker>,
     }
 
@@ -200,11 +197,22 @@ async fn test_guild() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedSticker {
-        type Serializer = BufferSerializer<AlignedBytes<8>>;
+        type Bytes = [u8; 8];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            let mut bytes = Align([0_u8; 8]);
+            rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
+
+            Ok(bytes.0)
+        }
+    }
+
+    impl Fallible for CachedSticker {
+        type Error = Panic;
     }
 
     let mut expected = guild();
@@ -283,6 +291,7 @@ pub fn guild() -> Guild {
         public_updates_channel_id: None,
         roles: Vec::new(),
         rules_channel_id: None,
+        safety_alerts_channel_id: Some(Id::new(232)),
         splash: None,
         stage_instances: Vec::new(),
         stickers: stickers(),

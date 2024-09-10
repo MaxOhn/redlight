@@ -35,10 +35,9 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let integration = C::Integration::from_integration(integration);
 
-            let bytes = integration.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Integration,
-            })?;
+            let bytes = integration
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Integration))?;
 
             trace!(bytes = bytes.as_ref().len());
 

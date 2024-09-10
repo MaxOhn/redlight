@@ -2,15 +2,16 @@ use std::time::Duration;
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedCurrentUser, Ignore},
-    rkyv_util::{id::IdRkyv, util::ImageHashRkyv},
-    CacheError, RedisCache,
+    error::CacheError,
+    rkyv_util::id::IdRkyv,
+    RedisCache,
 };
 use rkyv::{
-    ser::serializers::AlignedSerializer,
-    with::{Map, RefAsBox},
-    AlignedVec, Archive, Serialize,
+    rancor::{Fallible, Panic},
+    util::AlignedVec,
+    with::{InlineAsBox, Map},
+    Archive, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     gateway::{event::Event, payload::incoming::UserUpdate},
     id::{marker::UserMarker, Id},
@@ -21,7 +22,6 @@ use twilight_model::{
 use crate::pool;
 
 #[tokio::test]
-#[serial]
 async fn test_current_user() -> Result<(), CacheError> {
     struct Config;
 
@@ -45,13 +45,30 @@ async fn test_current_user() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
+    #[rkyv(remote = ImageHash)]
+    #[expect(unused)]
+    struct ImageHashRkyv {
+        #[rkyv(getter = get_animated)]
+        animated: bool,
+        #[rkyv(getter = get_bytes)]
+        bytes: [u8; 16],
+    }
+
+    fn get_animated(image_hash: &ImageHash) -> bool {
+        image_hash.is_animated()
+    }
+
+    fn get_bytes(image_hash: &ImageHash) -> [u8; 16] {
+        image_hash.bytes()
+    }
+
+    #[derive(Archive, Serialize)]
     struct CachedCurrentUser<'a> {
-        #[with(Map<ImageHashRkyv>)]
+        #[rkyv(with = Map<ImageHashRkyv>)]
         avatar: Option<ImageHash>,
-        #[with(RefAsBox)]
+        #[rkyv(with = InlineAsBox)]
         name: &'a str,
-        #[with(IdRkyv)]
+        #[rkyv(with = IdRkyv)]
         id: Id<UserMarker>,
     }
 
@@ -66,11 +83,19 @@ async fn test_current_user() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedCurrentUser<'_> {
-        type Serializer = AlignedSerializer<AlignedVec>;
+        type Bytes = AlignedVec;
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            rkyv::to_bytes(self)
+        }
+    }
+
+    impl Fallible for CachedCurrentUser<'_> {
+        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

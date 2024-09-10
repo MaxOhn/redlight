@@ -3,14 +3,13 @@ use std::{error::Error as StdError, fmt::Write};
 use futures_util::StreamExt;
 use tracing::{error, info, trace, warn};
 
+use super::meta::MetaKey;
 use crate::{
     config::{CacheConfig, Cacheable},
     error::ExpireError,
     redis::{aio::PubSub, Cmd, DedicatedConnection, Pipeline, Pool},
     CacheResult, RedisCache,
 };
-
-use super::meta::MetaKey;
 
 impl<C: CacheConfig> RedisCache<C> {
     pub(super) async fn handle_expire(pool: &Pool) -> CacheResult<()> {

@@ -1,6 +1,7 @@
 use rkyv::{
+    rancor::Fallible,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Fallible,
+    Archive, Archived, Place,
 };
 use twilight_model::guild::AfkTimeout;
 
@@ -15,7 +16,7 @@ use twilight_model::guild::AfkTimeout;
 ///
 /// #[derive(Archive)]
 /// struct Cached {
-///     #[with(AfkTimeoutRkyv)]
+///     #[rkyv(with = AfkTimeoutRkyv)]
 ///     afk_timeout: AfkTimeout,
 /// }
 /// ```
@@ -25,13 +26,8 @@ impl ArchiveWith<AfkTimeout> for AfkTimeoutRkyv {
     type Archived = Archived<u16>;
     type Resolver = ();
 
-    unsafe fn resolve_with(
-        timeout: &AfkTimeout,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        timeout.get().resolve(pos, resolver, out);
+    fn resolve_with(timeout: &AfkTimeout, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        timeout.get().resolve(resolver, out);
     }
 }
 
@@ -42,42 +38,36 @@ impl<S: Fallible + ?Sized> SerializeWith<AfkTimeout, S> for AfkTimeoutRkyv {
 }
 
 impl<D: Fallible + ?Sized> DeserializeWith<Archived<u16>, AfkTimeout, D> for AfkTimeoutRkyv {
-    fn deserialize_with(
-        archived: &Archived<u16>,
-        _: &mut D,
-    ) -> Result<AfkTimeout, <D as Fallible>::Error> {
-        // the `from` is necessary in case the `archive_le` or `archive_be`
-        // features are enabled in rkyv
-        #[allow(clippy::useless_conversion)]
+    fn deserialize_with(archived: &Archived<u16>, _: &mut D) -> Result<AfkTimeout, D::Error> {
         Ok(u16::from(*archived).into())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_afk_timeout() {
-        type Wrapper = With<AfkTimeout, AfkTimeoutRkyv>;
-
+    fn test_rkyv_afk_timeout() -> Result<(), Error> {
         let timeouts = [AfkTimeout::FIFTEEN_MINUTES, AfkTimeout::from(12345_u16)];
 
         for timeout in timeouts {
-            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timeout)).unwrap();
+            let bytes = rkyv::to_bytes(With::<_, AfkTimeoutRkyv>::cast(&timeout))?;
 
-            #[cfg(feature = "validation")]
-            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+            #[cfg(feature = "bytecheck")]
+            let archived: &Archived<u16> = rkyv::access(&bytes)?;
 
-            #[cfg(not(feature = "validation"))]
-            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            #[cfg(not(feature = "bytecheck"))]
+            let archived: &Archived<u16> = unsafe { rkyv::access_unchecked(&bytes) };
 
             let deserialized: AfkTimeout =
-                AfkTimeoutRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+                rkyv::deserialize(With::<_, AfkTimeoutRkyv>::cast(archived))?;
 
             assert_eq!(timeout, deserialized);
         }
+
+        Ok(())
     }
 }

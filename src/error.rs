@@ -1,5 +1,4 @@
-use std::error::Error as StdError;
-
+use rkyv::rancor::{BoxedError, Source};
 use thiserror::Error as ThisError;
 
 use crate::redis::RedisError;
@@ -9,9 +8,6 @@ type DedicatedConnectionError = RedisError;
 
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 type DedicatedConnectionError = deadpool_redis::PoolError;
-
-// TODO: docs
-pub type BoxedError = Box<dyn StdError + Send + Sync + 'static>;
 
 /// Represents all the ways something can fail.
 #[derive(Debug, ThisError)]
@@ -34,24 +30,17 @@ pub enum CacheError {
     /// Failed to get a connection.
     GetConnection(#[source] deadpool_redis::PoolError),
 
-    #[cfg(feature = "validation")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
+    #[cfg(feature = "bytecheck")]
+    #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "bytecheck")))]
     #[error("cached bytes did not correspond to the cached type")]
     /// Cached bytes did not correspond to the cached type.
     Validation(#[source] BoxedError),
 
     #[cfg(feature = "cold_resume")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cold_resume")))]
+    #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "cold_resume")))]
     #[error("failed to serialize sessions")]
     /// Failed to serialize sessions.
-    SerializeSessions(
-        #[source]
-        rkyv::ser::serializers::CompositeSerializerError<
-            std::convert::Infallible,
-            rkyv::ser::serializers::FixedSizeScratchError,
-            std::convert::Infallible,
-        >,
-    ),
+    SerializeSessions(#[source] BoxedError),
 
     #[error(transparent)]
     /// Expire-related error.
@@ -80,6 +69,15 @@ pub struct SerializeError {
     #[source]
     pub error: BoxedError,
     pub kind: SerializeErrorKind,
+}
+
+impl SerializeError {
+    pub(crate) fn new<E: Source>(e: E, kind: SerializeErrorKind) -> Self {
+        Self {
+            error: BoxedError::new(e),
+            kind,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -111,6 +109,15 @@ pub struct UpdateError {
     pub kind: UpdateErrorKind,
 }
 
+impl UpdateError {
+    pub(crate) fn new<E: Source>(e: E, kind: UpdateErrorKind) -> Self {
+        Self {
+            error: BoxedError::new(e),
+            kind,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// The type that failed to update.
 ///
@@ -126,20 +133,59 @@ pub enum UpdateErrorKind {
 }
 
 #[derive(Debug, ThisError)]
-pub(crate) enum UpdateArchiveError<D: StdError, S: StdError> {
+pub enum UpdateArchiveError<D: Source, S: Source = D> {
     #[error("failed to deserialize")]
     Deserialization(#[source] D),
     #[error("failed to serialize")]
     Serialization(#[source] S),
 }
 
+impl<D: Source, S: Source> UpdateArchiveError<D, S> {
+    /// Unwrap a deserialization error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is a serialization error.
+    pub fn unwrap_de(self) -> D {
+        match self {
+            UpdateArchiveError::Deserialization(err) => err,
+            UpdateArchiveError::Serialization(_) => {
+                panic!("expected deserialization error but got serialization error")
+            }
+        }
+    }
+
+    /// Unwrap a serialization error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is a deserialization error.
+    pub fn unwrap_ser(self) -> S {
+        match self {
+            UpdateArchiveError::Serialization(err) => err,
+            UpdateArchiveError::Deserialization(_) => {
+                panic!("expected serialization error but got deserialization error")
+            }
+        }
+    }
+}
+
 #[derive(Debug, ThisError)]
 #[error("failed to serialize {kind:?} meta")]
-/// Failed to serialize some type's meta.
+/// Failed to serialize a type's meta.
 pub struct MetaError {
     #[source]
     pub error: BoxedError,
     pub kind: MetaErrorKind,
+}
+
+impl MetaError {
+    pub(crate) fn new<E: Source>(e: E, kind: MetaErrorKind) -> Self {
+        Self {
+            error: BoxedError::new(e),
+            kind,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -183,8 +229,8 @@ pub enum ExpireError {
     /// Failed to subscribe to events.
     Subscribe(#[source] RedisError),
 
-    #[cfg(feature = "validation")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
+    #[cfg(feature = "bytecheck")]
+    #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "bytecheck")))]
     #[error("cached bytes did not correspond to the meta type")]
     /// Cached bytes did not correspond to the expected meta type.
     Validation(#[source] BoxedError),

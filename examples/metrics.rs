@@ -15,12 +15,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize env variables from our .env file
     dotenvy::dotenv().unwrap();
 
-    // Set the global metrics recorder.
-    // The recorder may originate from dependencies such as `https://crates.io/crates/metrics-exporter-prometheus`
-    // or a custom implementation. Checkout the documentation of the `metrics` crate for more info.
+    // Set the global metrics recorder. The recorder may originate from
+    // dependencies such as https://crates.io/crates/metrics-exporter-prometheus
+    // or a custom implementation. Checkout the documentation of the `metrics`
+    // crate for more info.
     metrics::set_boxed_recorder(Box::new(PrintRecorder))?;
 
-    // Create our cache by using our simple `Config` which only caches stage instances
+    // Create our cache by using our simple `Config` which only caches stage
+    // instances
     let url = env::var("REDIS_URL")?;
     println!("Creating cache...");
     let cache = RedisCache::<Config>::new(&url).await?;
@@ -122,7 +124,7 @@ mod config {
     use std::time::Duration;
 
     use redlight::config::{CacheConfig, Cacheable, ICachedStageInstance, Ignore};
-    use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
+    use rkyv::{rancor::Fallible, Archive, Serialize};
     use twilight_model::channel::StageInstance;
 
     pub struct Config;
@@ -146,7 +148,6 @@ mod config {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     pub struct CachedStageInstance;
 
     impl<'a> ICachedStageInstance<'a> for CachedStageInstance {
@@ -156,10 +157,18 @@ mod config {
     }
 
     impl Cacheable for CachedStageInstance {
-        type Serializer = BufferSerializer<AlignedBytes<0>>;
+        type Bytes = [u8; 0];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            Ok([])
+        }
+    }
+
+    impl Fallible for CachedStageInstance {
+        type Error = rkyv::rancor::Error;
     }
 }

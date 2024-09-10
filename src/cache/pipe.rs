@@ -1,11 +1,13 @@
 use std::time::Duration;
 
+use rkyv::util::AlignedVec;
 use tracing::{instrument, trace};
 
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
     redis::{Cmd, ConnectionState, FromRedisValue, Pipeline, ToRedisArgs},
+    util::BytesWrap,
     CacheResult, CachedArchive, RedisCache,
 };
 
@@ -107,17 +109,18 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
         T: Cacheable,
     {
         let conn = self.conn.get().await?;
-        let bytes: Vec<u8> = Cmd::get(key).query_async(conn).await?;
+
+        let BytesWrap::<AlignedVec<16>>(bytes) = Cmd::get(key).query_async(conn).await?;
 
         if bytes.is_empty() {
             return Ok(None);
         }
 
-        #[cfg(feature = "validation")]
-        let res = CachedArchive::new(bytes.into_boxed_slice());
+        #[cfg(feature = "bytecheck")]
+        let res = CachedArchive::new(bytes);
 
-        #[cfg(not(feature = "validation"))]
-        let res = Ok(CachedArchive::new_unchecked(bytes.into_boxed_slice()));
+        #[cfg(not(feature = "bytecheck"))]
+        let res = Ok(CachedArchive::new_unchecked(bytes));
 
         res.map(Some)
     }

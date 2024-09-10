@@ -12,14 +12,14 @@ categories = ["database"]
 autotests = false
 
 [features]
-default = ["bb8", "validation"]
+default = ["bb8", "bytecheck"]
 # Use `bb8` as underlying connection pool.
 bb8 = ["dep:bb8-redis"]
 # Use `deadpool` as underlying connection pool.
 deadpool = ["dep:deadpool-redis"]
 # Always validate data when fetched from the cache.
-# This adds a performance penalty but ensures that stored data always matches the defined types.
-validation = ["dep:bytecheck", "rkyv/validation"]
+# This adds a performance penalty but prevents undefined behavior if the stored data no longer matches defined types.
+bytecheck = ["rkyv/bytecheck"]
 # Enable the methods `RedisCache::freeze` and `RedisCache::defrost` to store and load discord gateway sessions.
 cold_resume = ["dep:twilight-gateway"]
 # Starts a background task that updates metrics in an interval.
@@ -28,13 +28,12 @@ metrics = ["dep:metrics"]
 
 [dependencies]
 bb8-redis = { version = "0.13.1", default-features = false, optional = true }
-bytecheck = { version = "~0.7.0", default-features = false, optional = true }
 deadpool-redis = { version = "0.12.0", default-features = false, optional = true, features = ["rt_tokio_1"]}
 futures-util = { version = "0.3.28", default-features = false, features = ["std"] }
 itoa = { version = "~1.0.9", default-features = false }
 metrics = { version = "0.21.1", default-features = false, optional = true }
 pin-project = { version = "~1.1.3", default-features = false }
-rkyv = { version = "0.7.42", default-features = false, features = ["size_32", "std", "strict"] }
+rkyv = { version = "0.8.0-rc.2", default-features = false, features = ["std"] }
 thiserror = { version = "~1.0.47", default-features = false }
 tokio = { version = "~1.32.0", default-features = false, features = ["rt"] }
 tracing = { version = "0.1.37", default-features = false, features = ["std", "attributes"] }
@@ -43,7 +42,6 @@ twilight-model = { version = "0.15.2", default-features = false }
 
 [dev-dependencies]
 dotenvy = { version = "0.15" }
-serial_test = { version = "2.0", default-features = false, features = ["async", "file_locks"] }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 twilight-gateway = { version = "0.15", default-features = false, features = ["rustls-native-roots"] }
@@ -58,9 +56,6 @@ required-features = ["metrics"]
 
 [package.metadata.docs.rs]
 # document these features
-features = ["bb8", "validation", "cold_resume", "metrics"]
+features = ["bb8", "bytecheck", "cold_resume", "metrics"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
-
-[patch.crates-io]
-rkyv = { path = "../rkyv/rkyv" }

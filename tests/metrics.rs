@@ -7,15 +7,21 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "bb8")]
+use bb8_redis::redis;
+#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
+use deadpool_redis::redis;
 use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
 use redis::Cmd;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedChannel, ICachedSticker, Ignore},
-    error::BoxedError,
-    CacheError, CachedArchive, RedisCache,
+    error::CacheError,
+    CachedArchive, RedisCache,
 };
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
-use serial_test::serial;
+use rkyv::{
+    rancor::{Fallible, Panic},
+    Archive, Serialize,
+};
 use twilight_model::{
     channel::{message::Sticker, Channel},
     gateway::{
@@ -29,14 +35,7 @@ use crate::{
     pool,
 };
 
-#[cfg(feature = "bb8")]
-use bb8_redis::redis;
-
-#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-use deadpool_redis::redis;
-
 #[tokio::test]
-#[serial]
 async fn test_metrics() -> Result<(), CacheError> {
     struct Config;
 
@@ -59,7 +58,6 @@ async fn test_metrics() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedChannel;
 
     impl<'a> ICachedChannel<'a> for CachedChannel {
@@ -68,22 +66,29 @@ async fn test_metrics() -> Result<(), CacheError> {
         }
 
         fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>>
         {
             None
         }
     }
 
     impl Cacheable for CachedChannel {
-        type Serializer = BufferSerializer<AlignedBytes<0>>;
+        type Bytes = [u8; 0];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            Ok([])
+        }
+    }
+
+    impl Fallible for CachedChannel {
+        type Error = Panic;
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedSticker;
 
     impl<'a> ICachedSticker<'a> for CachedSticker {
@@ -93,11 +98,19 @@ async fn test_metrics() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedSticker {
-        type Serializer = BufferSerializer<AlignedBytes<0>>;
+        type Bytes = [u8; 0];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            Ok([])
+        }
+    }
+
+    impl Fallible for CachedSticker {
+        type Error = Panic;
     }
 
     struct GaugeHandle {
@@ -181,7 +194,7 @@ async fn test_metrics() -> Result<(), CacheError> {
 
     {
         let mut conn = pool.get().await.map_err(CacheError::GetConnection)?;
-        Cmd::new()
+        let _: () = Cmd::new()
             .arg("FLUSHDB")
             .query_async(conn.deref_mut())
             .await?;

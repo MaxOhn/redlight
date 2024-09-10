@@ -2,11 +2,15 @@ use std::time::Duration;
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedStageInstance, Ignore},
+    error::CacheError,
     rkyv_util::stage_instance::PrivacyLevelRkyv,
-    CacheError, RedisCache,
+    RedisCache,
 };
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archive, Serialize};
-use serial_test::serial;
+use rkyv::{
+    rancor::{Fallible, Panic},
+    ser::writer::Buffer,
+    Archive, Serialize,
+};
 use twilight_model::{
     channel::{stage_instance::PrivacyLevel, StageInstance},
     gateway::{event::Event, payload::incoming::StageInstanceCreate},
@@ -16,7 +20,6 @@ use twilight_model::{
 use crate::pool;
 
 #[tokio::test]
-#[serial]
 async fn test_stage_instance() -> Result<(), CacheError> {
     struct Config;
 
@@ -40,9 +43,8 @@ async fn test_stage_instance() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedStageInstance {
-        #[with(PrivacyLevelRkyv)]
+        #[rkyv(with = PrivacyLevelRkyv)]
         privacy_level: PrivacyLevel,
     }
 
@@ -55,11 +57,22 @@ async fn test_stage_instance() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedStageInstance {
-        type Serializer = BufferSerializer<AlignedBytes<1>>;
+        type Bytes = [u8; 1];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            let mut bytes = [0_u8; 1];
+            rkyv::api::high::to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+            Ok(bytes)
+        }
+    }
+
+    impl Fallible for CachedStageInstance {
+        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

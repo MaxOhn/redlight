@@ -7,20 +7,19 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedIntegration, Ignore},
+    error::CacheError,
     rkyv_util::{
         integration::{GuildIntegrationTypeRkyv, IntegrationAccountRkyv},
         util::RkyvAsU8,
     },
-    CacheError, RedisCache,
+    RedisCache,
 };
 use rkyv::{
-    ser::serializers::{
-        AlignedSerializer, AllocScratch, CompositeSerializer, FallbackScratch, HeapScratch,
-    },
-    with::{Map, RefAsBox},
-    AlignedVec, Archive, Infallible, Serialize,
+    rancor::{Fallible, Panic},
+    util::AlignedVec,
+    with::{InlineAsBox, Map},
+    Archive, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     gateway::{event::Event, payload::incoming::IntegrationCreate},
     guild::{
@@ -33,7 +32,6 @@ use twilight_model::{
 use crate::pool;
 
 #[tokio::test]
-#[serial]
 async fn test_integration() -> Result<(), CacheError> {
     struct Config;
 
@@ -57,15 +55,14 @@ async fn test_integration() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedIntegration<'a> {
-        #[with(IntegrationAccountRkyv)]
+        #[rkyv(with = IntegrationAccountRkyv)]
         account: &'a IntegrationAccount,
-        #[with(Map<RkyvAsU8>)]
+        #[rkyv(with = Map<RkyvAsU8>)]
         expire_behavior: Option<IntegrationExpireBehavior>,
-        #[with(GuildIntegrationTypeRkyv)]
+        #[rkyv(with = GuildIntegrationTypeRkyv)]
         kind: &'a GuildIntegrationType,
-        #[with( Map<RefAsBox>)]
+        #[rkyv(with =  Map<InlineAsBox>)]
         scopes: Option<&'a [String]>,
     }
 
@@ -81,15 +78,19 @@ async fn test_integration() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedIntegration<'_> {
-        type Serializer = CompositeSerializer<
-            AlignedSerializer<AlignedVec>,
-            FallbackScratch<HeapScratch<32>, AllocScratch>,
-            Infallible,
-        >;
+        type Bytes = AlignedVec<8>;
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            rkyv::api::high::to_bytes_in(self, AlignedVec::default())
+        }
+    }
+
+    impl Fallible for CachedIntegration<'_> {
+        type Error = Panic;
     }
 
     impl PartialEq<GuildIntegration> for ArchivedCachedIntegration<'_> {

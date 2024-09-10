@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use rkyv::util::AlignedVec;
 use twilight_model::id::{
     marker::{
         ChannelMarker, EmojiMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker,
@@ -8,14 +9,15 @@ use twilight_model::id::{
     Id,
 };
 
+use super::Connection;
 use crate::{
-    config::CacheConfig,
+    config::{CacheConfig, Cacheable},
+    error::CacheError,
     key::RedisKey,
     redis::{Cmd, FromRedisValue},
-    CacheError, CacheResult, CachedArchive, RedisCache,
+    util::BytesWrap,
+    CacheResult, CachedArchive, RedisCache,
 };
-
-use super::Connection;
 
 impl<C: CacheConfig> RedisCache<C> {
     /// Get a channel entry.
@@ -158,7 +160,7 @@ impl<C: CacheConfig> RedisCache<C> {
         channel_id: Id<ChannelMarker>,
     ) -> CacheResult<Vec<Id<MessageMarker>>> {
         fn convert_ids(ids: Vec<u64>) -> Vec<Id<MessageMarker>> {
-            #[cfg(feature = "validation")]
+            #[cfg(feature = "bytecheck")]
             if ids.iter().any(|&id| id == 0) {
                 tracing::warn!("IDs must not be zero");
 
@@ -293,35 +295,29 @@ impl<C: CacheConfig> RedisCache<C> {
 }
 
 impl<C> RedisCache<C> {
-    #[cfg(feature = "validation")]
     async fn get_single<K, V>(&self, key: K) -> CacheResult<Option<CachedArchive<V>>>
     where
         RedisKey: From<K>,
-        V: crate::config::Cacheable,
+        V: Cacheable,
     {
         let mut conn = self.connection().await?;
-        let bytes: Vec<u8> = Cmd::get(RedisKey::from(key)).query_async(&mut conn).await?;
+
+        let BytesWrap::<AlignedVec<16>>(bytes) =
+            Cmd::get(RedisKey::from(key)).query_async(&mut conn).await?;
 
         if bytes.is_empty() {
             return Ok(None);
         }
 
-        CachedArchive::new(bytes.into_boxed_slice()).map(Some)
-    }
-
-    #[cfg(not(feature = "validation"))]
-    async fn get_single<K, V>(&self, key: K) -> CacheResult<Option<CachedArchive<V>>>
-    where
-        RedisKey: From<K>,
-    {
-        let mut conn = self.connection().await?;
-        let bytes: Vec<u8> = Cmd::get(RedisKey::from(key)).query_async(&mut conn).await?;
-
-        if bytes.is_empty() {
-            return Ok(None);
+        #[cfg(feature = "bytecheck")]
+        {
+            CachedArchive::new(bytes).map(Some)
         }
 
-        Ok(Some(CachedArchive::new_unchecked(bytes.into_boxed_slice())))
+        #[cfg(not(feature = "bytecheck"))]
+        {
+            Ok(Some(CachedArchive::new_unchecked(bytes)))
+        }
     }
 
     async fn get_ids<T>(&self, key: RedisKey) -> CacheResult<HashSet<Id<T>>> {
@@ -345,7 +341,7 @@ impl<C> RedisCache<C> {
 }
 
 fn convert_ids<T>(ids: HashSet<u64>) -> HashSet<Id<T>> {
-    #[cfg(feature = "validation")]
+    #[cfg(feature = "bytecheck")]
     if ids.iter().any(|&id| id == 0) {
         tracing::warn!("IDs must not be zero");
 
@@ -357,7 +353,7 @@ fn convert_ids<T>(ids: HashSet<u64>) -> HashSet<Id<T>> {
 }
 
 #[cfg(test)]
-#[cfg(feature = "validation")]
+#[cfg(feature = "bytecheck")]
 mod tests {
     use std::collections::HashSet;
 

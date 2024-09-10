@@ -1,6 +1,7 @@
 use rkyv::{
+    rancor::{Fallible, Source},
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Fallible,
+    Archive, Archived, Place,
 };
 use twilight_model::util::{datetime::TimestampParseError, Timestamp};
 
@@ -15,7 +16,7 @@ use twilight_model::util::{datetime::TimestampParseError, Timestamp};
 ///
 /// #[derive(Archive)]
 /// struct Cached {
-///     #[with(TimestampRkyv)]
+///     #[rkyv(with = TimestampRkyv)]
 ///     timestamp: Timestamp,
 /// }
 /// ```
@@ -37,18 +38,13 @@ impl ArchiveWith<Timestamp> for TimestampRkyv {
     type Archived = Archived<i64>;
     type Resolver = ();
 
-    unsafe fn resolve_with(
-        field: &Timestamp,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        Self::archive(field).resolve(pos, resolver, out);
+    fn resolve_with(field: &Timestamp, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        Self::archive(field).resolve(resolver, out);
     }
 }
 
 impl<S: Fallible + ?Sized> SerializeWith<Timestamp, S> for TimestampRkyv {
-    fn serialize_with(_: &Timestamp, _: &mut S) -> Result<Self::Resolver, <S as Fallible>::Error> {
+    fn serialize_with(_: &Timestamp, _: &mut S) -> Result<Self::Resolver, S::Error> {
         Ok(())
     }
 }
@@ -56,56 +52,34 @@ impl<S: Fallible + ?Sized> SerializeWith<Timestamp, S> for TimestampRkyv {
 impl<D> DeserializeWith<Archived<i64>, Timestamp, D> for TimestampRkyv
 where
     D: Fallible + ?Sized,
-    D::Error: From<TimestampParseError>,
+    D::Error: Source,
 {
-    fn deserialize_with(
-        archived: &Archived<i64>,
-        _: &mut D,
-    ) -> Result<Timestamp, <D as Fallible>::Error> {
-        // the .into() is necessary in case the `archive_le` or `archive_be`
-        // features are enabled in rkyv
-        #[allow(clippy::useless_conversion)]
-        Ok(Self::try_deserialize((*archived).into())?)
+    fn deserialize_with(archived: &Archived<i64>, _: &mut D) -> Result<Timestamp, D::Error> {
+        Self::try_deserialize((*archived).into()).map_err(Source::new)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rkyv::with::With;
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_timestamp() {
-        struct TimestampDeserializer;
-
-        #[derive(Debug)]
-        struct TimestampDeserializerError;
-
-        impl Fallible for TimestampDeserializer {
-            type Error = TimestampDeserializerError;
-        }
-
-        impl From<TimestampParseError> for TimestampDeserializerError {
-            fn from(_: TimestampParseError) -> Self {
-                Self
-            }
-        }
-
-        type Wrapper = With<Timestamp, TimestampRkyv>;
-
+    fn test_rkyv_timestamp() -> Result<(), Error> {
         let timestamp = Timestamp::parse("2021-01-01T01:01:01.010000+00:00").unwrap();
-        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&timestamp)).unwrap();
+        let bytes = rkyv::to_bytes(With::<_, TimestampRkyv>::cast(&timestamp))?;
 
-        #[cfg(feature = "validation")]
-        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+        #[cfg(feature = "bytecheck")]
+        let archived: &Archived<i64> = rkyv::access(&bytes)?;
 
-        #[cfg(not(feature = "validation"))]
-        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        #[cfg(not(feature = "bytecheck"))]
+        let archived: &Archived<i64> = unsafe { rkyv::access_unchecked(&bytes) };
 
-        let deserialized: Timestamp =
-            TimestampRkyv::deserialize_with(archived, &mut TimestampDeserializer).unwrap();
+        let deserialized: Timestamp = rkyv::deserialize(With::<_, TimestampRkyv>::cast(archived))?;
 
         assert_eq!(timestamp, deserialized);
+
+        Ok(())
     }
 }

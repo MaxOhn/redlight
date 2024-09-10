@@ -1,6 +1,7 @@
 use rkyv::{
+    rancor::Fallible,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Fallible,
+    Archive, Archived, Place,
 };
 use twilight_model::{
     channel::{message::MessageFlags, ChannelFlags},
@@ -15,33 +16,28 @@ use twilight_model::{
 ///
 /// ```
 /// # use rkyv::Archive;
-/// use rkyv::with::Map;
 /// use redlight::rkyv_util::util::BitflagsRkyv;
+/// use rkyv::with::Map;
 /// use twilight_model::guild::{MemberFlags, Permissions};
 ///
 /// #[derive(Archive)]
 /// struct Cached {
-///     #[with(BitflagsRkyv)]
+///     #[rkyv(with = BitflagsRkyv)]
 ///     permissions: Permissions,
-///     #[with(Map<BitflagsRkyv>)]
+///     #[rkyv(with = Map<BitflagsRkyv>)]
 ///     member_flags: Option<MemberFlags>,
 /// }
 /// ```
 pub struct BitflagsRkyv;
 
 macro_rules! impl_bitflags {
-    ( $ty:ident as $bits:ty ) => {
+    ($ty:ident) => {
         impl ArchiveWith<$ty> for BitflagsRkyv {
-            type Archived = Archived<$bits>;
+            type Archived = Archived<u64>;
             type Resolver = ();
 
-            unsafe fn resolve_with(
-                flags: &$ty,
-                pos: usize,
-                resolver: Self::Resolver,
-                out: *mut Self::Archived,
-            ) {
-                flags.bits().resolve(pos, resolver, out);
+            fn resolve_with(flags: &$ty, resolver: Self::Resolver, out: Place<Self::Archived>) {
+                flags.bits().resolve(resolver, out);
             }
         }
 
@@ -54,9 +50,9 @@ macro_rules! impl_bitflags {
             }
         }
 
-        impl<D: Fallible + ?Sized> DeserializeWith<Archived<$bits>, $ty, D> for BitflagsRkyv {
+        impl<D: Fallible + ?Sized> DeserializeWith<Archived<u64>, $ty, D> for BitflagsRkyv {
             fn deserialize_with(
-                archived: &Archived<$bits>,
+                archived: &Archived<u64>,
                 _: &mut D,
             ) -> Result<$ty, <D as Fallible>::Error> {
                 Ok($ty::from_bits_truncate((*archived).into()))
@@ -65,36 +61,35 @@ macro_rules! impl_bitflags {
     };
 }
 
-impl_bitflags!(ActivityFlags as u64);
-impl_bitflags!(ChannelFlags as u64);
-impl_bitflags!(MemberFlags as u64);
-impl_bitflags!(MessageFlags as u64);
-impl_bitflags!(Permissions as u64);
-impl_bitflags!(SystemChannelFlags as u64);
-impl_bitflags!(UserFlags as u64);
+impl_bitflags!(ActivityFlags);
+impl_bitflags!(ChannelFlags);
+impl_bitflags!(MemberFlags);
+impl_bitflags!(MessageFlags);
+impl_bitflags!(Permissions);
+impl_bitflags!(SystemChannelFlags);
+impl_bitflags!(UserFlags);
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_bitflags() {
-        type Wrapper = With<MemberFlags, BitflagsRkyv>;
-
+    fn test_rkyv_bitflags() -> Result<(), Error> {
         let flags = MemberFlags::COMPLETED_ONBOARDING | MemberFlags::DID_REJOIN;
-        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&flags)).unwrap();
+        let bytes = rkyv::to_bytes(With::<_, BitflagsRkyv>::cast(&flags))?;
 
-        #[cfg(feature = "validation")]
-        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+        #[cfg(feature = "bytecheck")]
+        let archived: &Archived<u64> = rkyv::access(&bytes)?;
 
-        #[cfg(not(feature = "validation"))]
-        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        #[cfg(not(feature = "bytecheck"))]
+        let archived: &Archived<u64> = unsafe { rkyv::access_unchecked(&bytes) };
 
-        let deserialized: MemberFlags =
-            BitflagsRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+        let deserialized: MemberFlags = rkyv::deserialize(With::<_, BitflagsRkyv>::cast(archived))?;
 
         assert_eq!(flags, deserialized);
+
+        Ok(())
     }
 }

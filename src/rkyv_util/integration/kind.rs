@@ -1,8 +1,9 @@
 use rkyv::{
-    ser::Serializer,
+    rancor::{Fallible, Source},
+    ser::Writer,
     string::{ArchivedString, StringResolver},
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Fallible,
+    Place,
 };
 use twilight_model::guild::GuildIntegrationType;
 
@@ -17,9 +18,9 @@ use twilight_model::guild::GuildIntegrationType;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a> {
-///     #[with(GuildIntegrationTypeRkyv)]
+///     #[rkyv(with = GuildIntegrationTypeRkyv)]
 ///     as_owned: GuildIntegrationType,
-///     #[with(GuildIntegrationTypeRkyv)]
+///     #[rkyv(with = GuildIntegrationTypeRkyv)]
 ///     as_ref: &'a GuildIntegrationType,
 /// }
 /// ```
@@ -29,17 +30,16 @@ impl ArchiveWith<GuildIntegrationType> for GuildIntegrationTypeRkyv {
     type Archived = ArchivedString;
     type Resolver = StringResolver;
 
-    unsafe fn resolve_with(
+    fn resolve_with(
         integration: &GuildIntegrationType,
-        pos: usize,
         resolver: Self::Resolver,
-        out: *mut Self::Archived,
+        out: Place<Self::Archived>,
     ) {
-        ArchivedString::resolve_from_str(integration_type_str(integration), pos, resolver, out);
+        ArchivedString::resolve_from_str(integration_type_str(integration), resolver, out);
     }
 }
 
-impl<S: Fallible + Serializer + ?Sized> SerializeWith<GuildIntegrationType, S>
+impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<GuildIntegrationType, S>
     for GuildIntegrationTypeRkyv
 {
     fn serialize_with(
@@ -72,17 +72,16 @@ impl ArchiveWith<&GuildIntegrationType> for GuildIntegrationTypeRkyv {
     type Archived = ArchivedString;
     type Resolver = StringResolver;
 
-    unsafe fn resolve_with(
+    fn resolve_with(
         integration: &&GuildIntegrationType,
-        pos: usize,
         resolver: Self::Resolver,
-        out: *mut Self::Archived,
+        out: Place<Self::Archived>,
     ) {
-        <Self as ArchiveWith<GuildIntegrationType>>::resolve_with(*integration, pos, resolver, out);
+        <Self as ArchiveWith<GuildIntegrationType>>::resolve_with(*integration, resolver, out);
     }
 }
 
-impl<S: Fallible + Serializer + ?Sized> SerializeWith<&GuildIntegrationType, S>
+impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<&GuildIntegrationType, S>
     for GuildIntegrationTypeRkyv
 {
     fn serialize_with(
@@ -109,32 +108,32 @@ fn integration_type_str(integration: &GuildIntegrationType) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_integration_kind() {
-        type Wrapper = With<GuildIntegrationType, GuildIntegrationTypeRkyv>;
-
+    fn test_rkyv_integration_kind() -> Result<(), Error> {
         let kinds = [
             GuildIntegrationType::Twitch,
             GuildIntegrationType::Unknown("other".to_owned()),
         ];
 
         for kind in kinds {
-            let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&kind)).unwrap();
+            let bytes = rkyv::to_bytes(With::<_, GuildIntegrationTypeRkyv>::cast(&kind))?;
 
-            #[cfg(feature = "validation")]
-            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+            #[cfg(feature = "bytecheck")]
+            let archived = rkyv::access(&bytes)?;
 
-            #[cfg(not(feature = "validation"))]
-            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            #[cfg(not(feature = "bytecheck"))]
+            let archived = unsafe { rkyv::access_unchecked(&bytes) };
 
             let deserialized: GuildIntegrationType =
-                GuildIntegrationTypeRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+                rkyv::deserialize(With::<_, GuildIntegrationTypeRkyv>::cast(archived))?;
 
             assert_eq!(kind, deserialized);
         }
+
+        Ok(())
     }
 }

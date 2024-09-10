@@ -2,11 +2,17 @@ use std::time::Duration;
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedPresence, Ignore},
+    error::CacheError,
     rkyv_util::{id::IdRkyv, presence::StatusRkyv},
-    CacheError, RedisCache,
+    RedisCache,
 };
-use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
-use serial_test::serial;
+use rkyv::{
+    rancor::{Fallible, Panic},
+    ser::writer::Buffer,
+    util::Align,
+    with::Map,
+    Archive, Serialize,
+};
 use twilight_model::{
     gateway::{
         event::Event,
@@ -16,12 +22,10 @@ use twilight_model::{
     id::{marker::UserMarker, Id},
 };
 
+use super::user::user;
 use crate::pool;
 
-use super::user::user;
-
 #[tokio::test]
-#[serial]
 async fn test_presence() -> Result<(), CacheError> {
     struct Config;
 
@@ -45,11 +49,10 @@ async fn test_presence() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedPresence {
-        #[with(Map<StatusRkyv>)]
+        #[rkyv(with = Map<StatusRkyv>)]
         desktop_status: Option<Status>,
-        #[with(IdRkyv)]
+        #[rkyv(with = IdRkyv)]
         user_id: Id<UserMarker>,
     }
 
@@ -63,11 +66,22 @@ async fn test_presence() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedPresence {
-        type Serializer = BufferSerializer<AlignedBytes<16>>;
+        type Bytes = [u8; 16];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            let mut bytes = Align([0_u8; 16]);
+            rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
+
+            Ok(bytes.0)
+        }
+    }
+
+    impl Fallible for CachedPresence {
+        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

@@ -7,12 +7,17 @@ use std::{
 use futures_util::TryStreamExt;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
-    error::BoxedError,
+    error::CacheError,
     rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
-    CacheError, CachedArchive, RedisCache,
+    CachedArchive, RedisCache,
 };
-use rkyv::{ser::serializers::BufferSerializer, with::Map, AlignedBytes, Archive, Serialize};
-use serial_test::serial;
+use rkyv::{
+    rancor::{Fallible, Panic},
+    ser::writer::Buffer,
+    util::Align,
+    with::Map,
+    Archive, Serialize,
+};
 use twilight_model::{
     channel::{
         message::{
@@ -31,12 +36,10 @@ use twilight_model::{
     util::Timestamp,
 };
 
+use super::{member::partial_member, user::user};
 use crate::pool;
 
-use super::{member::partial_member, user::user};
-
 #[tokio::test]
-#[serial]
 async fn test_message() -> Result<(), CacheError> {
     struct Config;
 
@@ -60,11 +63,10 @@ async fn test_message() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedMessage {
-        #[with(Map<BitflagsRkyv>)]
+        #[rkyv(with = Map<BitflagsRkyv>)]
         flags: Option<MessageFlags>,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         kind: MessageType,
         timestamp: i64,
     }
@@ -79,39 +81,49 @@ async fn test_message() -> Result<(), CacheError> {
         }
 
         fn on_message_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Self::Error>>
         {
             Some(|archived, update| {
-                archived.update_archive(|mut pinned| {
-                    if let Some(kind) = update.kind {
-                        pinned.kind = u8::from(kind);
+                archived.update_archive(|sealed| {
+                    if let Some(update_kind) = update.kind {
+                        rkyv::munge::munge! {
+                            let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
+                        };
 
-                        // the `.into()` is necessary in case the `archive_le` or `archive_be`
-                        // features are enabled in rkyv
-                        #[allow(clippy::useless_conversion)]
-                        if let Some(timestamp) = update.timestamp {
-                            pinned.timestamp = timestamp.as_micros().into();
+                        *kind = u8::from(update_kind);
+
+                        if let Some(update_timestamp) = update.timestamp {
+                            *timestamp = update_timestamp.as_micros().into();
                         }
                     }
-                });
-
-                Ok(())
+                })
             })
         }
 
         fn on_reaction_event(
-        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>>
+        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Self::Error>>
         {
             None
         }
     }
 
     impl Cacheable for CachedMessage {
-        type Serializer = BufferSerializer<AlignedBytes<32>>;
+        type Bytes = [u8; 32];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            let mut bytes = Align([0_u8; 32]);
+            rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
+
+            Ok(bytes.0)
+        }
+    }
+
+    impl Fallible for CachedMessage {
+        type Error = Panic;
     }
 
     impl PartialEq<Message> for ArchivedCachedMessage {

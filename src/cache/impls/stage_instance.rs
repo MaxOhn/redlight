@@ -1,4 +1,4 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::StageInstance,
@@ -13,17 +13,14 @@ use crate::{
         meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedStageInstance},
+    config::{CacheConfig, Cacheable, ICachedStageInstance, SerializeMany},
     error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type StageInstanceSerializer<'a, C> =
-    <<C as CacheConfig>::StageInstance<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -43,10 +40,9 @@ impl<C: CacheConfig> RedisCache<C> {
         };
         let stage_instance = C::StageInstance::from_stage_instance(stage_instance);
 
-        let bytes = stage_instance.serialize().map_err(|e| SerializeError {
-            error: Box::new(e),
-            kind: SerializeErrorKind::StageInstance,
-        })?;
+        let bytes = stage_instance
+            .serialize_one()
+            .map_err(|e| SerializeError::new(e, SerializeErrorKind::StageInstance))?;
 
         trace!(bytes = bytes.as_ref().len());
 
@@ -65,10 +61,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
             StageInstanceMeta { guild: guild_id }
                 .store(pipe, key)
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::StageInstance,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::StageInstance))?;
         }
 
         Ok(())
@@ -85,7 +78,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut serializer = StageInstanceSerializer::<C>::default();
+        let mut serializer = C::StageInstance::serialize_many();
 
         let (stage_instance_entries, stage_instance_ids): (Vec<_>, Vec<_>) = stage_instances
             .iter()
@@ -94,18 +87,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 let key = RedisKey::StageInstance { id };
                 let stage_instance = C::StageInstance::from_stage_instance(stage_instance);
 
-                let bytes = stage_instance
-                    .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError {
-                        error: Box::new(e),
-                        kind: SerializeErrorKind::StageInstance,
-                    })?;
+                let bytes = serializer
+                    .serialize_next(&stage_instance)
+                    .map_err(|e| SerializeError::new(e, SerializeErrorKind::StageInstance))?;
 
                 trace!(bytes = bytes.as_ref().len());
 
-                Ok(((key, BytesArg(bytes)), id.get()))
+                Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if stage_instance_entries.is_empty() {
@@ -130,10 +120,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     StageInstanceMeta { guild: guild_id }.store(pipe, key)
                 })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::StageInstance,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::StageInstance))?;
         }
 
         Ok(())
@@ -201,12 +188,18 @@ impl HasArchived for StageInstanceMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct StageInstanceMeta {
-    #[with(IdRkyv)]
+    #[rkyv(with = IdRkyv)]
     guild: Id<GuildMarker>,
 }
 
 impl IMeta<StageInstanceMetaKey> for StageInstanceMeta {
-    type Serializer = BufferSerializer<AlignedBytes<8>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

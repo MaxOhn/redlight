@@ -12,15 +12,13 @@ use crate::{
         meta::{atoi, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedVoiceState},
-    error::{SerializeError, SerializeErrorKind},
+    config::{CacheConfig, Cacheable, ICachedVoiceState, SerializeMany},
+    error::{CacheError, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
-    util::{BytesArg, ZippedVecs},
-    CacheError, CacheResult, RedisCache,
+    util::{BytesWrap, ZippedVecs},
+    CacheResult, RedisCache,
 };
-
-type VoiceStateSerializer<'a, C> = <<C as CacheConfig>::VoiceState<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -39,10 +37,9 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let voice_state = C::VoiceState::from_voice_state(channel_id, guild_id, voice_state);
 
-            let bytes = voice_state.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::VoiceState,
-            })?;
+            let bytes = voice_state
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::VoiceState))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -70,7 +67,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut serializer = VoiceStateSerializer::<C>::default();
+        let mut serializer = C::VoiceState::serialize_many();
 
         let (voice_states, user_ids) = voice_states
             .iter()
@@ -85,23 +82,23 @@ impl<C: CacheConfig> RedisCache<C> {
                 let voice_state =
                     C::VoiceState::from_voice_state(channel_id, guild_id, voice_state);
 
-                let res = voice_state
-                    .serialize_with(&mut serializer)
+                let res = serializer
+                    .serialize_next(&voice_state)
                     .map(|bytes| {
                         trace!(bytes = bytes.as_ref().len());
 
-                        ((key, BytesArg(bytes)), user_id.get())
+                        ((key, BytesWrap(bytes)), user_id.get())
                     })
                     .map_err(|e| {
-                        CacheError::Serialization(SerializeError {
-                            error: Box::new(e),
-                            kind: SerializeErrorKind::VoiceState,
-                        })
+                        CacheError::Serialization(SerializeError::new(
+                            e,
+                            SerializeErrorKind::VoiceState,
+                        ))
                     });
 
                 Some(res)
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if voice_states.is_empty() {

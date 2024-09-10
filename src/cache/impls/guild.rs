@@ -13,10 +13,12 @@ use crate::{
         pipe::Pipe,
     },
     config::{CacheConfig, Cacheable, ICachedGuild},
-    error::{ExpireError, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
+    error::{
+        CacheError, ExpireError, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind,
+    },
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},
-    CacheError, CacheResult, RedisCache,
+    CacheResult, RedisCache,
 };
 
 impl<C: CacheConfig> RedisCache<C> {
@@ -27,10 +29,9 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Guild { id: guild_id };
             let guild = C::Guild::from_guild(guild);
 
-            let bytes = guild.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Guild,
-            })?;
+            let bytes = guild
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Guild))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -87,10 +88,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut guild, update).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::Guild,
-        })?;
+        update_fn(&mut guild, update).map_err(|e| UpdateError::new(e, UpdateErrorKind::Guild))?;
 
         let key = RedisKey::Guild { id: guild_id };
         let bytes = guild.into_bytes();
