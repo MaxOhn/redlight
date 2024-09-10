@@ -117,36 +117,36 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
         let mut next_scard = || scards.next().unwrap_or(0) as f64;
 
         if C::Channel::WANTED {
-            gauge!(CHANNEL_COUNT, next_scard());
+            gauge!(CHANNEL_COUNT).set(next_scard());
         }
 
         if C::Emoji::WANTED {
-            gauge!(EMOJI_COUNT, next_scard());
+            gauge!(EMOJI_COUNT).set(next_scard());
         }
 
         if C::Guild::WANTED {
-            gauge!(GUILD_COUNT, next_scard());
-            gauge!(UNAVAILABLE_GUILD_COUNT, next_scard());
+            gauge!(GUILD_COUNT).set(next_scard());
+            gauge!(UNAVAILABLE_GUILD_COUNT).set(next_scard());
         }
 
         if C::Message::WANTED {
-            gauge!(MESSAGE_COUNT, next_scard());
+            gauge!(MESSAGE_COUNT).set(next_scard());
         }
 
         if C::Role::WANTED {
-            gauge!(ROLE_COUNT, next_scard());
+            gauge!(ROLE_COUNT).set(next_scard());
         }
 
         if C::StageInstance::WANTED {
-            gauge!(STAGE_INSTANCE_COUNT, next_scard());
+            gauge!(STAGE_INSTANCE_COUNT).set(next_scard());
         }
 
         if C::Sticker::WANTED {
-            gauge!(STICKER_COUNT, next_scard());
+            gauge!(STICKER_COUNT).set(next_scard());
         }
 
         if C::User::WANTED {
-            gauge!(USER_COUNT, next_scard());
+            gauge!(USER_COUNT).set(next_scard());
         }
     }
 }

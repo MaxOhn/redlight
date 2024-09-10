@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // dependencies such as https://crates.io/crates/metrics-exporter-prometheus
     // or a custom implementation. Checkout the documentation of the `metrics`
     // crate for more info.
-    metrics::set_boxed_recorder(Box::new(PrintRecorder))?;
+    metrics::set_global_recorder(PrintRecorder)?;
 
     // Create our cache by using our simple `Config` which only caches stage
     // instances
@@ -68,7 +68,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 mod recorder {
     use std::sync::Arc;
 
-    use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
+    use metrics::{
+        Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Metadata, Recorder, SharedString, Unit,
+    };
 
     struct PrintHandle(Key);
 
@@ -96,7 +98,7 @@ mod recorder {
             );
         }
 
-        fn register_gauge(&self, key: &Key) -> Gauge {
+        fn register_gauge(&self, key: &Key, _: &Metadata) -> Gauge {
             Gauge::from_arc(Arc::new(PrintHandle(key.clone())))
         }
 
@@ -108,11 +110,11 @@ mod recorder {
             unimplemented!()
         }
 
-        fn register_counter(&self, _: &Key) -> Counter {
+        fn register_counter(&self, _: &Key, _: &Metadata) -> Counter {
             unimplemented!()
         }
 
-        fn register_histogram(&self, _: &Key) -> Histogram {
+        fn register_histogram(&self, _: &Key, _: &Metadata) -> Histogram {
             unimplemented!()
         }
     }

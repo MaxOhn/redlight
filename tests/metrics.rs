@@ -11,7 +11,9 @@ use std::{
 use bb8_redis::redis;
 #[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
 use deadpool_redis::redis;
-use metrics::{Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Recorder, SharedString, Unit};
+use metrics::{
+    Counter, Gauge, GaugeFn, Histogram, Key, KeyName, Metadata, Recorder, SharedString, Unit,
+};
 use redis::Cmd;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedChannel, ICachedSticker, Ignore},
@@ -163,7 +165,7 @@ async fn test_metrics() -> Result<(), CacheError> {
 
     #[rustfmt::skip]
     impl Recorder for MetricRecorder {
-        fn register_gauge(&self, key: &Key) -> Gauge {
+        fn register_gauge(&self, key: &Key, _: &Metadata) -> Gauge {
             let mut gauges = self.inner.gauges.lock().unwrap();
 
             let new_gauge = match gauges.iter().find(|(entry, _)| entry == key) {
@@ -183,12 +185,12 @@ async fn test_metrics() -> Result<(), CacheError> {
         fn describe_counter(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
         fn describe_gauge(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
         fn describe_histogram(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
-        fn register_counter(&self, _: &Key) -> Counter { unimplemented!() }
-        fn register_histogram(&self, _: &Key) -> Histogram { unimplemented!() }
+        fn register_counter(&self, _: &Key, _: &Metadata) -> Counter { unimplemented!() }
+        fn register_histogram(&self, _: &Key, _: &Metadata) -> Histogram { unimplemented!() }
     }
 
     let recorder = MetricRecorder::default();
-    metrics::set_boxed_recorder(Box::new(recorder.clone())).unwrap();
+    metrics::set_global_recorder(recorder.clone()).unwrap();
 
     let pool = pool();
 
