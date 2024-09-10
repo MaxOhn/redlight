@@ -82,7 +82,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let cfg = Config::from_url(url);
         let pool = cfg.create_pool(Some(Runtime::Tokio1))?;
 
-        Self::with_pool(pool).await
+        Self::new_with_pool(pool).await
     }
 
     /// Create a new [`RedisCache`] by using the given connection pool.

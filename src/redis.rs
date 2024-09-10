@@ -39,8 +39,8 @@ mod bb8 {
 mod deadpool {
     use std::marker::PhantomData;
 
-    use deadpool_redis::PoolError;
     pub use deadpool_redis::{redis::*, Pool};
+    use deadpool_redis::{Connection as DeadpoolConnection, PoolError};
 
     type InnerConnection = deadpool_redis::Connection;
 
@@ -51,7 +51,7 @@ mod deadpool {
     );
 
     impl<'a> Connection<'a> {
-        fn new(inner: InnerConnection) -> Self {
+        const fn new(inner: InnerConnection) -> Self {
             Self(inner, PhantomData)
         }
 
@@ -60,11 +60,11 @@ mod deadpool {
         }
     }
 
-    pub struct DedicatedConnection(pub(super) InnerConnection);
+    pub struct DedicatedConnection(pub(super) aio::Connection);
 
     impl DedicatedConnection {
         pub async fn get(pool: &Pool) -> Result<Self, PoolError> {
-            pool.get().await.map(Self)
+            pool.get().await.map(DeadpoolConnection::take).map(Self)
         }
     }
 }

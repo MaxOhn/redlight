@@ -35,7 +35,7 @@ jobs:
 
         strategy:
             matrix:
-                features: ["--no-default-features -F bb8", "--all-features"]
+                features: ["--no-default-features -F deadpool", "--all-features"]
         
         steps:
           - name: Checkout sources
@@ -73,7 +73,7 @@ jobs:
 
         strategy:
             matrix:
-                features: ["--no-default-features -F bb8", "--all-features"]
+                features: ["--no-default-features -F deadpool", "--all-features"]
         
         steps:
           - name: Checkout sources
