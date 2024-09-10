@@ -1,4 +1,4 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Channel,
@@ -14,18 +14,16 @@ use crate::{
         meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedChannel},
+    config::{CacheConfig, Cacheable, ICachedChannel, SerializeMany},
     error::{
         MetaError, MetaErrorKind, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind,
     },
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyvMap,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type ChannelSerializer<'a, C> = <<C as CacheConfig>::Channel<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -40,10 +38,9 @@ impl<C: CacheConfig> RedisCache<C> {
             let key = RedisKey::Channel { id: channel_id };
             let channel = C::Channel::from_channel(channel);
 
-            let bytes = channel.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Channel,
-            })?;
+            let bytes = channel
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Channel))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -56,10 +53,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 ChannelMeta { guild: guild_id }
                     .store(pipe, key)
-                    .map_err(|error| MetaError {
-                        error,
-                        kind: MetaErrorKind::Channel,
-                    })?;
+                    .map_err(|e| MetaError::new(e, MetaErrorKind::Channel))?;
             }
 
             if let Some(guild_id) = guild_id {
@@ -110,10 +104,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut channel, update).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::ChannelPins,
-        })?;
+        update_fn(&mut channel, update)
+            .map_err(|e| UpdateError::new(e, UpdateErrorKind::ChannelPins))?;
 
         let key = RedisKey::Channel {
             id: update.channel_id,
@@ -132,10 +124,8 @@ impl<C: CacheConfig> RedisCache<C> {
                 guild: update.guild_id,
             };
 
-            meta.store(pipe, key).map_err(|error| MetaError {
-                error,
-                kind: MetaErrorKind::Channel,
-            })?;
+            meta.store(pipe, key)
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Channel))?;
         }
 
         Ok(())
@@ -149,7 +139,7 @@ impl<C: CacheConfig> RedisCache<C> {
         channels: &[Channel],
     ) -> CacheResult<()> {
         if C::Channel::WANTED {
-            let mut serializer = ChannelSerializer::<C>::default();
+            let mut serializer = C::Channel::serialize_many();
 
             let (channel_entries, channel_ids) = channels
                 .iter()
@@ -158,19 +148,15 @@ impl<C: CacheConfig> RedisCache<C> {
                     let key = RedisKey::Channel { id };
                     let channel = C::Channel::from_channel(channel);
 
-                    let bytes =
-                        channel
-                            .serialize_with(&mut serializer)
-                            .map_err(|e| SerializeError {
-                                error: Box::new(e),
-                                kind: SerializeErrorKind::Channel,
-                            })?;
+                    let bytes = serializer
+                        .serialize_next(&channel)
+                        .map_err(|e| SerializeError::new(e, SerializeErrorKind::Channel))?;
 
                     trace!(bytes = bytes.as_ref().len());
 
-                    Ok(((key, BytesArg(bytes)), id.get()))
+                    Ok(((key, BytesWrap(bytes)), id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
                 .unzip();
 
             if !channel_entries.is_empty() {
@@ -196,10 +182,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                             meta.store(pipe, key)
                         })
-                        .map_err(|error| MetaError {
-                            error,
-                            kind: MetaErrorKind::Channel,
-                        })?;
+                        .map_err(|e| MetaError::new(e, MetaErrorKind::Channel))?;
                 }
             }
         }
@@ -275,12 +258,18 @@ impl HasArchived for ChannelMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct ChannelMeta {
-    #[with(IdRkyvMap)]
+    #[rkyv(with = IdRkyvMap)]
     guild: Option<Id<GuildMarker>>,
 }
 
 impl IMeta<ChannelMetaKey> for ChannelMeta {
-    type Serializer = BufferSerializer<AlignedBytes<16>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

@@ -22,7 +22,8 @@ use crate::redis::{RedisWrite, ToRedisArgs};
 pub enum RedisKey {
     /// Serialized `CacheConfig::Channel`
     Channel { id: Id<ChannelMarker> },
-    /// Sorted set of message ids ordered by timestamp i.e. most recent to oldest
+    /// Sorted set of message ids ordered by timestamp i.e. most recent to
+    /// oldest
     ChannelMessages { channel: Id<ChannelMarker> },
     /// Serialized `ChannelMeta`.
     ///

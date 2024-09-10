@@ -1,4 +1,4 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     guild::Role,
@@ -13,16 +13,14 @@ use crate::{
         meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedRole},
+    config::{CacheConfig, Cacheable, ICachedRole, SerializeMany},
     error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type RoleSerializer<'a, C> = <<C as CacheConfig>::Role<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -40,10 +38,9 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::Role { id };
         let role = C::Role::from_role(role);
 
-        let bytes = role.serialize().map_err(|e| SerializeError {
-            error: Box::new(e),
-            kind: SerializeErrorKind::Role,
-        })?;
+        let bytes = role
+            .serialize_one()
+            .map_err(|e| SerializeError::new(e, SerializeErrorKind::Role))?;
 
         trace!(bytes = bytes.as_ref().len());
 
@@ -58,10 +55,7 @@ impl<C: CacheConfig> RedisCache<C> {
         if C::Role::expire().is_some() {
             RoleMeta { guild: guild_id }
                 .store(pipe, RoleMetaKey { role: id })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::Role,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Role))?;
         }
 
         Ok(())
@@ -82,36 +76,31 @@ impl<C: CacheConfig> RedisCache<C> {
         }
 
         let with_expire = C::Role::expire().is_some();
-        let mut serializer = RoleSerializer::<C>::default();
+
+        let mut serializer = C::Role::serialize_many();
 
         let (roles, role_ids) = roles
             .into_iter()
             .map(|role| {
                 let id = role.id;
                 let key = RedisKey::Role { id };
-                let role = C::Role::from_role(role);
+                let cached = C::Role::from_role(role);
 
                 if with_expire {
                     RoleMeta { guild: guild_id }
                         .store(pipe, RoleMetaKey { role: id })
-                        .map_err(|error| MetaError {
-                            error,
-                            kind: MetaErrorKind::Role,
-                        })?;
+                        .map_err(|e| MetaError::new(e, MetaErrorKind::Role))?;
                 }
 
-                let bytes = role
-                    .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError {
-                        error: Box::new(e),
-                        kind: SerializeErrorKind::Role,
-                    })?;
+                let bytes = serializer
+                    .serialize_next(&cached)
+                    .map_err(|e| SerializeError::new(e, SerializeErrorKind::Role))?;
 
                 trace!(bytes = bytes.as_ref().len());
 
-                Ok(((key, BytesArg(bytes)), id.get()))
+                Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if roles.is_empty() {
@@ -186,12 +175,18 @@ impl HasArchived for RoleMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct RoleMeta {
-    #[with(IdRkyv)]
+    #[rkyv(with = IdRkyv)]
     guild: Id<GuildMarker>,
 }
 
 impl IMeta<RoleMetaKey> for RoleMeta {
-    type Serializer = BufferSerializer<AlignedBytes<8>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

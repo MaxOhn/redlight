@@ -6,20 +6,20 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedChannel, Ignore},
-    error::BoxedError,
+    error::CacheError,
     rkyv_util::{
         id::{IdRkyv, IdRkyvMap},
         util::TimestampRkyv,
     },
-    CacheError, CachedArchive, RedisCache,
+    CachedArchive, RedisCache,
 };
 use rkyv::{
     option::ArchivedOption,
-    ser::serializers::AlignedSerializer,
-    with::{Map, RefAsBox},
-    AlignedVec, Archive, Serialize,
+    rancor::{Fallible, Panic},
+    util::AlignedVec,
+    with::{InlineAsBox, Map},
+    Archive, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     channel::{Channel, ChannelFlags, ChannelType, VideoQualityMode},
     gateway::{
@@ -33,7 +33,6 @@ use twilight_model::{
 use crate::pool;
 
 #[tokio::test]
-#[serial]
 async fn test_channel() -> Result<(), CacheError> {
     struct Config;
 
@@ -57,16 +56,15 @@ async fn test_channel() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedChannel<'a> {
-        #[with(Map<RefAsBox>)]
+        #[rkyv(with = Map<InlineAsBox>)]
         name: Option<&'a str>,
-        #[with(IdRkyv)]
+        #[rkyv(with = IdRkyv)]
         id: Id<ChannelMarker>,
         kind: u8,
-        #[with(Map<TimestampRkyv>)]
+        #[rkyv(with = Map<TimestampRkyv>)]
         last_pin_timestamp: Option<Timestamp>,
-        #[with(IdRkyvMap)]
+        #[rkyv(with = IdRkyvMap)]
         parent_id: Option<Id<ChannelMarker>>,
     }
 
@@ -94,25 +92,24 @@ async fn test_channel() -> Result<(), CacheError> {
         }
 
         fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>>
         {
             let update_fn = |value: &mut CachedArchive<Self>, update: &ChannelPinsUpdate| {
-                value.update_archive(|pinned| {
-                    let last_pin_timestamp =
-                        unsafe { &mut pinned.get_unchecked_mut().last_pin_timestamp };
+                value.update_archive(|sealed| {
+                    if let Some(new_timestamp) = update.last_pin_timestamp {
+                        rkyv::munge::munge! {
+                            let ArchivedCachedChannel { last_pin_timestamp, .. } = sealed
+                        };
 
-                    *last_pin_timestamp = match update.last_pin_timestamp {
-                        Some(new_timestamp) => {
-                            // the `.into()` is necessary in case the `archive_le` or `archive_be`
-                            // features are enabled in rkyv
-                            #[allow(clippy::useless_conversion)]
-                            ArchivedOption::Some(TimestampRkyv::archive(&new_timestamp).into())
+                        // Cannot mutate from `Some` to `None` or vice versa so we
+                        // just update `Some` values
+                        if let Some(mut last_pin_timestamp) =
+                            ArchivedOption::as_seal(last_pin_timestamp)
+                        {
+                            *last_pin_timestamp = TimestampRkyv::archive(&new_timestamp).into();
                         }
-                        None => ArchivedOption::None,
-                    };
-                });
-
-                Ok(())
+                    }
+                })
             };
 
             Some(update_fn)
@@ -120,11 +117,19 @@ async fn test_channel() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedChannel<'_> {
-        type Serializer = AlignedSerializer<AlignedVec>;
+        type Bytes = AlignedVec<8>;
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            rkyv::api::high::to_bytes_in(self, AlignedVec::<8>::new())
+        }
+    }
+
+    impl Fallible for CachedChannel<'_> {
+        type Error = Panic;
     }
 
     impl PartialEq<Channel> for ArchivedCachedChannel<'_> {
@@ -192,7 +197,7 @@ pub fn text_channel() -> Channel {
         invitable: Some(true),
         kind: ChannelType::GuildText,
         last_message_id: Some(Id::new(111)),
-        last_pin_timestamp: None,
+        last_pin_timestamp: Some(Timestamp::parse("2021-01-01T01:01:01+00:00").unwrap()),
         managed: None,
         member: None,
         member_count: None,

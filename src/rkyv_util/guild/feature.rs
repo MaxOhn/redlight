@@ -1,8 +1,9 @@
 use rkyv::{
-    ser::Serializer,
+    rancor::{Fallible, Source},
+    ser::Writer,
     string::{ArchivedString, StringResolver},
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Fallible,
+    Place,
 };
 use twilight_model::guild::GuildFeature;
 
@@ -17,9 +18,9 @@ use twilight_model::guild::GuildFeature;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a> {
-///     #[with(GuildFeatureRkyv)]
+///     #[rkyv(with = GuildFeatureRkyv)]
 ///     as_owned: GuildFeature,
-///     #[with(GuildFeatureRkyv)]
+///     #[rkyv(with = GuildFeatureRkyv)]
 ///     as_ref: &'a GuildFeature,
 /// }
 /// ```
@@ -29,17 +30,14 @@ impl ArchiveWith<GuildFeature> for GuildFeatureRkyv {
     type Archived = ArchivedString;
     type Resolver = StringResolver;
 
-    unsafe fn resolve_with(
-        feature: &GuildFeature,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        ArchivedString::resolve_from_str(guild_feature_str(feature), pos, resolver, out);
+    fn resolve_with(feature: &GuildFeature, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        ArchivedString::resolve_from_str(guild_feature_str(feature), resolver, out);
     }
 }
 
-impl<S: Fallible + Serializer + ?Sized> SerializeWith<GuildFeature, S> for GuildFeatureRkyv {
+impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<GuildFeature, S>
+    for GuildFeatureRkyv
+{
     fn serialize_with(
         feature: &GuildFeature,
         serializer: &mut S,
@@ -100,17 +98,14 @@ impl ArchiveWith<&GuildFeature> for GuildFeatureRkyv {
     type Archived = ArchivedString;
     type Resolver = StringResolver;
 
-    unsafe fn resolve_with(
-        feature: &&GuildFeature,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        <Self as ArchiveWith<GuildFeature>>::resolve_with(feature, pos, resolver, out);
+    fn resolve_with(feature: &&GuildFeature, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        <Self as ArchiveWith<GuildFeature>>::resolve_with(feature, resolver, out);
     }
 }
 
-impl<S: Fallible + Serializer + ?Sized> SerializeWith<&GuildFeature, S> for GuildFeatureRkyv {
+impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<&GuildFeature, S>
+    for GuildFeatureRkyv
+{
     fn serialize_with(
         feature: &&GuildFeature,
         serializer: &mut S,
@@ -193,32 +188,32 @@ fn guild_feature_str(feature: &GuildFeature) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_guild_feature() {
-        type Wrapper = With<GuildFeature, GuildFeatureRkyv>;
-
+    fn test_rkyv_guild_feature() -> Result<(), Error> {
         let features = [
             GuildFeature::Banner,
             GuildFeature::Unknown("other".to_owned()),
         ];
 
         for feature in features {
-            let bytes = rkyv::to_bytes::<_, 16>(Wrapper::cast(&feature)).unwrap();
+            let bytes = rkyv::to_bytes(With::<_, GuildFeatureRkyv>::cast(&feature))?;
 
-            #[cfg(feature = "validation")]
-            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+            #[cfg(feature = "bytecheck")]
+            let archived: &ArchivedString = rkyv::access(&bytes)?;
 
-            #[cfg(not(feature = "validation"))]
-            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            #[cfg(not(feature = "bytecheck"))]
+            let archived: &ArchivedString = unsafe { rkyv::access_unchecked(&bytes) };
 
             let deserialized: GuildFeature =
-                GuildFeatureRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+                rkyv::deserialize(With::<_, GuildFeatureRkyv>::cast(archived))?;
 
             assert_eq!(feature, deserialized);
         }
+
+        Ok(())
     }
 }

@@ -1,12 +1,10 @@
+#[cfg(feature = "bb8")]
+pub(crate) use bb8::*;
+#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
+pub(crate) use deadpool::*;
 use tracing::trace;
 
 use crate::{CacheResult, RedisCache};
-
-#[cfg(feature = "bb8")]
-pub(crate) use bb8::*;
-
-#[cfg(all(not(feature = "bb8"), feature = "deadpool"))]
-pub(crate) use deadpool::*;
 
 #[cfg(feature = "bb8")]
 mod bb8 {

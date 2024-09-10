@@ -1,21 +1,24 @@
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     marker::PhantomData,
+    mem,
     num::NonZeroU64,
-    ptr::{addr_of, addr_of_mut},
+    ptr, slice,
 };
 
 use rkyv::{
-    ser::{ScratchSpace, Serializer},
+    niche::option_nonzero::ArchivedOptionNonZeroU64,
+    rancor::Fallible,
+    ser::{Allocator, Writer, WriterExt},
+    traits::NoUndef,
     vec::{ArchivedVec, VecResolver},
-    with::{ArchiveWith, DeserializeWith, SerializeWith, With},
-    Archived, Deserialize, Fallible,
+    with::{ArchiveWith, DeserializeWith, Map, SerializeWith, With},
+    Archive, Archived, Deserialize, Place, Portable,
 };
 use twilight_model::id::Id;
 
-use crate::rkyv_util::id::IdRkyv;
-
 use super::ArchivedId;
+use crate::rkyv_util::id::IdRkyv;
 
 /// Used to archive `Option<Id<T>>`, `Vec<Id<T>>`, `&[Id<T>]`,
 /// and `Box<[Id<T>]>` more efficiently than [`Map<IdRkyv>`](rkyv::with::Map).
@@ -29,22 +32,29 @@ use super::ArchivedId;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a, T> {
-///     #[with(IdRkyvMap)]
+///     #[rkyv(with = IdRkyvMap)]
 ///     id_opt: Option<Id<T>>,
-///     #[with(IdRkyvMap)]
+///     #[rkyv(with = IdRkyvMap)]
 ///     id_vec: Vec<Id<T>>,
-///     #[with(IdRkyvMap)]
+///     #[rkyv(with = IdRkyvMap)]
 ///     id_slice: &'a [Id<T>],
-///     #[with(IdRkyvMap)]
+///     #[rkyv(with = IdRkyvMap)]
 ///     id_box: Box<[Id<T>]>,
 /// }
 /// ```
 pub struct IdRkyvMap;
 
+#[derive(Portable)]
+#[cfg_attr(
+    feature = "bytecheck",
+    derive(rkyv::bytecheck::CheckBytes),
+    bytecheck(crate = rkyv::bytecheck),
+)]
+#[repr(C)]
 /// An efficiently archived `Option<Id<T>>`.
 pub struct ArchivedIdOption<T> {
-    inner: Archived<u64>,
-    phantom: PhantomData<fn(T) -> T>,
+    inner: ArchivedOptionNonZeroU64,
+    _phantom: PhantomData<fn(T) -> T>,
 }
 
 impl<T> Clone for ArchivedIdOption<T> {
@@ -69,22 +79,12 @@ impl<T> PartialEq<Option<Id<T>>> for ArchivedIdOption<T> {
     }
 }
 
+unsafe impl<T> NoUndef for ArchivedIdOption<T> {}
+
 impl<T> ArchivedIdOption<T> {
     /// Convert into an `Option<NonZeroU64>`.
-    pub fn to_nonzero_option(self) -> Option<NonZeroU64> {
-        #[allow(clippy::if_not_else)]
-        if self.inner != 0 {
-            // SAFETY: NonZero types have the same memory layout and bit patterns as
-            // their integer counterparts, regardless of endianness
-            let as_nonzero = unsafe { *(addr_of!(self.inner).cast::<Archived<NonZeroU64>>()) };
-
-            // the .into() is necessary in case the `archive_le` or `archive_be`
-            // features are enabled in rkyv
-            #[allow(clippy::useless_conversion)]
-            Some(as_nonzero.into())
-        } else {
-            None
-        }
+    pub fn to_nonzero_option(mut self) -> Option<NonZeroU64> {
+        self.inner.take().map(NonZeroU64::from)
     }
 
     /// Convert into an `Option<Id<T>>`.
@@ -93,19 +93,10 @@ impl<T> ArchivedIdOption<T> {
     }
 
     /// Resolves an `ArchivedIdOption` from an `Option<Id<T>>`.
-    ///
-    /// # Safety
-    ///
-    /// - `pos` must be the position of `out` within the archive
     #[allow(clippy::similar_names)]
-    pub unsafe fn resolve_from_id(opt: Option<Id<T>>, out: *mut Self) {
-        let fo = addr_of_mut!((*out).inner);
-        let id = opt.map_or(0, Id::get);
-
-        // the .into() is necessary in case the `archive_le` or `archive_be`
-        // features are enabled in rkyv
-        #[allow(clippy::useless_conversion)]
-        fo.write(id.into());
+    pub fn resolve_from_id(opt: Option<Id<T>>, out: Place<Self>) {
+        rkyv::munge::munge!(let Self { inner, _phantom } = out);
+        ArchivedOptionNonZeroU64::resolve_from_option(opt.map(Id::into_nonzero), inner);
     }
 }
 
@@ -115,32 +106,11 @@ impl<T> Debug for ArchivedIdOption<T> {
     }
 }
 
-#[cfg(feature = "validation")]
-#[cfg_attr(docsrs, doc(cfg(feature = "validation")))]
-const _: () = {
-    use std::convert::Infallible;
-
-    use rkyv::CheckBytes;
-
-    impl<C: ?Sized, T> CheckBytes<C> for ArchivedIdOption<T> {
-        type Error = Infallible;
-
-        unsafe fn check_bytes<'a>(value: *const Self, _: &mut C) -> Result<&'a Self, Self::Error> {
-            Ok(&*value)
-        }
-    }
-};
-
 impl<T> ArchiveWith<Option<Id<T>>> for IdRkyvMap {
     type Archived = ArchivedIdOption<T>;
     type Resolver = ();
 
-    unsafe fn resolve_with(
-        id: &Option<Id<T>>,
-        _: usize,
-        _: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
+    fn resolve_with(id: &Option<Id<T>>, (): Self::Resolver, out: Place<Self::Archived>) {
         ArchivedIdOption::resolve_from_id(*id, out);
     }
 }
@@ -152,7 +122,6 @@ impl<S: Fallible + ?Sized, T> SerializeWith<Option<Id<T>>, S> for IdRkyvMap {
 }
 
 impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedIdOption<T>, Option<Id<T>>, D> for IdRkyvMap {
-    #[inline]
     fn deserialize_with(
         archived: &ArchivedIdOption<T>,
         deserializer: &mut D,
@@ -167,99 +136,85 @@ impl<D: Fallible + ?Sized, T> Deserialize<Option<Id<T>>, D> for ArchivedIdOption
     }
 }
 
-/// Auxiliary trait to provide the most efficient (de)serializations of `&[Id<T>]` across every endian.
-trait INonZeroU64 {
-    /// Serialize `&[Id<T>]` assuming that `Self` is `Archived<NonZeroU64>`
-    /// or at least has the same layout.
+/// Auxiliary trait to provide the most efficient (de)serializations of
+/// `&[Id<T>]` across every endian.
+trait INonZeroU64: Archive<Archived = Self> {
+    /// Serialize `&[Id<T>]` while leveraging when `Self == Archived<Self>`.
     fn serialize<S, T>(
         list: &[Id<T>],
         serializer: &mut S,
     ) -> Result<VecResolver, <S as Fallible>::Error>
     where
-        S: Fallible + Serializer + ScratchSpace + ?Sized;
+        S: Fallible + Allocator + Writer + ?Sized;
 
-    /// Deserialize an archived `Vec<Id<T>>` assuming that `Self` is `Archived<NonZeroU64>`
-    /// or at least has the same layout.
-    fn deserialize<T>(archived: &ArchivedVec<ArchivedId<T>>) -> Vec<Id<T>>;
-}
-
-impl INonZeroU64 for NonZeroU64 {
-    fn serialize<S, T>(
-        ids: &[Id<T>],
-        serializer: &mut S,
-    ) -> Result<VecResolver, <S as Fallible>::Error>
+    /// Deserialize an archived `Vec<Id<T>>` while leveraging when `Self ==
+    /// Archived<Self>`.
+    fn deserialize<T, D>(
+        archived: &ArchivedVec<ArchivedId<T>>,
+        deserializer: &mut D,
+    ) -> Result<Vec<Id<T>>, D::Error>
     where
-        S: Fallible + Serializer + ScratchSpace + ?Sized,
-    {
-        fn wrap_ids<T>(ids: &[Id<T>]) -> &[With<Id<T>, IdRkyv>] {
-            let ptr = ids as *const [Id<T>] as *const [With<Id<T>, IdRkyv>];
-
-            // SAFETY: `With` is just a transparent wrapper
-            unsafe { &*ptr }
-        }
-
-        // SAFETY: The caller guarantees that `NonZeroU64` and
-        // `Archived<NonZeroU64>` share the same layout.
-        unsafe { ArchivedVec::serialize_copy_from_slice(wrap_ids(ids), serializer) }
-    }
-
-    fn deserialize<T>(archived: &ArchivedVec<ArchivedId<T>>) -> Vec<Id<T>> {
-        /// # Safety
-        ///
-        /// It must hold that `NonZeroU64` and `Archived<NonZerou64>` share the same layout.
-        unsafe fn cast_archived<T>(ids: &[ArchivedId<T>]) -> &[Id<T>] {
-            &*(ids as *const [ArchivedId<T>] as *const [Id<T>])
-        }
-
-        // SAFETY: The caller guarantees that `NonZeroU64` and
-        // `Archived<NonZeroU64>` share the same layout
-        unsafe { cast_archived(archived.as_slice()) }.to_owned()
-    }
+        D: Fallible + ?Sized;
 }
 
-// The only way for us to know whether `rkyv::rend` is available is if our
-// `validation` feature is enabled which enables `rkyv/validation` which
-// in turn enables `rkyv/rend`.
-// FIXME: For the edge case that `validation` is not enabled yet `rkyv/archive_*`
-// *is* enabled, our build will currently fail.
-#[cfg(feature = "validation")]
-const _: () = {
-    // TODO
-    // macro_rules! impl_endian {
-    //     ( $endian:ident: $target_endian:literal ) => {
-    //         impl INonZeroU64 for ::rkyv::rend::$endian<NonZeroU64> {
-    //             fn serialize<S, T>(
-    //                 list: &[Id<T>],
-    //                 serializer: &mut S,
-    //             ) -> Result<VecResolver, <S as Fallible>::Error>
-    //             where
-    //                 S: Fallible + Serializer + ScratchSpace + ?Sized,
-    //             {
-    //                 if cfg!(target_endian = $target_endian) {
-    //                     return <NonZeroU64 as INonZeroU64>::serialize(list, serializer);
-    //                 }
+macro_rules! impl_non_zero {
+    ($ty:path, $endian:literal) => {
+        impl INonZeroU64 for $ty {
+            fn serialize<S, T>(
+                ids: &[Id<T>],
+                serializer: &mut S,
+            ) -> Result<VecResolver, <S as Fallible>::Error>
+            where
+                S: Fallible + Allocator + Writer + ?Sized,
+            {
+                const fn with_ids<T>(ids: &[Id<T>]) -> &[With<Id<T>, IdRkyv>] {
+                    let ptr = ptr::from_ref(ids) as *const [With<Id<T>, IdRkyv>];
 
-    //                 #[allow(clippy::items_after_statements)]
-    //                 type Wrapper<T> = With<Id<T>, IdRkyv>;
-    //                 let iter = list.iter().map(Wrapper::<T>::cast);
+                    // SAFETY: `With` is just a transparent wrapper
+                    unsafe { &*ptr }
+                }
 
-    //                 ArchivedVec::serialize_from_iter::<Wrapper<T>, _, _, _>(iter, serializer)
-    //             }
+                if cfg!(target_endian = $endian) {
+                    let pos =
+                        serializer.align_for::<<With<Id<T>, IdRkyv> as Archive>::Archived>()?;
 
-    //             fn deserialize<T>(archived: &ArchivedVec<ArchivedId<T>>) -> Vec<Id<T>> {
-    //                 if cfg!(target_endian = $target_endian) {
-    //                     <NonZeroU64 as INonZeroU64>::deserialize(archived)
-    //                 } else {
-    //                     archived.iter().copied().map(Id::from).collect()
-    //                 }
-    //             }
-    //         }
-    //     };
-    // }
+                    // # Safety: `NonZeroU64` and `Archived<NonZeroU64>` share
+                    // the same layout.
+                    let as_bytes = unsafe {
+                        slice::from_raw_parts(ids.as_ptr().cast::<u8>(), mem::size_of_val(ids))
+                    };
 
-    // impl_endian!(BigEndian: "big");
-    // impl_endian!(LittleEndian: "little");
-};
+                    serializer.write(as_bytes)?;
+
+                    Ok(VecResolver::from_pos(pos))
+                } else {
+                    ArchivedVec::serialize_from_slice(with_ids(ids), serializer)
+                }
+            }
+
+            fn deserialize<T, D>(
+                archived: &ArchivedVec<ArchivedId<T>>,
+                deserializer: &mut D,
+            ) -> Result<Vec<Id<T>>, D::Error>
+            where
+                D: Fallible + ?Sized,
+            {
+                if cfg!(target_endian = $endian) {
+                    // # Safety: `NonZeroU64` and `Archived<NonZeroU64>` share
+                    // the same layout.
+                    let slice = unsafe { &*(ptr::from_ref(archived.as_slice()) as *const [Id<T>]) };
+
+                    Ok(slice.to_owned())
+                } else {
+                    With::<_, Map<IdRkyv>>::cast(archived).deserialize(deserializer)
+                }
+            }
+        }
+    };
+}
+
+impl_non_zero!(rkyv::rend::NonZeroU64_le, "little");
+impl_non_zero!(rkyv::rend::NonZeroU64_be, "big");
 
 // Vec<Id<T>>
 
@@ -267,19 +222,14 @@ impl<T> ArchiveWith<Vec<Id<T>>> for IdRkyvMap {
     type Archived = ArchivedVec<ArchivedId<T>>;
     type Resolver = VecResolver;
 
-    unsafe fn resolve_with(
-        ids: &Vec<Id<T>>,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        ArchivedVec::resolve_from_len(ids.len(), pos, resolver, out);
+    fn resolve_with(ids: &Vec<Id<T>>, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        ArchivedVec::resolve_from_len(ids.len(), resolver, out);
     }
 }
 
 impl<S, T> SerializeWith<Vec<Id<T>>, S> for IdRkyvMap
 where
-    S: Fallible + Serializer + ScratchSpace + ?Sized,
+    S: Fallible + Allocator + Writer + ?Sized,
 {
     fn serialize_with(
         ids: &Vec<Id<T>>,
@@ -294,9 +244,9 @@ impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedVec<ArchivedId<T>>, Vec<Id
 {
     fn deserialize_with(
         archived: &ArchivedVec<ArchivedId<T>>,
-        _: &mut D,
+        deserializer: &mut D,
     ) -> Result<Vec<Id<T>>, <D as Fallible>::Error> {
-        Ok(<Archived<NonZeroU64> as INonZeroU64>::deserialize(archived))
+        <Archived<NonZeroU64> as INonZeroU64>::deserialize(archived, deserializer)
     }
 }
 
@@ -306,19 +256,14 @@ impl<T> ArchiveWith<&[Id<T>]> for IdRkyvMap {
     type Archived = ArchivedVec<ArchivedId<T>>;
     type Resolver = VecResolver;
 
-    unsafe fn resolve_with(
-        ids: &&[Id<T>],
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        ArchivedVec::resolve_from_len(ids.len(), pos, resolver, out);
+    fn resolve_with(ids: &&[Id<T>], resolver: Self::Resolver, out: Place<Self::Archived>) {
+        ArchivedVec::resolve_from_len(ids.len(), resolver, out);
     }
 }
 
 impl<S, T> SerializeWith<&[Id<T>], S> for IdRkyvMap
 where
-    S: Fallible + Serializer + ScratchSpace + ?Sized,
+    S: Fallible + Allocator + Writer + ?Sized,
 {
     fn serialize_with(
         ids: &&[Id<T>],
@@ -334,19 +279,14 @@ impl<T> ArchiveWith<Box<[Id<T>]>> for IdRkyvMap {
     type Archived = ArchivedVec<ArchivedId<T>>;
     type Resolver = VecResolver;
 
-    unsafe fn resolve_with(
-        ids: &Box<[Id<T>]>,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        ArchivedVec::resolve_from_len(ids.len(), pos, resolver, out);
+    fn resolve_with(ids: &Box<[Id<T>]>, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        ArchivedVec::resolve_from_len(ids.len(), resolver, out);
     }
 }
 
 impl<S, T> SerializeWith<Box<[Id<T>]>, S> for IdRkyvMap
 where
-    S: Fallible + Serializer + ScratchSpace + ?Sized,
+    S: Fallible + Allocator + Writer + ?Sized,
 {
     fn serialize_with(
         ids: &Box<[Id<T>]>,
@@ -361,64 +301,62 @@ impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedVec<ArchivedId<T>>, Box<[I
 {
     fn deserialize_with(
         archived: &ArchivedVec<ArchivedId<T>>,
-        _: &mut D,
+        deserializer: &mut D,
     ) -> Result<Box<[Id<T>]>, <D as Fallible>::Error> {
-        Ok(<Archived<NonZeroU64> as INonZeroU64>::deserialize(archived).into_boxed_slice())
+        <Archived<NonZeroU64> as INonZeroU64>::deserialize(archived, deserializer)
+            .map(Vec::into_boxed_slice)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_id_map() {
-        type Wrapper = With<Option<Id<()>>, IdRkyvMap>;
-
+    fn test_rkyv_id_map() -> Result<(), Error> {
         let ids = [Some(Id::new(123)), None];
 
         for id in ids {
-            let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&id)).unwrap();
+            let bytes = rkyv::to_bytes(With::<_, IdRkyvMap>::cast(&id))?;
 
-            #[cfg(not(feature = "validation"))]
-            let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+            #[cfg(not(feature = "bytecheck"))]
+            let archived: &ArchivedIdOption<()> = unsafe { rkyv::access_unchecked(&bytes) };
 
-            #[cfg(feature = "validation")]
-            let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+            #[cfg(feature = "bytecheck")]
+            let archived: &ArchivedIdOption<()> = rkyv::access(&bytes)?;
 
             assert_eq!(id, archived.to_id_option());
 
-            let deserialized: Option<Id<()>> = archived.deserialize(&mut Infallible).unwrap();
+            let deserialized: Option<Id<()>> =
+                rkyv::deserialize(With::<_, IdRkyvMap>::cast(archived))?;
 
             assert_eq!(id, deserialized);
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_rkyv_id_vec() {
-        type Wrapper = With<Vec<Id<()>>, IdRkyvMap>;
-
+    fn test_rkyv_id_vec() -> Result<(), Error> {
         let ids = vec![Id::new(123), Id::new(234)];
-        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&ids)).unwrap();
+        let bytes = rkyv::to_bytes(With::<_, IdRkyvMap>::cast(&ids))?;
 
-        #[cfg(not(feature = "validation"))]
-        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        #[cfg(not(feature = "bytecheck"))]
+        let archived: &ArchivedVec<ArchivedId<()>> = unsafe { rkyv::access_unchecked(&bytes) };
 
-        #[cfg(feature = "validation")]
-        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+        #[cfg(feature = "bytecheck")]
+        let archived: &ArchivedVec<ArchivedId<()>> = rkyv::access(&bytes)?;
 
-        let same_archived = archived
-            .iter()
-            .zip(ids.iter())
-            .all(|(archived, id)| archived.get() == id.get());
+        for (archived, id) in archived.iter().zip(ids.iter()) {
+            assert_eq!(archived.get(), id.get());
+        }
 
-        assert!(same_archived);
-
-        let deserialized: Vec<Id<()>> =
-            IdRkyvMap::deserialize_with(archived, &mut Infallible).unwrap();
+        let deserialized: Vec<Id<()>> = rkyv::deserialize(With::<_, IdRkyvMap>::cast(archived))?;
 
         assert_eq!(ids, deserialized);
+
+        Ok(())
     }
 }

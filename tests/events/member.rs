@@ -6,14 +6,16 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMember, Ignore},
-    error::BoxedError,
+    error::{CacheError, UpdateArchiveError},
     rkyv_util::util::BitflagsRkyv,
-    CacheError, CachedArchive, RedisCache,
+    CachedArchive, RedisCache,
 };
 use rkyv::{
-    ser::serializers::BufferSerializer, AlignedBytes, Archive, Deserialize, Infallible, Serialize,
+    rancor::{Fallible, Panic},
+    ser::writer::Buffer,
+    util::Align,
+    Archive, Deserialize, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     gateway::{
         event::Event,
@@ -24,12 +26,10 @@ use twilight_model::{
     util::Timestamp,
 };
 
+use super::user::user;
 use crate::{events::message::message, pool};
 
-use super::user::user;
-
 #[tokio::test]
-#[serial]
 async fn test_member() -> Result<(), CacheError> {
     struct Config;
 
@@ -53,9 +53,8 @@ async fn test_member() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize, Deserialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedMember {
-        #[with(BitflagsRkyv)]
+        #[rkyv(with = BitflagsRkyv)]
         flags: MemberFlags,
         pending: bool,
     }
@@ -69,37 +68,47 @@ async fn test_member() -> Result<(), CacheError> {
         }
 
         fn on_member_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), BoxedError>> {
+        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>>
+        {
             Some(|archived, update| {
-                archived.update_by_deserializing(
-                    |deserialized| deserialized.pending = update.pending,
-                    &mut Infallible,
-                )
+                archived
+                    .update_by_deserializing(
+                        |deserialized| deserialized.pending = update.pending,
+                        &mut (),
+                    )
+                    .map_err(UpdateArchiveError::unwrap_ser)
             })
         }
 
         fn update_via_partial(
-        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), BoxedError>>
+        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>>
         {
             Some(|archived, member| {
-                // the `.into()` is necessary in case the `archive_le` or `archive_be`
-                // features are enabled in rkyv
-                #[allow(clippy::useless_conversion)]
-                archived.update_archive(|pinned| {
-                    pinned.get_mut().flags = member.flags.bits().into();
-                });
-
-                Ok(())
+                archived.update_archive(|sealed| {
+                    rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
+                    *flags = member.flags.bits().into();
+                })
             })
         }
     }
 
     impl Cacheable for CachedMember {
-        type Serializer = BufferSerializer<AlignedBytes<16>>;
+        type Bytes = [u8; 16];
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            let mut bytes = Align([0_u8; 16]);
+            rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
+
+            Ok(bytes.0)
+        }
+    }
+
+    impl Fallible for CachedMember {
+        type Error = Panic;
     }
 
     impl PartialEq<Member> for ArchivedCachedMember {

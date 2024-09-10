@@ -23,10 +23,9 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::CurrentUser;
         let current_user = C::CurrentUser::from_current_user(current_user);
 
-        let bytes = current_user.serialize().map_err(|e| SerializeError {
-            error: Box::new(e),
-            kind: SerializeErrorKind::CurrentUser,
-        })?;
+        let bytes = current_user
+            .serialize_one()
+            .map_err(|e| SerializeError::new(e, SerializeErrorKind::CurrentUser))?;
 
         trace!(bytes = bytes.as_ref().len());
 

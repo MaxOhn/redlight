@@ -6,19 +6,20 @@ use twilight_model::id::{
     Id,
 };
 
+pub use self::async_iter::AsyncIter;
 use crate::{
     config::{CacheConfig, Cacheable},
+    error::CacheError,
     key::RedisKey,
     redis::Cmd,
-    CacheError, CacheResult, RedisCache,
+    CacheResult, RedisCache,
 };
-
-pub use self::async_iter::AsyncIter;
 
 /// Base type to create iterators for cached entries.
 ///
-/// The iteration order of all iterators is arbitrary, except for [`RedisCacheIter::channel_messages`]
-/// whose order is the message timestamp i.e. from most recent to oldest.
+/// The iteration order of all iterators is arbitrary, except for
+/// [`RedisCacheIter::channel_messages`] whose order is the message timestamp
+/// i.e. from most recent to oldest.
 pub struct RedisCacheIter<'c, C> {
     cache: &'c RedisCache<C>,
 }

@@ -1,34 +1,37 @@
 pub use validation::CheckedArchive;
 
-#[cfg(feature = "validation")]
+#[cfg(feature = "bytecheck")]
 mod validation {
-    use rkyv::{validation::validators::DefaultValidator, Archive, CheckBytes};
+    use rkyv::{
+        api::high::HighValidator, bytecheck::CheckBytes, rancor::Fallible, Archive, Archived,
+    };
 
-    /// Auxiliary trait ensuring properties related to the `validation` feature flag.
+    /// Auxiliary trait ensuring properties related to the `bytecheck` feature
+    /// flag.
     ///
     /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive: Archive<Archived = Self::CheckedArchived> {
-        type CheckedArchived: for<'a> CheckBytes<DefaultValidator<'a>>;
+    pub trait CheckedArchive<E = <Self as Fallible>::Error>:
+        Archive<Archived: for<'a> CheckBytes<HighValidator<'a, E>>>
+    {
     }
 
-    impl<T> CheckedArchive for T
+    impl<T, E> CheckedArchive<E> for T
     where
         T: Archive,
-        <T as Archive>::Archived: for<'a> CheckBytes<DefaultValidator<'a>>,
-        for<'a> <<T as Archive>::Archived as CheckBytes<DefaultValidator<'a>>>::Error: Send + Sync,
+        Archived<T>: for<'a> CheckBytes<HighValidator<'a, E>>,
     {
-        type CheckedArchived = <T as Archive>::Archived;
     }
 }
 
-#[cfg(not(feature = "validation"))]
+#[cfg(not(feature = "bytecheck"))]
 mod validation {
-    use rkyv::Archive;
+    use rkyv::{rancor::Fallible, Archive};
 
-    /// Auxiliary trait ensuring properties related to the `validation` feature flag.
+    /// Auxiliary trait ensuring properties related to the `bytecheck` feature
+    /// flag.
     ///
     /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive: Archive {}
+    pub trait CheckedArchive<E = <Self as Fallible>::Error>: Archive {}
 
-    impl<T: Archive> CheckedArchive for T {}
+    impl<T: Archive, E> CheckedArchive<E> for T {}
 }

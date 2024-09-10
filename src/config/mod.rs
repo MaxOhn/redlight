@@ -1,11 +1,14 @@
 mod cacheable;
 mod checked;
 mod from;
-mod ignore;
 mod reaction_event;
 
+// pub but hidden for `cargo rdme`
+#[doc(hidden)]
+pub mod ignore;
+
 pub use self::{
-    cacheable::Cacheable,
+    cacheable::{Cacheable, SerializeMany},
     checked::CheckedArchive,
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
@@ -18,7 +21,8 @@ pub use self::{
 
 /// Configuration for a [`RedisCache`](crate::RedisCache).
 ///
-/// If an associated type should be cached, create a new type and implement the required traits for it.
+/// If an associated type should be cached, create a new type and implement the
+/// required traits for it.
 ///
 /// If an associated type should not be cached, use [`Ignore`].
 ///
@@ -26,12 +30,16 @@ pub use self::{
 ///
 /// ```
 /// # use std::{time::Duration};
-/// # use redlight::{CachedArchive, config::ReactionEvent, error::BoxedError};
-/// # use rkyv::{Archive, Serialize, ser::serializers::AllocSerializer};
-/// # use twilight_model::{channel::{message::Message, Channel}, gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}};
+/// # use redlight::{CachedArchive, config::ReactionEvent};
+/// # use rkyv::{Archive, Serialize};
+/// # use twilight_model::{
+/// #     channel::{message::Message, Channel},
+/// #     gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}
+/// # };
 /// use redlight::config::{CacheConfig, Cacheable, ICachedChannel, ICachedMessage, Ignore};
 /// use redlight::rkyv_util::{id::IdRkyv, util::BitflagsRkyv};
-/// use rkyv::with::{Map, RefAsBox};
+/// use rkyv::with::{Map, InlineAsBox};
+/// use rkyv::rancor::Fallible;
 /// use twilight_model::{channel::ChannelFlags, id::{Id, marker::ChannelMarker}};
 ///
 /// struct Config;
@@ -57,14 +65,10 @@ pub use self::{
 /// }
 ///
 /// #[derive(Archive, Serialize)]
-/// # #[cfg_attr(feature = "validation", archive(check_bytes))]
-/// # /*
-/// #[archive(check_bytes)] // only if `validation` feature is enabled
-/// # */
 /// struct CachedChannel {
-///     #[with(Map<BitflagsRkyv>)]
+///     #[rkyv(with = Map<BitflagsRkyv>)]
 ///     flags: Option<ChannelFlags>,
-///     #[with(IdRkyv)]
+///     #[rkyv(with = IdRkyv)]
 ///     id: Id<ChannelMarker>,
 /// }
 ///
@@ -73,24 +77,26 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_channel(_: &'a Channel) -> Self { unimplemented!() }
-///     # fn on_pins_update() -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), BoxedError>> { unimplemented!() }
+///     # fn on_pins_update() -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate)
+///     #     -> Result<(), Self::Error>> { None }
 /// }
 ///
 /// impl Cacheable for CachedChannel {
 ///     # /*
 ///     // ...
 ///     # */
-///     # type Serializer = AllocSerializer<0>;
+///     # type Bytes = [u8; 0];
 ///     # fn expire() -> Option<Duration> { None }
+///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
+/// }
+///
+/// impl Fallible for CachedChannel {
+///     type Error = rkyv::rancor::Error;
 /// }
 ///
 /// #[derive(Archive, Serialize)]
-/// # #[cfg_attr(feature = "validation", archive(check_bytes))]
-/// # /*
-/// #[archive(check_bytes)] // only if `validation` feature is enabled
-/// # */
 /// struct CachedMessage<'a> {
-///     #[with(RefAsBox)]
+///     #[rkyv(with = InlineAsBox)]
 ///     content: &'a str,
 /// }
 ///
@@ -99,16 +105,23 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_message(_: &'a Message) -> Self { unimplemented!() }
-///     # fn on_message_update() -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), BoxedError>> { unimplemented!() }
-///     # fn on_reaction_event() -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), BoxedError>> { unimplemented!() }
+///     # fn on_message_update() -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate)
+///     #     -> Result<(), Self::Error>> { None }
+///     # fn on_reaction_event() -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>)
+///     #     -> Result<(), Self::Error>> { None }
 /// }
 ///
 /// impl Cacheable for CachedMessage<'_> {
 ///     # /*
 ///     // ...
 ///     # */
-///     # type Serializer = AllocSerializer<0>;
+///     # type Bytes = [u8; 0];
 ///     # fn expire() -> Option<Duration> { None }
+///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
+/// }
+///
+/// impl Fallible for CachedMessage<'_> {
+///     type Error = rkyv::rancor::Error;
 /// }
 /// ```
 pub trait CacheConfig: Send + Sync + 'static {

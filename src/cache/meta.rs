@@ -1,16 +1,8 @@
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
-use rkyv::{ser::Serializer, Archived, Serialize};
+use rkyv::{rancor::BoxedError, Archived};
 use tracing::{instrument, trace};
 use twilight_model::id::Id;
-
-use crate::{
-    config::CheckedArchive,
-    error::{BoxedError, ExpireError},
-    key::RedisKey,
-    redis::{DedicatedConnection, Pipeline},
-    ser::CacheSerializer,
-};
 
 use super::{
     impls::{
@@ -20,6 +12,12 @@ use super::{
         sticker::StickerMetaKey, user::UserMetaKey, voice_state::VoiceStateMetaKey,
     },
     pipe::Pipe,
+};
+use crate::{
+    config::CheckedArchive,
+    error::ExpireError,
+    key::RedisKey,
+    redis::{DedicatedConnection, Pipeline},
 };
 
 pub(crate) enum MetaKey {
@@ -213,18 +211,14 @@ pub(crate) trait HasArchived: Sized {
 }
 
 /// Additional data for a [`IMetaKey`] that gets archived in the cache.
-pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive + Sized
-where
-    Self: Serialize<Self::Serializer>,
-{
-    /// The serializer to serialize this data.
-    type Serializer: CacheSerializer;
+pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive<BoxedError> + Sized {
+    type Bytes: AsRef<[u8]>;
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError>;
 
     /// Serialize and store this data in the cache.
     fn store<C>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), BoxedError> {
-        let mut serializer = Self::Serializer::default();
-        serializer.serialize_value(self)?;
-        let bytes = serializer.finish();
+        let bytes = self.to_bytes()?;
         let key = key.redis_key();
         pipe.set(key, bytes.as_ref(), None);
 
@@ -233,15 +227,14 @@ where
 
     /// Interprete the given bytes as an archived type.
     fn as_archive(bytes: &[u8]) -> Result<&Archived<Self>, ExpireError> {
-        #[cfg(feature = "validation")]
+        #[cfg(feature = "bytecheck")]
         {
-            rkyv::check_archived_root::<Self>(bytes)
-                .map_err(|e| ExpireError::Validation(Box::new(e)))
+            rkyv::access::<Archived<Self>, BoxedError>(bytes).map_err(ExpireError::Validation)
         }
 
-        #[cfg(not(feature = "validation"))]
+        #[cfg(not(feature = "bytecheck"))]
         unsafe {
-            Ok(rkyv::archived_root::<Self>(bytes))
+            Ok(rkyv::access_unchecked::<Archived<Self>>(bytes))
         }
     }
 }

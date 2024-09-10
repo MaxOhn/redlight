@@ -1,6 +1,7 @@
 use rkyv::{
+    rancor::Fallible,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Fallible,
+    Archive, Archived, Place,
 };
 use twilight_model::channel::stage_instance::PrivacyLevel;
 
@@ -15,7 +16,7 @@ use twilight_model::channel::stage_instance::PrivacyLevel;
 ///
 /// #[derive(Archive)]
 /// struct Cached {
-///     #[with(PrivacyLevelRkyv)]
+///     #[rkyv(with = PrivacyLevelRkyv)]
 ///     privacy_level: PrivacyLevel,
 /// }
 /// ```
@@ -25,55 +26,45 @@ impl ArchiveWith<PrivacyLevel> for PrivacyLevelRkyv {
     type Archived = Archived<u8>;
     type Resolver = ();
 
-    unsafe fn resolve_with(
-        level: &PrivacyLevel,
-        pos: usize,
-        resolver: Self::Resolver,
-        out: *mut Self::Archived,
-    ) {
-        (*level as u8).resolve(pos, resolver, out);
+    fn resolve_with(level: &PrivacyLevel, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        (*level as u8).resolve(resolver, out);
     }
 }
 
 impl<S: Fallible + ?Sized> SerializeWith<PrivacyLevel, S> for PrivacyLevelRkyv {
-    fn serialize_with(
-        _: &PrivacyLevel,
-        _: &mut S,
-    ) -> Result<Self::Resolver, <S as Fallible>::Error> {
+    fn serialize_with(_: &PrivacyLevel, _: &mut S) -> Result<Self::Resolver, S::Error> {
         Ok(())
     }
 }
 
 impl<D: Fallible + ?Sized> DeserializeWith<Archived<u8>, PrivacyLevel, D> for PrivacyLevelRkyv {
-    fn deserialize_with(
-        _: &Archived<u8>,
-        _: &mut D,
-    ) -> Result<PrivacyLevel, <D as Fallible>::Error> {
+    fn deserialize_with(_: &Archived<u8>, _: &mut D) -> Result<PrivacyLevel, D::Error> {
         Ok(PrivacyLevel::GuildOnly) // currently the only variant
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{with::With, Infallible};
+    use rkyv::{rancor::Error, with::With};
 
     use super::*;
 
     #[test]
-    fn test_rkyv_privacy_level() {
-        type Wrapper = With<PrivacyLevel, PrivacyLevelRkyv>;
-
+    fn test_rkyv_privacy_level() -> Result<(), Error> {
         let level = PrivacyLevel::GuildOnly;
-        let bytes = rkyv::to_bytes::<_, 0>(Wrapper::cast(&level)).unwrap();
+        let bytes = rkyv::to_bytes(With::<_, PrivacyLevelRkyv>::cast(&level))?;
 
-        #[cfg(feature = "validation")]
-        let archived = rkyv::check_archived_root::<Wrapper>(&bytes).unwrap();
+        #[cfg(feature = "bytecheck")]
+        let archived: &Archived<u8> = rkyv::access(&bytes)?;
 
-        #[cfg(not(feature = "validation"))]
-        let archived = unsafe { rkyv::archived_root::<Wrapper>(&bytes) };
+        #[cfg(not(feature = "bytecheck"))]
+        let archived: &Archived<u8> = unsafe { rkyv::access_unchecked(&bytes) };
 
-        let deserialized = PrivacyLevelRkyv::deserialize_with(archived, &mut Infallible).unwrap();
+        let deserialized: PrivacyLevel =
+            rkyv::deserialize(With::<_, PrivacyLevelRkyv>::cast(archived))?;
 
         assert_eq!(level, deserialized);
+
+        Ok(())
     }
 }

@@ -12,15 +12,13 @@ use crate::{
         meta::{atoi, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedPresence},
+    config::{CacheConfig, Cacheable, ICachedPresence, SerializeMany},
     error::{SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type PresenceSerializer<'a, C> = <<C as CacheConfig>::Presence<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -38,10 +36,9 @@ impl<C: CacheConfig> RedisCache<C> {
             };
             let presence = C::Presence::from_presence(presence);
 
-            let bytes = presence.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Presence,
-            })?;
+            let bytes = presence
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Presence))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -66,7 +63,7 @@ impl<C: CacheConfig> RedisCache<C> {
         presences: &[Presence],
     ) -> CacheResult<()> {
         if C::Presence::WANTED {
-            let mut serializer = PresenceSerializer::<C>::default();
+            let mut serializer = C::Presence::serialize_many();
 
             let (presence_entries, user_ids) = presences
                 .iter()
@@ -79,19 +76,15 @@ impl<C: CacheConfig> RedisCache<C> {
                     };
                     let presence = C::Presence::from_presence(presence);
 
-                    let bytes =
-                        presence
-                            .serialize_with(&mut serializer)
-                            .map_err(|e| SerializeError {
-                                error: Box::new(e),
-                                kind: SerializeErrorKind::Presence,
-                            })?;
+                    let bytes = serializer
+                        .serialize_next(&presence)
+                        .map_err(|e| SerializeError::new(e, SerializeErrorKind::Presence))?;
 
                     trace!(bytes = bytes.as_ref().len());
 
-                    Ok(((key, BytesArg(bytes)), user_id.get()))
+                    Ok(((key, BytesWrap(bytes)), user_id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
                 .unzip();
 
             if !presence_entries.is_empty() {

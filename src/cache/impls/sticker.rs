@@ -1,4 +1,4 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::message::Sticker,
@@ -13,16 +13,14 @@ use crate::{
         meta::{atoi, HasArchived, IMeta, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedSticker},
+    config::{CacheConfig, Cacheable, ICachedSticker, SerializeMany},
     error::{MetaError, MetaErrorKind, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type StickerSerializer<'a, C> = <<C as CacheConfig>::Sticker<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -36,7 +34,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut serializer = StickerSerializer::<C>::default();
+        let mut serializer = C::Sticker::serialize_many();
 
         let (sticker_entries, sticker_ids) = stickers
             .iter()
@@ -45,19 +43,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 let key = RedisKey::Sticker { id };
                 let sticker = C::Sticker::from_sticker(sticker);
 
-                let bytes =
-                    sticker
-                        .serialize_with(&mut serializer)
-                        .map_err(|e| SerializeError {
-                            error: Box::new(e),
-                            kind: SerializeErrorKind::Sticker,
-                        })?;
+                let bytes = serializer
+                    .serialize_next(&sticker)
+                    .map_err(|e| SerializeError::new(e, SerializeErrorKind::Sticker))?;
 
                 trace!(bytes = bytes.as_ref().len());
 
-                Ok(((key, BytesArg(bytes)), id.get()))
+                Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if sticker_entries.is_empty() {
@@ -82,10 +76,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     StickerMeta { guild: guild_id }.store(pipe, key)
                 })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::Sticker,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Sticker))?;
         }
 
         Ok(())
@@ -125,12 +116,18 @@ impl HasArchived for StickerMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct StickerMeta {
-    #[with(IdRkyv)]
+    #[rkyv(with = IdRkyv)]
     guild: Id<GuildMarker>,
 }
 
 impl IMeta<StickerMetaKey> for StickerMeta {
-    type Serializer = BufferSerializer<AlignedBytes<8>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

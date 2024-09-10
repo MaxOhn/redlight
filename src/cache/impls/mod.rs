@@ -19,13 +19,12 @@ use twilight_model::{
     id::{marker::GuildMarker, Id},
 };
 
+use super::pipe::Pipe;
 use crate::{
     config::{CacheConfig, Cacheable},
     key::RedisKey,
     CacheResult, RedisCache,
 };
-
-use super::pipe::Pipe;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]

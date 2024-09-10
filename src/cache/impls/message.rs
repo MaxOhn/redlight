@@ -1,4 +1,6 @@
-use rkyv::{ser::serializers::BufferSerializer, AlignedBytes};
+use std::ptr;
+
+use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Message,
@@ -38,10 +40,9 @@ impl<C: CacheConfig> RedisCache<C> {
             let score = -msg.timestamp.as_micros();
             let msg = C::Message::from_message(msg);
 
-            let bytes = msg.serialize().map_err(|e| SerializeError {
-                error: Box::new(e),
-                kind: SerializeErrorKind::Message,
-            })?;
+            let bytes = msg
+                .serialize_one()
+                .map_err(|e| SerializeError::new(e, SerializeErrorKind::Message))?;
 
             trace!(bytes = bytes.as_ref().len());
 
@@ -61,10 +62,7 @@ impl<C: CacheConfig> RedisCache<C> {
                 };
 
                 meta.store(pipe, MessageMetaKey { msg: msg_id })
-                    .map_err(|error| MetaError {
-                        error,
-                        kind: MetaErrorKind::Message,
-                    })?;
+                    .map_err(|e| MetaError::new(e, MetaErrorKind::Message))?;
             }
         }
 
@@ -113,10 +111,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut message, update).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::Message,
-        })?;
+        update_fn(&mut message, update)
+            .map_err(|e| UpdateError::new(e, UpdateErrorKind::Message))?;
 
         let key = RedisKey::Message { id: update.id };
         let bytes = message.into_bytes();
@@ -132,10 +128,7 @@ impl<C: CacheConfig> RedisCache<C> {
             };
 
             meta.store(pipe, MessageMetaKey { msg: update.id })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::Message,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Message))?;
         }
 
         Ok(())
@@ -163,10 +156,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut message, event).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::Reaction,
-        })?;
+        update_fn(&mut message, event)
+            .map_err(|e| UpdateError::new(e, UpdateErrorKind::Reaction))?;
 
         let key = RedisKey::Message { id: msg_id };
         let bytes = message.into_bytes();
@@ -182,10 +173,7 @@ impl<C: CacheConfig> RedisCache<C> {
             };
 
             meta.store(pipe, MessageMetaKey { msg: msg_id })
-                .map_err(|error| MetaError {
-                    error,
-                    kind: MetaErrorKind::Message,
-                })?;
+                .map_err(|e| MetaError::new(e, MetaErrorKind::Message))?;
         }
 
         Ok(())
@@ -244,8 +232,8 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe.del(keys);
 
         #[allow(clippy::items_after_statements)]
-        fn ids_to_u64(msg_ids: &[Id<MessageMarker>]) -> &[u64] {
-            let ptr = msg_ids as *const [Id<MessageMarker>] as *const [u64];
+        const fn ids_to_u64(msg_ids: &[Id<MessageMarker>]) -> &[u64] {
+            let ptr = ptr::from_ref(msg_ids) as *const [u64];
 
             // SAFETY: Id<T> is a transparent wrapper of NonZeroU64
             // which is a transparent wrapper of u64
@@ -296,12 +284,18 @@ impl HasArchived for MessageMetaKey {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize)]
-#[cfg_attr(feature = "validation", archive(check_bytes))]
 pub(crate) struct MessageMeta {
-    #[with(IdRkyv)]
+    #[rkyv(with = IdRkyv)]
     channel: Id<ChannelMarker>,
 }
 
 impl IMeta<MessageMetaKey> for MessageMeta {
-    type Serializer = BufferSerializer<AlignedBytes<8>>;
+    type Bytes = [u8; 8];
+
+    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+        let mut bytes = [0; 8];
+        to_bytes_in(self, Buffer::from(&mut bytes))?;
+
+        Ok(bytes)
+    }
 }

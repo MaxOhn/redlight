@@ -4,9 +4,10 @@ use twilight_model::id::{
 };
 
 use crate::{
+    error::CacheError,
     key::RedisKey,
     redis::{Cmd, ConnectionState},
-    CacheError, CacheResult, RedisCache,
+    CacheResult, RedisCache,
 };
 
 /// Retrieve the size count of various cached collections.
@@ -17,8 +18,8 @@ pub struct RedisCacheStats<'c, C> {
 }
 
 macro_rules! impl_stats_fn {
-    ( #[$meta:meta] $fn:ident,$variant:ident ) => {
-        #[$meta]
+    ($doc:literal, $fn:ident, $variant:ident) => {
+        #[doc = $doc]
         pub async fn $fn(&mut self) -> CacheResult<usize> {
             let conn = self.conn.get().await?;
 
@@ -28,8 +29,8 @@ macro_rules! impl_stats_fn {
                 .map_err(CacheError::Redis)
         }
     };
-    ( Guild: #[$meta:meta] $fn:ident,$variant:ident ) => {
-        #[$meta]
+    (Guild: $doc:literal, $fn:ident, $variant:ident) => {
+        #[doc = $doc]
         pub async fn $fn(&mut self, guild_id: Id<GuildMarker>) -> CacheResult<usize> {
             let conn = self.conn.get().await?;
 
@@ -51,118 +52,102 @@ impl<'c, C> RedisCacheStats<'c, C> {
 
 impl<C> RedisCacheStats<'_, C> {
     impl_stats_fn!(
-        #[doc = "Total amount of currently cached channels."]
+        "Total amount of currently cached channels.",
         channels,
         Channels
     );
 
-    impl_stats_fn!(
-        #[doc = "Total amount of currently cached emojis."]
-        emojis,
-        Emojis
-    );
+    impl_stats_fn!("Total amount of currently cached emojis.", emojis, Emojis);
+
+    impl_stats_fn!("Total amount of currently cached guilds.", guilds, Guilds);
 
     impl_stats_fn!(
-        #[doc = "Total amount of currently cached guilds."]
-        guilds,
-        Guilds
-    );
-
-    impl_stats_fn!(
-        #[doc = "Total amount of currently cached messages."]
+        "Total amount of currently cached messages.",
         messages,
         Messages
     );
 
-    impl_stats_fn!(
-        #[doc = "Total amount of currently cached roles."]
-        roles,
-        Roles
-    );
+    impl_stats_fn!("Total amount of currently cached roles.", roles, Roles);
 
     impl_stats_fn!(
-        #[doc = "Total amount of currently cached stage instances."]
+        "Total amount of currently cached stage instances.",
         stage_instances,
         StageInstances
     );
 
     impl_stats_fn!(
-        #[doc = "Total amount of currently cached stickers."]
+        "Total amount of currently cached stickers.",
         stickers,
         Stickers
     );
 
     impl_stats_fn!(
-        #[doc = "Total amount of currently unavailable guilds."]
+        "Total amount of currently unavailable guilds.",
         unavailable_guilds,
         UnavailableGuilds
     );
 
-    impl_stats_fn!(
-        #[doc = "Total amount of currently cached users."]
-        users,
-        Users
-    );
+    impl_stats_fn!("Total amount of currently cached users.", users, Users);
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached channels for a guild."]
+       "Amount of currently cached channels for a guild.",
         guild_channels,
         GuildChannels
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached emojis for a guild."]
+       "Amount of currently cached emojis for a guild.",
         guild_emojis,
         GuildEmojis
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached integrations for a guild."]
+       "Amount of currently cached integrations for a guild.",
         guild_integrations,
         GuildIntegrations
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached members for a guild."]
+       "Amount of currently cached members for a guild.",
         guild_members,
         GuildMembers
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached presences for a guild."]
+       "Amount of currently cached presences for a guild.",
         guild_presences,
         GuildPresences
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached roles for a guild."]
+       "Amount of currently cached roles for a guild.",
         guild_roles,
         GuildRoles
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached stage instances for a guild."]
+       "Amount of currently cached stage instances for a guild.",
         guild_stage_instances,
         GuildStageInstances
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached stickers for a guild."]
+       "Amount of currently cached stickers for a guild.",
         guild_stickers,
         GuildStickers
     );
 
     impl_stats_fn!(
         Guild:
-        #[doc = "Amount of currently cached voice states for a guild."]
+       "Amount of currently cached voice states for a guild.",
         guild_voice_states,
         GuildVoiceStates
     );

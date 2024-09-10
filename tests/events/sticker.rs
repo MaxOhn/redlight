@@ -6,15 +6,16 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedSticker, Ignore},
+    error::CacheError,
     rkyv_util::util::RkyvAsU8,
-    CacheError, RedisCache,
+    RedisCache,
 };
 use rkyv::{
-    ser::serializers::AlignedSerializer,
-    with::{Map, RefAsBox},
-    AlignedVec, Archive, Serialize,
+    rancor::{Fallible, Panic},
+    util::AlignedVec,
+    with::{InlineAsBox, Map},
+    Archive, Serialize,
 };
-use serial_test::serial;
 use twilight_model::{
     channel::message::{
         sticker::{StickerFormatType, StickerType},
@@ -27,7 +28,6 @@ use twilight_model::{
 use crate::pool;
 
 #[tokio::test]
-#[serial]
 async fn test_stickers() -> Result<(), CacheError> {
     struct Config;
 
@@ -51,13 +51,12 @@ async fn test_stickers() -> Result<(), CacheError> {
     }
 
     #[derive(Archive, Serialize)]
-    #[cfg_attr(feature = "validation", archive(check_bytes))]
     struct CachedSticker<'a> {
-        #[with(Map<RefAsBox>)]
+        #[rkyv(with = Map<InlineAsBox>)]
         description: Option<&'a str>,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         format_type: StickerFormatType,
-        #[with(RkyvAsU8)]
+        #[rkyv(with = RkyvAsU8)]
         kind: StickerType,
     }
 
@@ -72,11 +71,19 @@ async fn test_stickers() -> Result<(), CacheError> {
     }
 
     impl Cacheable for CachedSticker<'_> {
-        type Serializer = AlignedSerializer<AlignedVec>;
+        type Bytes = AlignedVec;
 
         fn expire() -> Option<Duration> {
             None
         }
+
+        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+            rkyv::to_bytes(self)
+        }
+    }
+
+    impl Fallible for CachedSticker<'_> {
+        type Error = Panic;
     }
 
     impl PartialEq<Sticker> for ArchivedCachedSticker<'_> {

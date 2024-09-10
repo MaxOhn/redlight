@@ -16,7 +16,7 @@ jobs:
     
         steps:
           - name: Checkout sources
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
     
           - name: Cache dependencies
             uses: Swatinem/rust-cache@v2
@@ -27,7 +27,7 @@ jobs:
           - name: Build docs
             env:
               RUSTDOCFLAGS: --cfg docsrs
-            run: cargo doc --no-deps -F bb8,validation,cold_resume,metrics
+            run: cargo doc --no-deps -F bb8,bytecheck,cold_resume,metrics
     
     clippy:
         name: Clippy
@@ -39,7 +39,7 @@ jobs:
         
         steps:
           - name: Checkout sources
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
   
           - name: Install stable toolchain
             uses: dtolnay/rust-toolchain@stable
@@ -56,7 +56,7 @@ jobs:
     
         steps:
           - name: Checkout sources
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
     
           - name: Install nightly toolchain
             uses: dtolnay/rust-toolchain@v1
@@ -77,7 +77,7 @@ jobs:
         
         steps:
           - name: Checkout sources
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
 
           - name: Start redis
             uses: supercharge/redis-github-action@1.6.0
@@ -104,3 +104,22 @@ jobs:
 
           - name: Run doctests
             run: cargo test --doc ${{ matrix.features }}
+
+    rdme:
+      name: Readme
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout sources
+          uses: actions/checkout@v4
+  
+        - name: Cache dependencies
+          uses: Swatinem/rust-cache@v2
+    
+        - name: Install stable toolchain
+          uses: dtolnay/rust-toolchain@stable
+
+        - name: Check if README is up to date
+          run: |
+            cargo install cargo-rdme
+            cargo rdme --check

@@ -13,15 +13,13 @@ use crate::{
         meta::{atoi, IMetaKey},
         pipe::Pipe,
     },
-    config::{CacheConfig, Cacheable, ICachedUser},
+    config::{CacheConfig, Cacheable, ICachedUser, SerializeMany},
     error::{SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
     redis::Pipeline,
-    util::{BytesArg, ZippedVecs},
+    util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache,
 };
-
-type UserSerializer<'a, C> = <<C as CacheConfig>::User<'a> as Cacheable>::Serializer;
 
 impl<C: CacheConfig> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
@@ -34,10 +32,9 @@ impl<C: CacheConfig> RedisCache<C> {
         let key = RedisKey::User { id };
         let user = C::User::from_user(user);
 
-        let bytes = user.serialize().map_err(|e| SerializeError {
-            error: Box::new(e),
-            kind: SerializeErrorKind::User,
-        })?;
+        let bytes = user
+            .serialize_one()
+            .map_err(|e| SerializeError::new(e, SerializeErrorKind::User))?;
 
         trace!(bytes = bytes.as_ref().len());
 
@@ -58,7 +55,7 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         }
 
-        let mut serializer = UserSerializer::<C>::default();
+        let mut serializer = C::User::serialize_many();
 
         let (users, user_ids) = users
             .into_iter()
@@ -67,18 +64,15 @@ impl<C: CacheConfig> RedisCache<C> {
                 let key = RedisKey::User { id };
                 let user = C::User::from_user(user);
 
-                let bytes = user
-                    .serialize_with(&mut serializer)
-                    .map_err(|e| SerializeError {
-                        error: Box::new(e),
-                        kind: SerializeErrorKind::User,
-                    })?;
+                let bytes = serializer
+                    .serialize_next(&user)
+                    .map_err(|e| SerializeError::new(e, SerializeErrorKind::User))?;
 
                 trace!(bytes = bytes.as_ref().len());
 
-                Ok(((key, BytesArg(bytes)), id.get()))
+                Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesArg<_>), u64>>>()?
+            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
             .unzip();
 
         if users.is_empty() {
@@ -117,10 +111,8 @@ impl<C: CacheConfig> RedisCache<C> {
             return Ok(());
         };
 
-        update_fn(&mut user, partial_user).map_err(|error| UpdateError {
-            error,
-            kind: UpdateErrorKind::PartialUser,
-        })?;
+        update_fn(&mut user, partial_user)
+            .map_err(|e| UpdateError::new(e, UpdateErrorKind::PartialUser))?;
 
         let key = RedisKey::User { id };
         let bytes = user.into_bytes();
