@@ -22,7 +22,7 @@ use twilight_model::{
 pub struct CachedUser {
     // twilight's types don't implement rkyv traits so `redlight::rkyv_util`
     // includes a few wrappers out the box. If there's no appropriate wrapper
-    // yet, we can just define out own
+    // yet, we can just define our own
     #[rkyv(with = Map<CustomImageHashWrap>)]
     avatar: Option<ImageHash>,
     bot: bool,
@@ -109,7 +109,7 @@ impl Cacheable for CachedUser {
         // Just in case the serialized bytes are immediately accessed as
         // archived type, we might as well align the bytes properly.
         // Lastly, none of our fields require scratch space so we don't need
-        // rkyv's `to_bytes_` methods and just use `Buffer` as serializer.
+        // rkyv's `to_bytes_*` methods and just use `Buffer` as serializer.
         let mut bytes = Align([0_u8; 32]);
         rkyv::api::serialize_using(self, &mut Buffer::from(&mut *bytes))?;
 

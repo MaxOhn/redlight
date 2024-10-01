@@ -223,7 +223,7 @@ const _: () = {
     use crate::{error::CacheError, CacheResult};
 
     impl<T: Cacheable> CachedArchive<T> {
-        pub(crate) fn new(bytes: AlignedVec<16>) -> CacheResult<Self> {
+        pub fn new(bytes: AlignedVec<16>) -> CacheResult<Self> {
             rkyv::access::<Archived<T>, T::Error>(bytes.as_slice())
                 .map_err(BoxedError::new)
                 .map_err(CacheError::Validation)?;
