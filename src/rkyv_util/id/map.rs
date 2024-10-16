@@ -273,6 +273,29 @@ where
     }
 }
 
+// [Id<T>]
+
+impl<T> ArchiveWith<[Id<T>]> for IdRkyvMap {
+    type Archived = ArchivedVec<ArchivedId<T>>;
+    type Resolver = VecResolver;
+
+    fn resolve_with(ids: &[Id<T>], resolver: Self::Resolver, out: Place<Self::Archived>) {
+        ArchivedVec::resolve_from_len(ids.len(), resolver, out);
+    }
+}
+
+impl<S, T> SerializeWith<[Id<T>], S> for IdRkyvMap
+where
+    S: Fallible + Allocator + Writer + ?Sized,
+{
+    fn serialize_with(
+        ids: &[Id<T>],
+        serializer: &mut S,
+    ) -> Result<Self::Resolver, <S as Fallible>::Error> {
+        <Archived<NonZeroU64> as INonZeroU64>::serialize(ids, serializer)
+    }
+}
+
 // Box<[Id<T>]>
 
 impl<T> ArchiveWith<Box<[Id<T>]>> for IdRkyvMap {
