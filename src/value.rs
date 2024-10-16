@@ -223,6 +223,11 @@ const _: () = {
     use crate::{error::CacheError, CacheResult};
 
     impl<T: Cacheable> CachedArchive<T> {
+        /// Create a new [`CachedArchive`].
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if the given bytes do not match the archived type.
         pub fn new(bytes: AlignedVec<16>) -> CacheResult<Self> {
             rkyv::access::<Archived<T>, T::Error>(bytes.as_slice())
                 .map_err(BoxedError::new)
