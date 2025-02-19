@@ -7,7 +7,7 @@ use std::{
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMember, Ignore},
     error::CacheError,
-    rkyv_util::util::BitflagsRkyv,
+    rkyv_util::flags::BitflagsRkyv,
     CachedArchive, RedisCache,
 };
 use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, Archive, Deserialize, Serialize};
@@ -80,7 +80,7 @@ async fn test_member() -> Result<(), CacheError> {
                 archived
                     .update_archive(|sealed| {
                         rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
-                        *flags = member.flags.bits().into();
+                        *flags = member.flags.into();
                     })
                     .map_err(Source::new)
             })
@@ -104,7 +104,7 @@ async fn test_member() -> Result<(), CacheError> {
 
     impl PartialEq<Member> for ArchivedCachedMember {
         fn eq(&self, other: &Member) -> bool {
-            self.flags == other.flags.bits() && self.pending == other.pending
+            self.flags == other.flags && self.pending == other.pending
         }
     }
 

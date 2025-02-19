@@ -1,8 +1,4 @@
-use rkyv::{
-    rancor::Fallible,
-    with::{ArchiveWith, DeserializeWith, SerializeWith},
-    Archive, Archived, Place,
-};
+use rkyv::{rancor::Fallible, Archive, Deserialize, Serialize};
 use twilight_model::channel::stage_instance::PrivacyLevel;
 
 /// Used to archive [`PrivacyLevel`].
@@ -20,26 +16,39 @@ use twilight_model::channel::stage_instance::PrivacyLevel;
 ///     privacy_level: PrivacyLevel,
 /// }
 /// ```
-pub struct PrivacyLevelRkyv;
-
-impl ArchiveWith<PrivacyLevel> for PrivacyLevelRkyv {
-    type Archived = Archived<u8>;
-    type Resolver = ();
-
-    fn resolve_with(level: &PrivacyLevel, resolver: Self::Resolver, out: Place<Self::Archived>) {
-        (*level as u8).resolve(resolver, out);
-    }
+#[derive(Archive, Serialize, Deserialize)]
+#[rkyv(
+    remote = PrivacyLevel,
+    archived = ArchivedPrivacyLevel,
+    resolver = PrivacyLevelResolver,
+    derive(Copy, Clone, Debug, PartialEq, Eq),
+)]
+#[repr(u8)]
+pub enum PrivacyLevelRkyv {
+    GuildOnly,
+    #[rkyv(other)]
+    Unknown,
 }
 
-impl<S: Fallible + ?Sized> SerializeWith<PrivacyLevel, S> for PrivacyLevelRkyv {
-    fn serialize_with(_: &PrivacyLevel, _: &mut S) -> Result<Self::Resolver, S::Error> {
-        Ok(())
-    }
+macro_rules! impl_from {
+    ($ty:ident) => {
+        impl From<$ty> for PrivacyLevel {
+            fn from(level: $ty) -> Self {
+                match level {
+                    $ty::GuildOnly => PrivacyLevel::GuildOnly,
+                    $ty::Unknown => PrivacyLevel::GuildOnly,
+                }
+            }
+        }
+    };
 }
 
-impl<D: Fallible + ?Sized> DeserializeWith<Archived<u8>, PrivacyLevel, D> for PrivacyLevelRkyv {
-    fn deserialize_with(_: &Archived<u8>, _: &mut D) -> Result<PrivacyLevel, D::Error> {
-        Ok(PrivacyLevel::GuildOnly) // currently the only variant
+impl_from!(PrivacyLevelRkyv);
+impl_from!(ArchivedPrivacyLevel);
+
+impl<D: Fallible + ?Sized> Deserialize<PrivacyLevel, D> for ArchivedPrivacyLevel {
+    fn deserialize(&self, _: &mut D) -> Result<PrivacyLevel, <D as Fallible>::Error> {
+        Ok(PrivacyLevel::from(*self))
     }
 }
 
@@ -55,10 +64,10 @@ mod tests {
         let bytes = rkyv::to_bytes(With::<_, PrivacyLevelRkyv>::cast(&level))?;
 
         #[cfg(feature = "bytecheck")]
-        let archived: &Archived<u8> = rkyv::access(&bytes)?;
+        let archived: &ArchivedPrivacyLevel = rkyv::access(&bytes)?;
 
         #[cfg(not(feature = "bytecheck"))]
-        let archived: &Archived<u8> = unsafe { rkyv::access_unchecked(&bytes) };
+        let archived: &ArchivedPrivacyLevel = unsafe { rkyv::access_unchecked(&bytes) };
 
         let deserialized: PrivacyLevel =
             rkyv::deserialize(With::<_, PrivacyLevelRkyv>::cast(archived))?;

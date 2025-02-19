@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use redlight::{
     config::{Cacheable, ICachedRole},
-    rkyv_util::util::BitflagsRkyv,
+    rkyv_util::flags::BitflagsRkyv,
 };
 use rkyv::{rancor::Source, util::AlignedVec, with::InlineAsBox, Archive, Serialize};
 use twilight_model::guild::{Permissions, Role};

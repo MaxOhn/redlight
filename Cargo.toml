@@ -28,6 +28,7 @@ metrics = ["dep:metrics"]
 
 [dependencies]
 bb8-redis = { version = "0.13.1", default-features = false, optional = true }
+bitflags = { version = "2.8.0", default-features = false }
 deadpool-redis = { version = "0.12.0", default-features = false, optional = true, features = ["rt_tokio_1"]}
 futures-util = { version = "0.3.28", default-features = false, features = ["std"] }
 itoa = { version = "~1.0.9", default-features = false }

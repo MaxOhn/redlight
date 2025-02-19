@@ -79,7 +79,10 @@ async fn test_stage_instance() -> Result<(), CacheError> {
         .await?
         .expect("missing stage instance");
 
-    assert_eq!(stage.privacy_level, expected.privacy_level as u8);
+    assert_eq!(
+        PrivacyLevel::from(stage.privacy_level),
+        expected.privacy_level
+    );
 
     Ok(())
 }

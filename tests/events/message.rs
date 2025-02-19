@@ -7,7 +7,7 @@ use std::{
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
     error::CacheError,
-    rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
+    rkyv_util::{flags::BitflagsRkyv, util::RkyvAsU8},
     CachedArchive, RedisCache,
 };
 use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, with::Map, Archive, Serialize};
@@ -112,7 +112,7 @@ async fn test_message() -> Result<(), CacheError> {
 
     impl PartialEq<Message> for ArchivedCachedMessage {
         fn eq(&self, other: &Message) -> bool {
-            self.flags == other.flags.map(|flags| flags.bits()) && self.kind == u8::from(other.kind)
+            self.flags == other.flags && self.kind == u8::from(other.kind)
         }
     }
 

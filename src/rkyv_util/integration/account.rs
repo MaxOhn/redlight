@@ -1,7 +1,7 @@
 use rkyv::{
     rancor::{Fallible, Source},
     ser::Writer,
-    with::{ArchiveWith, SerializeWith},
+    with::{ArchiveWith, DeserializeWith, SerializeWith},
     Archive, Deserialize, Place, Serialize,
 };
 use twilight_model::guild::IntegrationAccount;
@@ -65,6 +65,12 @@ impl ArchiveWith<&IntegrationAccount> for IntegrationAccountRkyv {
         out: Place<Self::Archived>,
     ) {
         <Self as ArchiveWith<IntegrationAccount>>::resolve_with(*field, resolver, out);
+    }
+}
+
+impl<D: Fallible + ?Sized> Deserialize<IntegrationAccount, D> for ArchivedIntegrationAccount {
+    fn deserialize(&self, d: &mut D) -> Result<IntegrationAccount, D::Error> {
+        IntegrationAccountRkyv::deserialize_with(self, d)
     }
 }
 

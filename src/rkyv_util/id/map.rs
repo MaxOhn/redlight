@@ -1,19 +1,12 @@
-use std::{
-    fmt::{Debug, Formatter, Result as FmtResult},
-    marker::PhantomData,
-    mem,
-    num::NonZeroU64,
-    ptr, slice,
-};
+use std::{mem, num::NonZeroU64, ptr, slice};
 
 use rkyv::{
-    niche::option_nonzero::ArchivedOptionNonZeroU64,
+    niche::niched_option::NichedOption,
     rancor::Fallible,
     ser::{Allocator, Writer, WriterExt},
-    traits::NoUndef,
     vec::{ArchivedVec, VecResolver},
-    with::{ArchiveWith, DeserializeWith, Map, SerializeWith, With},
-    Archive, Archived, Deserialize, Place, Portable,
+    with::{ArchiveWith, DeserializeWith, Map, MapNiche, SerializeWith, With},
+    Archive, Archived, Deserialize, Place,
 };
 use twilight_model::id::Id;
 
@@ -44,102 +37,41 @@ use crate::rkyv_util::id::IdRkyv;
 /// ```
 pub struct IdRkyvMap;
 
-#[derive(Portable)]
-#[cfg_attr(
-    feature = "bytecheck",
-    derive(rkyv::bytecheck::CheckBytes),
-    bytecheck(crate = rkyv::bytecheck),
-)]
-#[repr(C)]
-/// An efficiently archived `Option<Id<T>>`.
-pub struct ArchivedIdOption<T> {
-    inner: ArchivedOptionNonZeroU64,
-    _phantom: PhantomData<fn(T) -> T>,
-}
-
-impl<T> Clone for ArchivedIdOption<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ArchivedIdOption<T> {}
-
-impl<T> PartialEq for ArchivedIdOption<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl<T> Eq for ArchivedIdOption<T> {}
-
-impl<T> PartialEq<Option<Id<T>>> for ArchivedIdOption<T> {
-    fn eq(&self, other: &Option<Id<T>>) -> bool {
-        self.to_id_option() == *other
-    }
-}
-
-unsafe impl<T> NoUndef for ArchivedIdOption<T> {}
-
-impl<T> ArchivedIdOption<T> {
-    /// Convert into an `Option<NonZeroU64>`.
-    pub fn to_nonzero_option(mut self) -> Option<NonZeroU64> {
-        self.inner.take().map(NonZeroU64::from)
-    }
-
-    /// Convert into an `Option<Id<T>>`.
-    pub fn to_id_option(self) -> Option<Id<T>> {
-        self.to_nonzero_option().map(Id::from)
-    }
-
-    /// Resolves an `ArchivedIdOption` from an `Option<Id<T>>`.
-    #[allow(clippy::similar_names)]
-    pub fn resolve_from_id(opt: Option<Id<T>>, out: Place<Self>) {
-        rkyv::munge::munge!(let Self { inner, _phantom } = out);
-        ArchivedOptionNonZeroU64::resolve_from_option(opt.map(Id::into_nonzero), inner);
-    }
-}
-
-impl<T> Debug for ArchivedIdOption<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        Debug::fmt(&self.to_nonzero_option(), f)
-    }
-}
-
 impl<T> ArchiveWith<Option<Id<T>>> for IdRkyvMap {
-    type Archived = ArchivedIdOption<T>;
-    type Resolver = ();
+    type Archived = <MapNiche<IdRkyv, IdRkyv> as ArchiveWith<Option<Id<T>>>>::Archived;
+    type Resolver = <MapNiche<IdRkyv, IdRkyv> as ArchiveWith<Option<Id<T>>>>::Resolver;
 
-    fn resolve_with(id: &Option<Id<T>>, (): Self::Resolver, out: Place<Self::Archived>) {
-        ArchivedIdOption::resolve_from_id(*id, out);
+    fn resolve_with(id: &Option<Id<T>>, resolver: Self::Resolver, out: Place<Self::Archived>) {
+        MapNiche::<IdRkyv, IdRkyv>::resolve_with(id, resolver, out);
     }
 }
 
 impl<S: Fallible + ?Sized, T> SerializeWith<Option<Id<T>>, S> for IdRkyvMap {
-    fn serialize_with(_: &Option<Id<T>>, _: &mut S) -> Result<Self::Resolver, S::Error> {
-        Ok(())
+    fn serialize_with(opt: &Option<Id<T>>, s: &mut S) -> Result<Self::Resolver, S::Error> {
+        MapNiche::<IdRkyv, IdRkyv>::serialize_with(opt, s)
     }
 }
 
-impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedIdOption<T>, Option<Id<T>>, D> for IdRkyvMap {
+impl<D: Fallible + ?Sized, T> DeserializeWith<NichedOption<ArchivedId<T>, IdRkyv>, Option<Id<T>>, D>
+    for IdRkyvMap
+{
     fn deserialize_with(
-        archived: &ArchivedIdOption<T>,
-        deserializer: &mut D,
+        opt: &NichedOption<ArchivedId<T>, IdRkyv>,
+        d: &mut D,
     ) -> Result<Option<Id<T>>, D::Error> {
-        archived.deserialize(deserializer)
-    }
-}
+        let Some(archived) = opt.as_ref() else {
+            return Ok(None);
+        };
 
-impl<D: Fallible + ?Sized, T> Deserialize<Option<Id<T>>, D> for ArchivedIdOption<T> {
-    fn deserialize(&self, _: &mut D) -> Result<Option<Id<T>>, <D as Fallible>::Error> {
-        Ok(self.to_id_option())
+        IdRkyv::deserialize_with(archived, d).map(Some)
     }
 }
 
 /// Auxiliary trait to provide the most efficient (de)serializations of
 /// `&[Id<T>]` across every endian.
 trait INonZeroU64: Archive<Archived = Self> {
-    /// Serialize `&[Id<T>]` while leveraging when `Self == Archived<Self>`.
+    /// Serialize `&[Id<T>]` while leveraging `NonZeroU64` and
+    /// `Archived<NonZeroU64>` sharing the same layout when possible.
     fn serialize<S, T>(
         list: &[Id<T>],
         serializer: &mut S,
@@ -147,8 +79,8 @@ trait INonZeroU64: Archive<Archived = Self> {
     where
         S: Fallible + Allocator + Writer + ?Sized;
 
-    /// Deserialize an archived `Vec<Id<T>>` while leveraging when `Self ==
-    /// Archived<Self>`.
+    /// Deserialize an archived `Vec<Id<T>>` while leveraging `NonZeroU64` and
+    /// `Archived<NonZeroU64>` sharing the same layout when possible.
     fn deserialize<T, D>(
         archived: &ArchivedVec<ArchivedId<T>>,
         deserializer: &mut D,
@@ -345,12 +277,13 @@ mod tests {
             let bytes = rkyv::to_bytes(With::<_, IdRkyvMap>::cast(&id))?;
 
             #[cfg(not(feature = "bytecheck"))]
-            let archived: &ArchivedIdOption<()> = unsafe { rkyv::access_unchecked(&bytes) };
+            let archived: &NichedOption<ArchivedId<()>, IdRkyv> =
+                unsafe { rkyv::access_unchecked(&bytes) };
 
             #[cfg(feature = "bytecheck")]
-            let archived: &ArchivedIdOption<()> = rkyv::access(&bytes)?;
+            let archived: &NichedOption<ArchivedId<()>, IdRkyv> = rkyv::access(&bytes)?;
 
-            assert_eq!(id, archived.to_id_option());
+            assert_eq!(id, archived.as_ref().copied().map(Id::from));
 
             let deserialized: Option<Id<()>> =
                 rkyv::deserialize(With::<_, IdRkyvMap>::cast(archived))?;

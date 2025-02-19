@@ -9,7 +9,7 @@ use redlight::{
     error::CacheError,
     rkyv_util::{
         id::{IdRkyv, IdRkyvMap},
-        util::TimestampRkyv,
+        timestamp::{ArchivedTimestamp, TimestampRkyv},
     },
     CachedArchive, RedisCache,
 };
@@ -106,7 +106,7 @@ async fn test_channel() -> Result<(), CacheError> {
                             if let Some(mut last_pin_timestamp) =
                                 ArchivedOption::as_seal(last_pin_timestamp)
                             {
-                                *last_pin_timestamp = TimestampRkyv::archive(&new_timestamp).into();
+                                *last_pin_timestamp = ArchivedTimestamp::new(&new_timestamp);
                             }
                         }
                     })
@@ -144,8 +144,8 @@ async fn test_channel() -> Result<(), CacheError> {
                     == other
                         .last_pin_timestamp
                         .as_ref()
-                        .map(TimestampRkyv::archive)
-                && parent_id.to_id_option() == other.parent_id
+                        .map(ArchivedTimestamp::new)
+                && parent_id.as_ref().copied().map(Id::from) == other.parent_id
         }
     }
 

@@ -9,9 +9,10 @@ use redlight::{
     config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
     error::CacheError,
     rkyv_util::{
+        flags::BitflagsRkyv,
         guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
         id::IdRkyv,
-        util::{BitflagsRkyv, RkyvAsU8},
+        util::RkyvAsU8,
     },
     CachedArchive, RedisCache,
 };
@@ -152,10 +153,9 @@ async fn test_guild() -> Result<(), CacheError> {
                     .all(|(this, that)| this == Cow::from(that.clone()).as_ref())
                 && self.mfa_level == u8::from(other.mfa_level)
                 && self.nsfw_level == u8::from(other.nsfw_level)
-                && self.permissions.as_ref().copied().map(Into::into)
-                    == other.permissions.map(|p| p.bits())
+                && self.permissions == other.permissions
                 && self.premium_tier == u8::from(other.premium_tier)
-                && self.system_channel_flags == other.system_channel_flags.bits()
+                && self.system_channel_flags == other.system_channel_flags
                 && self.verification_level == u8::from(other.verification_level)
         }
     }

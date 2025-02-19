@@ -8,6 +8,7 @@ use std::{
 
 use rkyv::{
     munge::munge,
+    niche::niching::{Niching, Zero},
     rancor::Fallible,
     traits::NoUndef,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
@@ -15,7 +16,7 @@ use rkyv::{
 };
 use twilight_model::id::Id;
 
-pub use self::map::{ArchivedIdOption, IdRkyvMap};
+pub use self::map::IdRkyvMap;
 
 /// Used to archive [`Id<T>`].
 ///
@@ -34,6 +35,7 @@ pub use self::map::{ArchivedIdOption, IdRkyvMap};
 /// ```
 pub struct IdRkyv;
 
+/// An archived [`Id`].
 #[derive(Portable)]
 #[cfg_attr(
     feature = "bytecheck",
@@ -71,6 +73,16 @@ where
         _: &mut D,
     ) -> Result<Id<T>, <D as Fallible>::Error> {
         Ok(Id::from(*archived))
+    }
+}
+
+impl<T> Niching<ArchivedId<T>> for IdRkyv {
+    unsafe fn is_niched(niched: *const ArchivedId<T>) -> bool {
+        <Zero as Niching<Archived<NonZeroU64>>>::is_niched(niched.cast())
+    }
+
+    fn resolve_niched(out: Place<ArchivedId<T>>) {
+        <Zero as Niching<Archived<NonZeroU64>>>::resolve_niched(unsafe { out.cast_unchecked() });
     }
 }
 

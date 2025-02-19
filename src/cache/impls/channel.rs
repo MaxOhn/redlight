@@ -250,7 +250,8 @@ impl HasArchived for ChannelMetaKey {
     }
 
     fn handle_archived(&self, pipe: &mut Pipeline, archived: &Archived<Self::Meta>) {
-        if let Some(guild) = archived.guild.to_id_option() {
+        if let Some(archived) = archived.guild.as_ref() {
+            let guild = Id::from(*archived);
             let key = RedisKey::GuildChannels { id: guild };
             pipe.srem(key, self.channel.get());
         }

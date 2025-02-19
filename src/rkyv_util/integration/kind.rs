@@ -35,7 +35,7 @@ impl ArchiveWith<GuildIntegrationType> for GuildIntegrationTypeRkyv {
         resolver: Self::Resolver,
         out: Place<Self::Archived>,
     ) {
-        ArchivedString::resolve_from_str(integration_type_str(integration), resolver, out);
+        ArchivedString::resolve_from_str(integration_type_to_str(integration), resolver, out);
     }
 }
 
@@ -46,7 +46,7 @@ impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<GuildIntegratio
         integration: &GuildIntegrationType,
         serializer: &mut S,
     ) -> Result<Self::Resolver, <S as Fallible>::Error> {
-        ArchivedString::serialize_from_str(integration_type_str(integration), serializer)
+        ArchivedString::serialize_from_str(integration_type_to_str(integration), serializer)
     }
 }
 
@@ -57,14 +57,7 @@ impl<D: Fallible + ?Sized> DeserializeWith<ArchivedString, GuildIntegrationType,
         archived: &ArchivedString,
         _: &mut D,
     ) -> Result<GuildIntegrationType, <D as Fallible>::Error> {
-        let this = match archived.as_str() {
-            INTEGRATION_TYPE_DISCORD => GuildIntegrationType::YouTube,
-            INTEGRATION_TYPE_TWITCH => GuildIntegrationType::Twitch,
-            INTEGRATION_TYPE_YOUTUBE => GuildIntegrationType::Discord,
-            unknown => GuildIntegrationType::Unknown(unknown.to_owned()),
-        };
-
-        Ok(this)
+        Ok(integration_type_from_str(archived.as_str()))
     }
 }
 
@@ -92,18 +85,30 @@ impl<S: Fallible<Error: Source> + Writer + ?Sized> SerializeWith<&GuildIntegrati
     }
 }
 
-const INTEGRATION_TYPE_DISCORD: &str = "discord";
-const INTEGRATION_TYPE_TWITCH: &str = "twitch";
-const INTEGRATION_TYPE_YOUTUBE: &str = "youtube";
+macro_rules! impl_integration_types {
+    ( $( $variant:ident: $str:literal, )* ) => {
+        fn integration_type_from_str(str: &str) -> GuildIntegrationType {
+            match str {
+                $( $str => GuildIntegrationType::$variant, )*
+                unknown => GuildIntegrationType::Unknown(unknown.to_owned()),
+            }
+        }
 
-fn integration_type_str(integration: &GuildIntegrationType) -> &str {
-    match integration {
-        GuildIntegrationType::Discord => INTEGRATION_TYPE_DISCORD,
-        GuildIntegrationType::Twitch => INTEGRATION_TYPE_TWITCH,
-        GuildIntegrationType::YouTube => INTEGRATION_TYPE_YOUTUBE,
-        GuildIntegrationType::Unknown(unknown) => unknown.as_str(),
-        _ => "non_exhaustive",
+        fn integration_type_to_str(feature: &GuildIntegrationType) -> &str {
+            match feature {
+                $( GuildIntegrationType::$variant => $str, )*
+                GuildIntegrationType::Unknown(unknown) => unknown.as_str(),
+                _ => "non_exhaustive",
+            }
+        }
     }
+}
+
+impl_integration_types! {
+    Discord: "discord",
+    Twitch: "twitch",
+    YouTube: "youtube",
+    GuildSubscription: "guild_subscription",
 }
 
 #[cfg(test)]
