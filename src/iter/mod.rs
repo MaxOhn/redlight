@@ -1,17 +1,20 @@
-mod async_iter;
+mod cache_iter;
 
-use itoa::Buffer;
 use twilight_model::id::{
-    marker::{ChannelMarker, GuildMarker},
+    marker::{
+        ChannelMarker, EmojiMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker,
+        StageMarker, StickerMarker, UserMarker,
+    },
     Id,
 };
 
-pub use self::async_iter::AsyncIter;
+pub use self::cache_iter::{CacheIter, EntryResult, OptionalCacheIter};
 use crate::{
     config::{CacheConfig, Cacheable},
     error::CacheError,
     key::RedisKey,
-    redis::Cmd,
+    redis::{Cmd, Connection},
+    util::convert_ids_vec,
     CacheResult, RedisCache,
 };
 
@@ -36,215 +39,402 @@ impl<'c, C> RedisCacheIter<'c, C> {
 }
 
 impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
-    /// Iterate over all cached channel entries.
-    pub async fn channels(self) -> CacheResult<AsyncIter<'c, C::Channel<'static>>> {
-        self.iter_all(RedisKey::Channels, RedisKey::CHANNEL_PREFIX)
-            .await
-    }
-
     /// Iterate over all cached message entries of a channel.
     ///
     /// The items are ordered by message timestamp i.e. most recent to oldest.
     pub async fn channel_messages(
-        self,
+        &self,
         channel_id: Id<ChannelMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
+    ) -> CacheResult<CacheIter<C::Message<'static>>> {
+        let mut conn = self.cache.connection().await?;
+
         let key = RedisKey::ChannelMessages {
             channel: channel_id,
         };
-
-        let mut conn = self.cache.connection().await?;
-
         let ids: Vec<u64> = Cmd::zrange(key, 0, -1)
             .query_async(&mut conn)
             .await
             .map_err(CacheError::Redis)?;
 
-        let key_prefix = key_prefix_simple(RedisKey::MESSAGE_PREFIX);
-        let iter = AsyncIter::new(conn, ids, key_prefix);
+        let keys: Vec<_> = convert_ids_vec(ids)
+            .into_iter()
+            .map(Id::<MessageMarker>::into)
+            .collect();
 
-        Ok(iter)
+        self.iter_by_keys(&keys, Some(&mut conn))
+            .await
+            .map(CacheIter::new)
+    }
+
+    /// Iterate over all cached channel entries.
+    pub async fn channels(&self) -> CacheResult<CacheIter<C::Channel<'static>>> {
+        self.iter_all(RedisKey::Channels, Id::<ChannelMarker>::into)
+            .await
+    }
+
+    /// Iterate over the cached channel entry for each given id.
+    pub async fn channels_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Channel<'static>>>
+    where
+        I: IntoIterator<Item = Id<ChannelMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached emoji entries.
-    pub async fn emojis(self) -> CacheResult<AsyncIter<'c, C::Emoji<'static>>> {
-        self.iter_all(RedisKey::Emojis, RedisKey::EMOJI_PREFIX)
+    pub async fn emojis(&self) -> CacheResult<CacheIter<C::Emoji<'static>>> {
+        self.iter_all(RedisKey::Emojis, Id::<EmojiMarker>::into)
             .await
+    }
+
+    /// Iterate over the cached emoji entry for each given id.
+    pub async fn emojis_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Emoji<'static>>>
+    where
+        I: IntoIterator<Item = Id<EmojiMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached guild entries.
-    pub async fn guilds(self) -> CacheResult<AsyncIter<'c, C::Guild<'static>>> {
-        self.iter_all(RedisKey::Guilds, RedisKey::GUILD_PREFIX)
+    pub async fn guilds(&self) -> CacheResult<CacheIter<C::Guild<'static>>> {
+        self.iter_all(RedisKey::Guilds, Id::<GuildMarker>::into)
             .await
+    }
+
+    /// Iterate over the cached guild entry for each given id.
+    pub async fn guilds_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Guild<'static>>>
+    where
+        I: IntoIterator<Item = Id<GuildMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached message entries.
-    pub async fn messages(self) -> CacheResult<AsyncIter<'c, C::Message<'static>>> {
-        self.iter_all(RedisKey::Messages, RedisKey::MESSAGE_PREFIX)
+    pub async fn messages(&self) -> CacheResult<CacheIter<C::Message<'static>>> {
+        self.iter_all(RedisKey::Messages, Id::<MessageMarker>::into)
             .await
+    }
+
+    /// Iterate over the cached message entry for each given id.
+    pub async fn messages_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Message<'static>>>
+    where
+        I: IntoIterator<Item = Id<MessageMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached role entries.
-    pub async fn roles(self) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
-        self.iter_all(RedisKey::Roles, RedisKey::ROLE_PREFIX).await
+    pub async fn roles(&self) -> CacheResult<CacheIter<C::Role<'static>>> {
+        self.iter_all(RedisKey::Roles, Id::<RoleMarker>::into).await
+    }
+
+    /// Iterate over the cached role entry for each given id.
+    pub async fn roles_by_ids<I>(&self, ids: I) -> CacheResult<OptionalCacheIter<C::Role<'static>>>
+    where
+        I: IntoIterator<Item = Id<RoleMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached stage instance entries.
-    pub async fn stage_instances(self) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
-        self.iter_all(RedisKey::StageInstances, RedisKey::STAGE_INSTANCE_PREFIX)
+    pub async fn stage_instances(&self) -> CacheResult<CacheIter<C::StageInstance<'static>>> {
+        self.iter_all(RedisKey::StageInstances, Id::<StageMarker>::into)
             .await
+    }
+
+    /// Iterate over the cached stage instance entry for each given id.
+    pub async fn stage_instances_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::StageInstance<'static>>>
+    where
+        I: IntoIterator<Item = Id<StageMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached sticker entries.
-    pub async fn stickers(self) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
-        self.iter_all(RedisKey::Stickers, RedisKey::STICKER_PREFIX)
+    pub async fn stickers(&self) -> CacheResult<CacheIter<C::Sticker<'static>>> {
+        self.iter_all(RedisKey::Stickers, Id::<StickerMarker>::into)
             .await
     }
 
+    /// Iterate over the cached sticker entry for each given id.
+    pub async fn stickers_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Sticker<'static>>>
+    where
+        I: IntoIterator<Item = Id<StickerMarker>>,
+    {
+        self.iter_by_ids(ids).await
+    }
+
     /// Iterate over all cached user entries.
-    pub async fn users(self) -> CacheResult<AsyncIter<'c, C::User<'static>>> {
-        self.iter_all(RedisKey::Users, RedisKey::USER_PREFIX).await
+    pub async fn users(&self) -> CacheResult<CacheIter<C::User<'static>>> {
+        self.iter_all(RedisKey::Users, Id::<UserMarker>::into).await
+    }
+
+    /// Iterate over the cached user entry for each given id.
+    pub async fn users_by_ids<I>(&self, ids: I) -> CacheResult<OptionalCacheIter<C::User<'static>>>
+    where
+        I: IntoIterator<Item = Id<UserMarker>>,
+    {
+        self.iter_by_ids(ids).await
     }
 
     /// Iterate over all cached channel entries of a guild.
     pub async fn guild_channels(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Channel<'static>>> {
+    ) -> CacheResult<CacheIter<C::Channel<'static>>> {
         let key = RedisKey::GuildChannels { id: guild_id };
 
-        self.iter_guild_simple(key, RedisKey::CHANNEL_PREFIX).await
+        self.iter_all(key, Id::<ChannelMarker>::into).await
     }
 
     /// Iterate over all cached emoji entries of a guild.
     pub async fn guild_emojis(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Emoji<'static>>> {
+    ) -> CacheResult<CacheIter<C::Emoji<'static>>> {
         let key = RedisKey::GuildEmojis { id: guild_id };
 
-        self.iter_guild_simple(key, RedisKey::EMOJI_PREFIX).await
+        self.iter_all(key, Id::<EmojiMarker>::into).await
     }
 
     /// Iterate over all cached integration entries of a guild.
     pub async fn guild_integrations(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Integration<'static>>> {
+    ) -> CacheResult<CacheIter<C::Integration<'static>>> {
         let key = RedisKey::GuildIntegrations { id: guild_id };
 
-        self.iter_guild_buffered(guild_id, key, RedisKey::INTEGRATION_PREFIX)
-            .await
+        let key_fn = move |id| RedisKey::Integration {
+            guild: guild_id,
+            id,
+        };
+
+        self.iter_all(key, key_fn).await
+    }
+
+    /// Iterate over the cached guild integration entry for each given id.
+    pub async fn guild_integrations_by_ids<I>(
+        &self,
+        guild_id: Id<GuildMarker>,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Integration<'static>>>
+    where
+        I: IntoIterator<Item = Id<IntegrationMarker>>,
+    {
+        let keys: Vec<_> = ids
+            .into_iter()
+            .map(|id| RedisKey::Integration {
+                guild: guild_id,
+                id,
+            })
+            .collect();
+
+        self.iter_by_keys(&keys, None).await
     }
 
     /// Iterate over all cached member entries of a guild.
     pub async fn guild_members(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Member<'static>>> {
+    ) -> CacheResult<CacheIter<C::Member<'static>>> {
         let key = RedisKey::GuildMembers { id: guild_id };
 
-        self.iter_guild_buffered(guild_id, key, RedisKey::MEMBER_PREFIX)
-            .await
+        let key_fn = move |user| RedisKey::Member {
+            guild: guild_id,
+            user,
+        };
+
+        self.iter_all(key, key_fn).await
+    }
+
+    /// Iterate over the cached guild member entry for each given user id.
+    pub async fn guild_members_by_ids<I>(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Member<'static>>>
+    where
+        I: IntoIterator<Item = Id<UserMarker>>,
+    {
+        let keys: Vec<_> = user_ids
+            .into_iter()
+            .map(|user| RedisKey::Member {
+                guild: guild_id,
+                user,
+            })
+            .collect();
+
+        self.iter_by_keys(&keys, None).await
     }
 
     /// Iterate over all cached presence entries of a guild.
     pub async fn guild_presences(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Presence<'static>>> {
+    ) -> CacheResult<CacheIter<C::Presence<'static>>> {
         let key = RedisKey::GuildPresences { id: guild_id };
 
-        self.iter_guild_buffered(guild_id, key, RedisKey::PRESENCE_PREFIX)
-            .await
+        let key_fn = move |user| RedisKey::Presence {
+            guild: guild_id,
+            user,
+        };
+
+        self.iter_all(key, key_fn).await
+    }
+
+    /// Iterate over the cached guild presence entry for each given user id.
+    pub async fn guild_presences_by_ids<I>(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::Presence<'static>>>
+    where
+        I: IntoIterator<Item = Id<UserMarker>>,
+    {
+        let keys: Vec<_> = user_ids
+            .into_iter()
+            .map(|user| RedisKey::Presence {
+                guild: guild_id,
+                user,
+            })
+            .collect();
+
+        self.iter_by_keys(&keys, None).await
     }
 
     /// Iterate over all cached role entries of a guild.
     pub async fn guild_roles(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Role<'static>>> {
+    ) -> CacheResult<CacheIter<C::Role<'static>>> {
         let key = RedisKey::GuildRoles { id: guild_id };
 
-        self.iter_guild_simple(key, RedisKey::ROLE_PREFIX).await
+        self.iter_all(key, Id::<RoleMarker>::into).await
     }
 
     /// Iterate over all cached stage instance entries of a guild.
     pub async fn guild_stage_instances(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::StageInstance<'static>>> {
+    ) -> CacheResult<CacheIter<C::StageInstance<'static>>> {
         let key = RedisKey::GuildStageInstances { id: guild_id };
 
-        self.iter_guild_simple(key, RedisKey::STAGE_INSTANCE_PREFIX)
-            .await
+        self.iter_all(key, Id::<StageMarker>::into).await
     }
 
     /// Iterate over all cached sticker entries of a guild.
     pub async fn guild_stickers(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::Sticker<'static>>> {
+    ) -> CacheResult<CacheIter<C::Sticker<'static>>> {
         let key = RedisKey::GuildStickers { id: guild_id };
 
-        self.iter_guild_simple(key, RedisKey::STICKER_PREFIX).await
+        self.iter_all(key, Id::<StickerMarker>::into).await
     }
 
     /// Iterate over all cached voice state entries of a guild.
     pub async fn guild_voice_states(
-        self,
+        &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<AsyncIter<'c, C::VoiceState<'static>>> {
+    ) -> CacheResult<CacheIter<C::VoiceState<'static>>> {
         let key = RedisKey::GuildVoiceStates { id: guild_id };
 
-        self.iter_guild_buffered(guild_id, key, RedisKey::VOICE_STATE_PREFIX)
-            .await
+        let key_fn = move |user| RedisKey::VoiceState {
+            guild: guild_id,
+            user,
+        };
+
+        self.iter_all(key, key_fn).await
     }
 
-    async fn iter_all<T: Cacheable>(
-        self,
-        key: RedisKey,
-        prefix: &'static [u8],
-    ) -> CacheResult<AsyncIter<'c, T>> {
-        let mut conn = self.cache.connection().await?;
-
-        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
-
-        let key_prefix = key_prefix_simple(prefix);
-        let iter = AsyncIter::new(conn, ids, key_prefix);
-
-        Ok(iter)
-    }
-
-    async fn iter_guild_simple<T: Cacheable>(
-        self,
-        key: RedisKey,
-        prefix: &'static [u8],
-    ) -> CacheResult<AsyncIter<'c, T>> {
-        let mut conn = self.cache.connection().await?;
-
-        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
-
-        let key_prefix = key_prefix_simple(prefix);
-        let iter = AsyncIter::new(conn, ids, key_prefix);
-
-        Ok(iter)
-    }
-
-    async fn iter_guild_buffered<T: Cacheable>(
-        self,
+    /// Iterate over the cached guild voice state entry for each given user id.
+    pub async fn guild_voice_states_by_ids<I>(
+        &self,
         guild_id: Id<GuildMarker>,
-        key: RedisKey,
-        prefix: &'static [u8],
-    ) -> CacheResult<AsyncIter<'c, T>> {
+        user_ids: I,
+    ) -> CacheResult<OptionalCacheIter<C::VoiceState<'static>>>
+    where
+        I: IntoIterator<Item = Id<UserMarker>>,
+    {
+        let keys: Vec<_> = user_ids
+            .into_iter()
+            .map(|user| RedisKey::VoiceState {
+                guild: guild_id,
+                user,
+            })
+            .collect();
+
+        self.iter_by_keys(&keys, None).await
+    }
+
+    async fn iter_all<T, M, F>(&self, ids_key: RedisKey, key_fn: F) -> CacheResult<CacheIter<T>>
+    where
+        T: Cacheable,
+        F: Fn(Id<M>) -> RedisKey,
+    {
         let mut conn = self.cache.connection().await?;
 
-        let ids: Vec<u64> = RedisCache::<C>::get_ids_static(key, &mut conn).await?;
+        let ids = RedisCache::<C>::get_ids_static(ids_key, &mut conn).await?;
+        let keys: Vec<_> = convert_ids_vec(ids).into_iter().map(key_fn).collect();
 
-        let (key_prefix, buf) = key_prefix_buffered(prefix, guild_id);
-        let iter = AsyncIter::new_with_buf(conn, ids, key_prefix, buf);
+        self.iter_by_keys(&keys, Some(&mut conn))
+            .await
+            .map(CacheIter::new)
+    }
 
-        Ok(iter)
+    async fn iter_by_ids<I, K, T>(&self, ids: I) -> CacheResult<OptionalCacheIter<T>>
+    where
+        I: IntoIterator<Item = K>,
+        RedisKey: From<K>,
+        T: Cacheable,
+    {
+        let keys: Vec<_> = ids.into_iter().map(RedisKey::from).collect();
+
+        self.iter_by_keys(&keys, None).await
+    }
+
+    async fn iter_by_keys<'a, T>(
+        &'a self,
+        keys: &[RedisKey],
+        conn: Option<&mut Connection<'a>>,
+    ) -> CacheResult<OptionalCacheIter<T>>
+    where
+        T: Cacheable,
+    {
+        let bytes = if keys.is_empty() {
+            Vec::new()
+        } else {
+            let mut conn_;
+
+            let conn_mut = if let Some(conn) = conn {
+                conn
+            } else {
+                conn_ = self.cache.connection().await?;
+
+                &mut conn_
+            };
+
+            Cmd::mget(keys).query_async(conn_mut).await?
+        };
+
+        Ok(OptionalCacheIter::new(bytes))
     }
 }
 
@@ -255,24 +445,3 @@ impl<'c, C> Clone for RedisCacheIter<'c, C> {
 }
 
 impl<'c, C> Copy for RedisCacheIter<'c, C> {}
-
-fn key_prefix_simple(prefix: &'static [u8]) -> Vec<u8> {
-    let mut key_prefix = Vec::with_capacity(prefix.len() + 1);
-    key_prefix.extend_from_slice(prefix);
-    key_prefix.push(b':');
-
-    key_prefix
-}
-
-fn key_prefix_buffered(prefix: &'static [u8], guild_id: Id<GuildMarker>) -> (Vec<u8>, Buffer) {
-    let mut buf = Buffer::new();
-    let guild_id = buf.format(guild_id.get());
-
-    let mut key_prefix = Vec::with_capacity(prefix.len() + 1 + 2 * (guild_id.len() + 1));
-    key_prefix.extend_from_slice(prefix);
-    key_prefix.push(b':');
-    key_prefix.extend_from_slice(guild_id.as_bytes());
-    key_prefix.push(b':');
-
-    (key_prefix, buf)
-}

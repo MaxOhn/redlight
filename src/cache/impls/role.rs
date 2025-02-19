@@ -1,4 +1,4 @@
-use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     guild::Role,
@@ -183,7 +183,7 @@ pub(crate) struct RoleMeta {
 impl IMeta<RoleMetaKey> for RoleMeta {
     type Bytes = [u8; 8];
 
-    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+    fn to_bytes<E: Source>(&self) -> Result<Self::Bytes, E> {
         let mut bytes = [0; 8];
         to_bytes_in(self, Buffer::from(&mut bytes))?;
 

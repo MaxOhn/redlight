@@ -126,7 +126,7 @@ mod config {
     use std::time::Duration;
 
     use redlight::config::{CacheConfig, Cacheable, ICachedStageInstance, Ignore};
-    use rkyv::{rancor::Fallible, Archive, Serialize};
+    use rkyv::{rancor::Source, Archive, Serialize};
     use twilight_model::channel::StageInstance;
 
     pub struct Config;
@@ -165,12 +165,8 @@ mod config {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             Ok([])
         }
-    }
-
-    impl Fallible for CachedStageInstance {
-        type Error = rkyv::rancor::Error;
     }
 }

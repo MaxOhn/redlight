@@ -20,10 +20,7 @@ use redlight::{
     error::CacheError,
     CachedArchive, RedisCache,
 };
-use rkyv::{
-    rancor::{Fallible, Panic},
-    Archive, Serialize,
-};
+use rkyv::{rancor::Source, Archive, Serialize};
 use twilight_model::{
     channel::{message::Sticker, Channel},
     gateway::{
@@ -67,9 +64,8 @@ async fn test_metrics() -> Result<(), CacheError> {
             Self
         }
 
-        fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>>
-        {
+        fn on_pins_update<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
             None
         }
     }
@@ -81,13 +77,9 @@ async fn test_metrics() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             Ok([])
         }
-    }
-
-    impl Fallible for CachedChannel {
-        type Error = Panic;
     }
 
     #[derive(Archive, Serialize)]
@@ -106,13 +98,9 @@ async fn test_metrics() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             Ok([])
         }
-    }
-
-    impl Fallible for CachedSticker {
-        type Error = Panic;
     }
 
     struct GaugeHandle {

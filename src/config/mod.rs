@@ -31,7 +31,7 @@ pub use self::{
 /// ```
 /// # use std::{time::Duration};
 /// # use redlight::{CachedArchive, config::ReactionEvent};
-/// # use rkyv::{Archive, Serialize};
+/// # use rkyv::{Archive, Serialize, rancor::Source};
 /// # use twilight_model::{
 /// #     channel::{message::Message, Channel},
 /// #     gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}
@@ -39,7 +39,6 @@ pub use self::{
 /// use redlight::config::{CacheConfig, Cacheable, ICachedChannel, ICachedMessage, Ignore};
 /// use redlight::rkyv_util::{id::IdRkyv, util::BitflagsRkyv};
 /// use rkyv::with::{Map, InlineAsBox};
-/// use rkyv::rancor::Fallible;
 /// use twilight_model::{channel::ChannelFlags, id::{Id, marker::ChannelMarker}};
 ///
 /// struct Config;
@@ -77,8 +76,8 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_channel(_: &'a Channel) -> Self { unimplemented!() }
-///     # fn on_pins_update() -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate)
-///     #     -> Result<(), Self::Error>> { None }
+///     # fn on_pins_update<E: Source>() -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate)
+///     #     -> Result<(), E>> { None }
 /// }
 ///
 /// impl Cacheable for CachedChannel {
@@ -87,11 +86,7 @@ pub use self::{
 ///     # */
 ///     # type Bytes = [u8; 0];
 ///     # fn expire() -> Option<Duration> { None }
-///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
-/// }
-///
-/// impl Fallible for CachedChannel {
-///     type Error = rkyv::rancor::Error;
+///     # fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> { Ok([]) }
 /// }
 ///
 /// #[derive(Archive, Serialize)]
@@ -105,10 +100,10 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_message(_: &'a Message) -> Self { unimplemented!() }
-///     # fn on_message_update() -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate)
-///     #     -> Result<(), Self::Error>> { None }
-///     # fn on_reaction_event() -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>)
-///     #     -> Result<(), Self::Error>> { None }
+///     # fn on_message_update<E: Source>() -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate)
+///     #     -> Result<(), E>> { None }
+///     # fn on_reaction_event<E: Source>() -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>)
+///     #     -> Result<(), E>> { None }
 /// }
 ///
 /// impl Cacheable for CachedMessage<'_> {
@@ -117,11 +112,7 @@ pub use self::{
 ///     # */
 ///     # type Bytes = [u8; 0];
 ///     # fn expire() -> Option<Duration> { None }
-///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
-/// }
-///
-/// impl Fallible for CachedMessage<'_> {
-///     type Error = rkyv::rancor::Error;
+///     # fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> { Ok([]) }
 /// }
 /// ```
 pub trait CacheConfig: Send + Sync + 'static {

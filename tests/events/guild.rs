@@ -7,7 +7,7 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedGuild, ICachedSticker, Ignore},
-    error::{CacheError, UpdateArchiveError},
+    error::CacheError,
     rkyv_util::{
         guild::{AfkTimeoutRkyv, GuildFeatureRkyv},
         id::IdRkyv,
@@ -16,7 +16,7 @@ use redlight::{
     CachedArchive, RedisCache,
 };
 use rkyv::{
-    rancor::{Fallible, Panic},
+    rancor::Source,
     ser::writer::Buffer,
     util::{Align, AlignedVec},
     with::Map,
@@ -102,8 +102,8 @@ async fn test_guild() -> Result<(), CacheError> {
             }
         }
 
-        fn on_guild_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Self::Error>> {
+        fn on_guild_update<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), E>> {
             Some(|archived, update| {
                 archived
                     .update_by_deserializing(
@@ -122,7 +122,7 @@ async fn test_guild() -> Result<(), CacheError> {
                         },
                         &mut (),
                     )
-                    .map_err(UpdateArchiveError::unwrap_ser)
+                    .map_err(Source::new)
             })
         }
     }
@@ -134,13 +134,9 @@ async fn test_guild() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::to_bytes(self)
         }
-    }
-
-    impl Fallible for CachedGuild {
-        type Error = Panic;
     }
 
     impl PartialEq<Guild> for ArchivedCachedGuild {
@@ -203,16 +199,12 @@ async fn test_guild() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             let mut bytes = Align([0_u8; 8]);
             rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
 
             Ok(bytes.0)
         }
-    }
-
-    impl Fallible for CachedSticker {
-        type Error = Panic;
     }
 
     let mut expected = guild();

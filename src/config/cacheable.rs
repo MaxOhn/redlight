@@ -1,9 +1,6 @@
 use std::time::Duration;
 
-use rkyv::{
-    rancor::{Fallible, Source},
-    Archive,
-};
+use rkyv::{rancor::Source, Archive};
 
 use super::CheckedArchive;
 
@@ -13,7 +10,7 @@ use super::CheckedArchive;
 /// ```
 /// # use std::time::Duration;
 /// use redlight::config::Cacheable;
-/// use rkyv::{rancor::Fallible, util::AlignedVec, with::InlineAsBox, Archive, Serialize};
+/// use rkyv::{rancor::Source, util::AlignedVec, with::InlineAsBox, Archive, Serialize};
 ///
 /// #[derive(Archive, Serialize)]
 /// struct CachedRole<'a> {
@@ -30,7 +27,7 @@ use super::CheckedArchive;
 ///         None
 ///     }
 ///
-///     fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+///     fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
 ///         // Serializing our `CachedRole` requires neither an `Allocator`
 ///         // nor a `Sharing` trait bound on the serializer so we can simply
 ///         // use an `AlignedVec`.
@@ -41,12 +38,8 @@ use super::CheckedArchive;
 ///         Ok(bytes)
 ///     }
 /// }
-///
-/// impl Fallible for CachedRole<'_> {
-///     type Error = rkyv::rancor::Error;
-/// }
 /// ```
-pub trait Cacheable: Archive + Fallible<Error: Source> + CheckedArchive + Sized {
+pub trait Cacheable: Archive + CheckedArchive + Sized {
     /// The resulting byte buffer after serialization.
     type Bytes: AsRef<[u8]>;
 
@@ -74,7 +67,7 @@ pub trait Cacheable: Archive + Fallible<Error: Source> + CheckedArchive + Sized 
     /// [`AlignedVec`]: rkyv::util::AlignedVec
     /// [`Allocator`]: rkyv::ser::Allocator
     /// [`Sharing`]: rkyv::ser::Sharing
-    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error>;
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E>;
 
     /// Returns a serializer capable of serializing multiple instances in a row.
     ///
@@ -96,7 +89,7 @@ pub trait SerializeMany<C: Cacheable> {
     type Bytes: AsRef<[u8]>;
 
     /// Serialize the next instance.
-    fn serialize_next(&mut self, next: &C) -> Result<Self::Bytes, C::Error>;
+    fn serialize_next<E: Source>(&mut self, next: &C) -> Result<Self::Bytes, E>;
 }
 
 struct SerializeOneByOne;
@@ -104,7 +97,7 @@ struct SerializeOneByOne;
 impl<C: Cacheable> SerializeMany<C> for SerializeOneByOne {
     type Bytes = C::Bytes;
 
-    fn serialize_next(&mut self, next: &C) -> Result<Self::Bytes, C::Error> {
+    fn serialize_next<E: Source>(&mut self, next: &C) -> Result<Self::Bytes, E> {
         next.serialize_one()
     }
 }

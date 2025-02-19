@@ -3,35 +3,35 @@ pub use validation::CheckedArchive;
 #[cfg(feature = "bytecheck")]
 mod validation {
     use rkyv::{
-        api::high::HighValidator, bytecheck::CheckBytes, rancor::Fallible, Archive, Archived,
+        api::high::HighValidator, bytecheck::CheckBytes, rancor::BoxedError, Archive, Archived,
     };
 
     /// Auxiliary trait ensuring properties related to the `bytecheck` feature
     /// flag.
     ///
     /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive<E = <Self as Fallible>::Error>:
-        Archive<Archived: for<'a> CheckBytes<HighValidator<'a, E>>>
+    pub trait CheckedArchive:
+        Archive<Archived: for<'a> CheckBytes<HighValidator<'a, BoxedError>>>
     {
     }
 
-    impl<T, E> CheckedArchive<E> for T
+    impl<T> CheckedArchive for T
     where
         T: Archive,
-        Archived<T>: for<'a> CheckBytes<HighValidator<'a, E>>,
+        Archived<T>: for<'a> CheckBytes<HighValidator<'a, BoxedError>>,
     {
     }
 }
 
 #[cfg(not(feature = "bytecheck"))]
 mod validation {
-    use rkyv::{rancor::Fallible, Archive};
+    use rkyv::Archive;
 
     /// Auxiliary trait ensuring properties related to the `bytecheck` feature
     /// flag.
     ///
     /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive<E = <Self as Fallible>::Error>: Archive {}
+    pub trait CheckedArchive: Archive {}
 
-    impl<T: Archive, E> CheckedArchive<E> for T {}
+    impl<T: Archive> CheckedArchive for T {}
 }

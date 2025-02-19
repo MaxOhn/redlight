@@ -6,13 +6,7 @@ use redlight::{
     rkyv_util::{id::IdRkyv, presence::StatusRkyv},
     RedisCache,
 };
-use rkyv::{
-    rancor::{Fallible, Panic},
-    ser::writer::Buffer,
-    util::Align,
-    with::Map,
-    Archive, Serialize,
-};
+use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, with::Map, Archive, Serialize};
 use twilight_model::{
     gateway::{
         event::Event,
@@ -72,16 +66,12 @@ async fn test_presence() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             let mut bytes = Align([0_u8; 16]);
             rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
 
             Ok(bytes.0)
         }
-    }
-
-    impl Fallible for CachedPresence {
-        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

@@ -1,4 +1,4 @@
-use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer, Archived};
+use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Channel,
@@ -266,7 +266,7 @@ pub(crate) struct ChannelMeta {
 impl IMeta<ChannelMetaKey> for ChannelMeta {
     type Bytes = [u8; 8];
 
-    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+    fn to_bytes<E: Source>(&self) -> Result<Self::Bytes, E> {
         let mut bytes = [0; 8];
         to_bytes_in(self, Buffer::from(&mut bytes))?;
 

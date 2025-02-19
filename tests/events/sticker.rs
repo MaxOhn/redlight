@@ -11,7 +11,7 @@ use redlight::{
     RedisCache,
 };
 use rkyv::{
-    rancor::{Fallible, Panic},
+    rancor::Source,
     util::AlignedVec,
     with::{InlineAsBox, Map},
     Archive, Serialize,
@@ -77,13 +77,9 @@ async fn test_stickers() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::to_bytes(self)
         }
-    }
-
-    impl Fallible for CachedSticker<'_> {
-        type Error = Panic;
     }
 
     impl PartialEq<Sticker> for ArchivedCachedSticker<'_> {
@@ -132,22 +128,30 @@ async fn test_stickers() -> Result<(), CacheError> {
         .iter()
         .for_each(|sticker| assert!(ids.contains(&sticker.id)));
 
-    let mut iter = cache.iter().stickers().await?;
     let mut count = 0;
 
-    while let Some(res) = iter.next_item().await {
+    for res in cache.iter().stickers().await? {
+        #[cfg(feature = "bytecheck")]
         let archived = res?;
+
+        #[cfg(not(feature = "bytecheck"))]
+        let archived = res;
+
         count += 1;
         assert!(expected.iter().any(|sticker| archived.deref() == sticker));
     }
 
     assert_eq!(count, expected.len());
 
-    let mut iter = cache.iter().guild_stickers(guild_id).await?;
     let mut count = 0;
 
-    while let Some(res) = iter.next_item().await {
+    for res in cache.iter().guild_stickers(guild_id).await? {
+        #[cfg(feature = "bytecheck")]
         let archived = res?;
+
+        #[cfg(not(feature = "bytecheck"))]
+        let archived = res;
+
         count += 1;
         assert!(expected.iter().any(|sticker| archived.deref() == sticker));
     }

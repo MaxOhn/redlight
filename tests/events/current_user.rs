@@ -7,7 +7,7 @@ use redlight::{
     RedisCache,
 };
 use rkyv::{
-    rancor::{Fallible, Panic},
+    rancor::Source,
     util::AlignedVec,
     with::{InlineAsBox, Map},
     Archive, Serialize,
@@ -89,13 +89,9 @@ async fn test_current_user() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::to_bytes(self)
         }
-    }
-
-    impl Fallible for CachedCurrentUser<'_> {
-        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

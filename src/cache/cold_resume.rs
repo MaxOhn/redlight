@@ -5,12 +5,16 @@ use std::{
     time::Duration,
 };
 
-use rkyv::{rancor::ResultExt, util::AlignedVec, with::With};
+use rkyv::{
+    rancor::{BoxedError, ResultExt},
+    util::AlignedVec,
+    with::With,
+};
 use tracing::{info, instrument, trace};
 use twilight_gateway::Session;
 
 use crate::{
-    error::CacheError,
+    error::{CacheError, ValidationError},
     key::RedisKey,
     redis::Cmd,
     rkyv_util::session::{ArchivedSessions, SessionsRkyv},
@@ -92,7 +96,8 @@ impl<C> RedisCache<C> {
         }
 
         #[cfg(feature = "bytecheck")]
-        let archived: &ArchivedSessions = rkyv::access(&bytes).map_err(CacheError::Validation)?;
+        let archived: &ArchivedSessions =
+            rkyv::access::<_, BoxedError>(&bytes).map_err(ValidationError::from)?;
 
         #[cfg(not(feature = "bytecheck"))]
         let archived: &ArchivedSessions = unsafe { rkyv::access_unchecked(&bytes) };

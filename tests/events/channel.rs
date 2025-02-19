@@ -15,7 +15,7 @@ use redlight::{
 };
 use rkyv::{
     option::ArchivedOption,
-    rancor::{Fallible, Panic},
+    rancor::Source,
     util::AlignedVec,
     with::{InlineAsBox, Map},
     Archive, Serialize,
@@ -91,28 +91,27 @@ async fn test_channel() -> Result<(), CacheError> {
             }
         }
 
-        fn on_pins_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>>
-        {
-            let update_fn = |value: &mut CachedArchive<Self>, update: &ChannelPinsUpdate| {
-                value.update_archive(|sealed| {
-                    if let Some(new_timestamp) = update.last_pin_timestamp {
-                        rkyv::munge::munge! {
-                            let ArchivedCachedChannel { last_pin_timestamp, .. } = sealed
-                        };
+        fn on_pins_update<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
+            Some(|value, update| {
+                value
+                    .update_archive(|sealed| {
+                        if let Some(new_timestamp) = update.last_pin_timestamp {
+                            rkyv::munge::munge! {
+                                let ArchivedCachedChannel { last_pin_timestamp, .. } = sealed
+                            };
 
-                        // Cannot mutate from `Some` to `None` or vice versa so we
-                        // just update `Some` values
-                        if let Some(mut last_pin_timestamp) =
-                            ArchivedOption::as_seal(last_pin_timestamp)
-                        {
-                            *last_pin_timestamp = TimestampRkyv::archive(&new_timestamp).into();
+                            // Cannot mutate from `Some` to `None` or vice versa so we
+                            // just update `Some` values
+                            if let Some(mut last_pin_timestamp) =
+                                ArchivedOption::as_seal(last_pin_timestamp)
+                            {
+                                *last_pin_timestamp = TimestampRkyv::archive(&new_timestamp).into();
+                            }
                         }
-                    }
-                })
-            };
-
-            Some(update_fn)
+                    })
+                    .map_err(Source::new)
+            })
         }
     }
 
@@ -123,13 +122,9 @@ async fn test_channel() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::api::high::to_bytes_in(self, AlignedVec::<8>::new())
         }
-    }
-
-    impl Fallible for CachedChannel<'_> {
-        type Error = Panic;
     }
 
     impl PartialEq<Channel> for ArchivedCachedChannel<'_> {

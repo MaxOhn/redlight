@@ -2,11 +2,10 @@ use std::time::Duration;
 
 use redlight::{
     config::{Cacheable, ICachedMember, SerializeMany},
-    error::UpdateArchiveError,
     rkyv_util::id::IdRkyvMap,
     CachedArchive,
 };
-use rkyv::{rancor::Fallible, util::AlignedVec, Archive, Deserialize, Serialize};
+use rkyv::{rancor::Source, util::AlignedVec, Archive, Deserialize, Serialize};
 use twilight_model::{
     gateway::payload::incoming::MemberUpdate,
     guild::{Member, PartialMember},
@@ -33,8 +32,8 @@ impl<'a> ICachedMember<'a> for CachedMember {
         }
     }
 
-    fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>> {
+    fn update_via_partial<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Our archived fields will be of variable length so we cannot update
@@ -45,18 +44,16 @@ impl<'a> ICachedMember<'a> for CachedMember {
                 .update_by_deserializing(
                     |deserialized| {
                         deserialized.nick = partial.nick.clone();
-                        deserialized.roles = partial.roles.clone();
+                        deserialized.roles.clone_from(&partial.roles);
                     },
                     &mut (),
                 )
-                // We know deserialization cannot fail so we unwrap our
-                // serialization error if there is one.
-                .map_err(UpdateArchiveError::unwrap_ser)
+                .map_err(Source::new)
         })
     }
 
-    fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>> {
+    fn on_member_update<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
         Some(|archive, partial| {
             archive
                 .update_by_deserializing(
@@ -66,13 +63,9 @@ impl<'a> ICachedMember<'a> for CachedMember {
                     },
                     &mut (),
                 )
-                .map_err(UpdateArchiveError::unwrap_ser)
+                .map_err(Source::new)
         })
     }
-}
-
-impl Fallible for CachedMember {
-    type Error = rkyv::rancor::Error;
 }
 
 impl Cacheable for CachedMember {
@@ -82,7 +75,7 @@ impl Cacheable for CachedMember {
         None
     }
 
-    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
         // Serializing a `Vec` requires scratch space so our serializer must
         // implement `rkyv::ser::Allocator`. We could use `rkyv::to_bytes` but
         // since our fields don't require an alignment of 16, we can use
@@ -106,7 +99,7 @@ struct SerializeWithRecycle {
 impl SerializeMany<CachedMember> for SerializeWithRecycle {
     type Bytes = AlignedVec<8>;
 
-    fn serialize_next(&mut self, next: &CachedMember) -> Result<Self::Bytes, rkyv::rancor::Error> {
+    fn serialize_next<E: Source>(&mut self, next: &CachedMember) -> Result<Self::Bytes, E> {
         self.writer.clear();
         rkyv::api::high::to_bytes_in(next, &mut self.writer)?;
 

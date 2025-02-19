@@ -6,7 +6,7 @@ use redlight::{
     CachedArchive,
 };
 use rkyv::{
-    option::ArchivedOption, rancor::Fallible, ser::writer::Buffer, traits::NoUndef, util::Align,
+    option::ArchivedOption, rancor::Source, ser::writer::Buffer, traits::NoUndef, util::Align,
     with::Map, Archive, Serialize,
 };
 use twilight_model::{
@@ -66,34 +66,32 @@ impl<'a> ICachedUser<'a> for CachedUser {
         }
     }
 
-    fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Self::Error>> {
+    fn update_via_partial<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), E>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Since `update_archive` is much more performant, we'll choose
             // that even though that means we won't be able to update
             // `Option`'s properly.
-            archive.update_archive(|sealed| {
-                // `munge!` is a great way to access fields of a sealed value
-                rkyv::munge::munge!(let ArchivedCachedUser { avatar, mut id, .. } = sealed);
+            archive
+                .update_archive(|sealed| {
+                    // `munge!` is a great way to access fields of a sealed value
+                    rkyv::munge::munge!(let ArchivedCachedUser { avatar, mut id, .. } = sealed);
 
-                *id = ArchivedId::from(partial.id);
+                    *id = ArchivedId::from(partial.id);
 
-                // A serialized `Option` cannot be mutated from `Some` to
-                // `None` or vice versa so the only updating we're allowed to
-                // do here is for `Some` to `Some`.
-                if let Some(new_avatar) = partial.avatar {
-                    if let Some(mut avatar) = ArchivedOption::as_seal(avatar) {
-                        *avatar = ArchivedImageHash::from(new_avatar);
+                    // A serialized `Option` cannot be mutated from `Some` to
+                    // `None` or vice versa so the only updating we're allowed to
+                    // do here is for `Some` to `Some`.
+                    if let Some(new_avatar) = partial.avatar {
+                        if let Some(mut avatar) = ArchivedOption::as_seal(avatar) {
+                            *avatar = ArchivedImageHash::from(new_avatar);
+                        }
                     }
-                }
-            })
+                })
+                .map_err(Source::new)
         })
     }
-}
-
-impl Fallible for CachedUser {
-    type Error = rkyv::rancor::Error;
 }
 
 impl Cacheable for CachedUser {
@@ -103,7 +101,7 @@ impl Cacheable for CachedUser {
         None
     }
 
-    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
         // We know exactly how large the serialized container has to be
         // so we can serialize into a perfectly sized array.
         // Just in case the serialized bytes are immediately accessed as

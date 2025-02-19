@@ -117,7 +117,7 @@ impl<'c, C: CacheConfig> Pipe<'c, C> {
         }
 
         #[cfg(feature = "bytecheck")]
-        let res = CachedArchive::new(bytes);
+        let res = CachedArchive::new(bytes).map_err(crate::error::CacheError::Validation);
 
         #[cfg(not(feature = "bytecheck"))]
         let res = Ok(CachedArchive::new_unchecked(bytes));

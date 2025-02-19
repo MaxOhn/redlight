@@ -1,3 +1,5 @@
+use std::fmt;
+
 use rkyv::util::AlignedVec;
 
 use crate::redis::{
@@ -5,6 +7,18 @@ use crate::redis::{
 };
 
 pub(crate) struct BytesWrap<B>(pub(crate) B);
+
+impl<B: Clone> Clone for BytesWrap<B> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<B: fmt::Debug> fmt::Debug for BytesWrap<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<B: AsRef<[u8]>> ToRedisArgs for BytesWrap<B> {
     fn write_redis_args<W: ?Sized + RedisWrite>(&self, out: &mut W) {

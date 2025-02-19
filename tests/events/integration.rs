@@ -15,7 +15,7 @@ use redlight::{
     RedisCache,
 };
 use rkyv::{
-    rancor::{Fallible, Panic},
+    rancor::Source,
     util::AlignedVec,
     with::{InlineAsBox, Map},
     Archive, Serialize,
@@ -84,13 +84,9 @@ async fn test_integration() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::api::high::to_bytes_in(self, AlignedVec::default())
         }
-    }
-
-    impl Fallible for CachedIntegration<'_> {
-        type Error = Panic;
     }
 
     impl PartialEq<GuildIntegration> for ArchivedCachedIntegration<'_> {
@@ -140,10 +136,17 @@ async fn test_integration() -> Result<(), CacheError> {
         .guild_integrations(expected.guild_id.unwrap())
         .await?;
 
-    let integration = iter.next_item().await.expect("missing integration")?;
+    let integration_res = iter.next().expect("missing integration");
+
+    #[cfg(feature = "bytecheck")]
+    let integration = integration_res?;
+
+    #[cfg(not(feature = "bytecheck"))]
+    let integration = integration_res;
+
     assert_eq!(integration.deref(), &expected);
 
-    assert!(iter.next_item().await.is_none());
+    assert!(iter.next().is_none());
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use rkyv::rancor::{BoxedError, Source};
+use rkyv::rancor::BoxedError;
 use thiserror::Error as ThisError;
 
 use crate::redis::RedisError;
@@ -32,9 +32,8 @@ pub enum CacheError {
 
     #[cfg(feature = "bytecheck")]
     #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "bytecheck")))]
-    #[error("cached bytes did not correspond to the cached type")]
-    /// Cached bytes did not correspond to the cached type.
-    Validation(#[source] BoxedError),
+    #[error(transparent)]
+    Validation(#[from] ValidationError),
 
     #[cfg(feature = "cold_resume")]
     #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "cold_resume")))]
@@ -72,11 +71,8 @@ pub struct SerializeError {
 }
 
 impl SerializeError {
-    pub(crate) fn new<E: Source>(e: E, kind: SerializeErrorKind) -> Self {
-        Self {
-            error: BoxedError::new(e),
-            kind,
-        }
+    pub(crate) const fn new(error: BoxedError, kind: SerializeErrorKind) -> Self {
+        Self { error, kind }
     }
 }
 
@@ -110,11 +106,8 @@ pub struct UpdateError {
 }
 
 impl UpdateError {
-    pub(crate) fn new<E: Source>(e: E, kind: UpdateErrorKind) -> Self {
-        Self {
-            error: BoxedError::new(e),
-            kind,
-        }
+    pub(crate) const fn new(error: BoxedError, kind: UpdateErrorKind) -> Self {
+        Self { error, kind }
     }
 }
 
@@ -133,41 +126,11 @@ pub enum UpdateErrorKind {
 }
 
 #[derive(Debug, ThisError)]
-pub enum UpdateArchiveError<D: Source, S: Source = D> {
+pub enum UpdateArchiveError {
     #[error("failed to deserialize")]
-    Deserialization(#[source] D),
+    Deserialization(#[source] BoxedError),
     #[error("failed to serialize")]
-    Serialization(#[source] S),
-}
-
-impl<D: Source, S: Source> UpdateArchiveError<D, S> {
-    /// Unwrap a deserialization error.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this is a serialization error.
-    pub fn unwrap_de(self) -> D {
-        match self {
-            UpdateArchiveError::Deserialization(err) => err,
-            UpdateArchiveError::Serialization(_) => {
-                panic!("expected deserialization error but got serialization error")
-            }
-        }
-    }
-
-    /// Unwrap a serialization error.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this is a deserialization error.
-    pub fn unwrap_ser(self) -> S {
-        match self {
-            UpdateArchiveError::Serialization(err) => err,
-            UpdateArchiveError::Deserialization(_) => {
-                panic!("expected serialization error but got deserialization error")
-            }
-        }
-    }
+    Serialization(#[source] BoxedError),
 }
 
 #[derive(Debug, ThisError)]
@@ -180,11 +143,8 @@ pub struct MetaError {
 }
 
 impl MetaError {
-    pub(crate) fn new<E: Source>(e: E, kind: MetaErrorKind) -> Self {
-        Self {
-            error: BoxedError::new(e),
-            kind,
-        }
+    pub(crate) const fn new(error: BoxedError, kind: MetaErrorKind) -> Self {
+        Self { error, kind }
     }
 }
 
@@ -233,5 +193,14 @@ pub enum ExpireError {
     #[cfg_attr(all(docsrs, not(doctest)), doc(cfg(feature = "bytecheck")))]
     #[error("cached bytes did not correspond to the meta type")]
     /// Cached bytes did not correspond to the expected meta type.
-    Validation(#[source] BoxedError),
+    Validation(#[from] ValidationError),
 }
+
+#[cfg(feature = "bytecheck")]
+#[derive(Debug, thiserror::Error)]
+#[error("cached bytes did not correspond to the cached type")]
+/// Cached bytes did not correspond to the cached type.
+pub struct ValidationError(#[from] BoxedError);
+
+#[cfg(not(feature = "bytecheck"))]
+pub type ValidationError = std::convert::Infallible;

@@ -1,6 +1,6 @@
 use std::ptr;
 
-use rkyv::{api::high::to_bytes_in, rancor::BoxedError, ser::writer::Buffer};
+use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Message,
@@ -292,7 +292,7 @@ pub(crate) struct MessageMeta {
 impl IMeta<MessageMetaKey> for MessageMeta {
     type Bytes = [u8; 8];
 
-    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError> {
+    fn to_bytes<E: Source>(&self) -> Result<Self::Bytes, E> {
         let mut bytes = [0; 8];
         to_bytes_in(self, Buffer::from(&mut bytes))?;
 

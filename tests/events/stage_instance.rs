@@ -6,11 +6,7 @@ use redlight::{
     rkyv_util::stage_instance::PrivacyLevelRkyv,
     RedisCache,
 };
-use rkyv::{
-    rancor::{Fallible, Panic},
-    ser::writer::Buffer,
-    Archive, Serialize,
-};
+use rkyv::{rancor::Source, ser::writer::Buffer, Archive, Serialize};
 use twilight_model::{
     channel::{stage_instance::PrivacyLevel, StageInstance},
     gateway::{event::Event, payload::incoming::StageInstanceCreate},
@@ -63,16 +59,12 @@ async fn test_stage_instance() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             let mut bytes = [0_u8; 1];
             rkyv::api::high::to_bytes_in(self, Buffer::from(&mut bytes))?;
 
             Ok(bytes)
         }
-    }
-
-    impl Fallible for CachedStageInstance {
-        type Error = Panic;
     }
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;

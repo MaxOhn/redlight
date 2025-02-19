@@ -1,8 +1,16 @@
 use std::{marker::PhantomData, ops::Deref};
 
-use rkyv::{rancor::Strategy, seal::Seal, util::AlignedVec, Archive, Archived, Deserialize};
+use rkyv::{
+    rancor::{BoxedError, Strategy},
+    seal::Seal,
+    util::AlignedVec,
+    Archive, Archived, Deserialize,
+};
 
-use crate::{config::Cacheable, error::UpdateArchiveError};
+use crate::{
+    config::Cacheable,
+    error::{UpdateArchiveError, ValidationError},
+};
 
 /// Archived form of a cache entry.
 ///
@@ -100,11 +108,7 @@ impl<T: Cacheable> CachedArchive<T> {
     ///     # */
     ///     # type Bytes = [u8; 0];
     ///     # fn expire() -> Option<std::time::Duration> { None }
-    ///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
-    /// }
-    ///
-    /// impl rkyv::rancor::Fallible for CachedData {
-    ///     type Error = rkyv::rancor::Error;
+    ///     # fn serialize_one<E: rkyv::rancor::Source>(&self) -> Result<Self::Bytes, E> { Ok([]) }
     /// }
     ///
     /// struct UpdateEvent {
@@ -123,7 +127,7 @@ impl<T: Cacheable> CachedArchive<T> {
     pub fn update_archive(
         &mut self,
         f: impl FnOnce(Seal<'_, Archived<T>>),
-    ) -> Result<(), T::Error> {
+    ) -> Result<(), ValidationError> {
         let bytes = self.bytes.as_mut_slice();
 
         #[cfg(feature = "bytecheck")]
@@ -148,7 +152,6 @@ impl<T: Cacheable> CachedArchive<T> {
     /// ```
     /// # use rkyv::{Archive, Deserialize, Serialize};
     /// use redlight::{config::Cacheable, CachedArchive};
-    /// use rkyv::rancor::Fallible;
     ///
     /// #[derive(Archive, Serialize, Deserialize)]
     /// struct CachedData {
@@ -161,11 +164,7 @@ impl<T: Cacheable> CachedArchive<T> {
     ///     # */
     ///     # type Bytes = [u8; 0];
     ///     # fn expire() -> Option<std::time::Duration> { None }
-    ///     # fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> { Ok([]) }
-    /// }
-    ///
-    /// impl Fallible for CachedData {
-    ///     type Error = rkyv::rancor::Error;
+    ///     # fn serialize_one<E: rkyv::rancor::Source>(&self) -> Result<Self::Bytes, E> { Ok([]) }
     /// }
     ///
     /// struct UpdateEvent {
@@ -175,16 +174,14 @@ impl<T: Cacheable> CachedArchive<T> {
     /// fn handle_archive(
     ///     archive: &mut CachedArchive<CachedData>,
     ///     update: &UpdateEvent,
-    /// ) -> Result<(), <CachedData as Fallible>::Error> {
+    /// ) {
     ///     // Updating a Vec like this generally cannot be done through a
     ///     // sealed value so we're using `update_by_deserializing` instead of
     ///     // `update_archive`.
-    ///     archive
-    ///         .update_by_deserializing(
-    ///             |deserialized| deserialized.nums = update.new_nums.clone(),
-    ///             &mut (),
-    ///         )
-    ///         .map_err(rkyv::rancor::Source::new)
+    ///     archive.update_by_deserializing(
+    ///         |deserialized| deserialized.nums = update.new_nums.clone(),
+    ///         &mut (),
+    ///     ).unwrap()
     /// }
     /// ```
     ///
@@ -194,9 +191,9 @@ impl<T: Cacheable> CachedArchive<T> {
         &mut self,
         f: impl FnOnce(&mut T),
         deserializer: &mut D,
-    ) -> Result<(), UpdateArchiveError<T::Error>>
+    ) -> Result<(), UpdateArchiveError>
     where
-        T::Archived: Deserialize<T, Strategy<D, T::Error>>,
+        T::Archived: Deserialize<T, Strategy<D, BoxedError>>,
     {
         let archived: &T::Archived = &*self;
 
@@ -218,20 +215,14 @@ impl<T: Cacheable> CachedArchive<T> {
 
 #[cfg(feature = "bytecheck")]
 const _: () = {
-    use rkyv::rancor::{BoxedError, Source};
-
-    use crate::{error::CacheError, CacheResult};
-
     impl<T: Cacheable> CachedArchive<T> {
         /// Create a new [`CachedArchive`].
         ///
         /// # Errors
         ///
         /// Returns an error if the given bytes do not match the archived type.
-        pub fn new(bytes: AlignedVec<16>) -> CacheResult<Self> {
-            rkyv::access::<Archived<T>, T::Error>(bytes.as_slice())
-                .map_err(BoxedError::new)
-                .map_err(CacheError::Validation)?;
+        pub fn new(bytes: AlignedVec<16>) -> Result<Self, ValidationError> {
+            rkyv::access::<Archived<T>, _>(bytes.as_slice())?;
 
             Ok(Self::new_unchecked(bytes))
         }

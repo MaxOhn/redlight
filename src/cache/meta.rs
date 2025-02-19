@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
-use rkyv::{rancor::BoxedError, Archived};
+use rkyv::{rancor::Source, Archived};
 use tracing::{instrument, trace};
 use twilight_model::id::Id;
 
@@ -211,13 +211,13 @@ pub(crate) trait HasArchived: Sized {
 }
 
 /// Additional data for a [`IMetaKey`] that gets archived in the cache.
-pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive<BoxedError> + Sized {
+pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive + Sized {
     type Bytes: AsRef<[u8]>;
 
-    fn to_bytes(&self) -> Result<Self::Bytes, BoxedError>;
+    fn to_bytes<E: Source>(&self) -> Result<Self::Bytes, E>;
 
     /// Serialize and store this data in the cache.
-    fn store<C>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), BoxedError> {
+    fn store<C, E: Source>(&self, pipe: &mut Pipe<'_, C>, key: Key) -> Result<(), E> {
         let bytes = self.to_bytes()?;
         let key = key.redis_key();
         pipe.set(key, bytes.as_ref(), None);
@@ -229,7 +229,9 @@ pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive<BoxedError> + Sized {
     fn as_archive(bytes: &[u8]) -> Result<&Archived<Self>, ExpireError> {
         #[cfg(feature = "bytecheck")]
         {
-            rkyv::access::<Archived<Self>, BoxedError>(bytes).map_err(ExpireError::Validation)
+            rkyv::access::<Archived<Self>, rkyv::rancor::BoxedError>(bytes)
+                .map_err(From::from)
+                .map_err(ExpireError::Validation)
         }
 
         #[cfg(not(feature = "bytecheck"))]

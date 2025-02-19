@@ -4,20 +4,13 @@ use std::{
     time::Duration,
 };
 
-use futures_util::TryStreamExt;
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMessage, Ignore, ReactionEvent},
     error::CacheError,
     rkyv_util::util::{BitflagsRkyv, RkyvAsU8},
     CachedArchive, RedisCache,
 };
-use rkyv::{
-    rancor::{Fallible, Panic},
-    ser::writer::Buffer,
-    util::Align,
-    with::Map,
-    Archive, Serialize,
-};
+use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, with::Map, Archive, Serialize};
 use twilight_model::{
     channel::{
         message::{
@@ -80,29 +73,29 @@ async fn test_message() -> Result<(), CacheError> {
             }
         }
 
-        fn on_message_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Self::Error>>
-        {
+        fn on_message_update<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), E>> {
             Some(|archived, update| {
-                archived.update_archive(|sealed| {
-                    if let Some(update_kind) = update.kind {
-                        rkyv::munge::munge! {
-                            let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
-                        };
+                archived
+                    .update_archive(|sealed| {
+                        if let Some(update_kind) = update.kind {
+                            rkyv::munge::munge! {
+                                let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
+                            };
 
-                        *kind = u8::from(update_kind);
+                            *kind = u8::from(update_kind);
 
-                        if let Some(update_timestamp) = update.timestamp {
-                            *timestamp = update_timestamp.as_micros().into();
+                            if let Some(update_timestamp) = update.timestamp {
+                                *timestamp = update_timestamp.as_micros().into();
+                            }
                         }
-                    }
-                })
+                    })
+                    .map_err(Source::new)
             })
         }
 
-        fn on_reaction_event(
-        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Self::Error>>
-        {
+        fn on_reaction_event<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), E>> {
             None
         }
     }
@@ -114,16 +107,12 @@ async fn test_message() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             let mut bytes = Align([0_u8; 32]);
             rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
 
             Ok(bytes.0)
         }
-    }
-
-    impl Fallible for CachedMessage {
-        type Error = Panic;
     }
 
     impl PartialEq<Message> for ArchivedCachedMessage {
@@ -179,12 +168,13 @@ async fn test_message() -> Result<(), CacheError> {
     let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
     cache.update(&message_create).await?;
 
-    let messages: Vec<_> = cache
-        .iter()
-        .channel_messages(expected.channel_id)
-        .await?
-        .try_collect()
-        .await?;
+    let message_iter = cache.iter().channel_messages(expected.channel_id).await?;
+
+    #[cfg(feature = "bytecheck")]
+    let messages = message_iter.collect::<Result<Vec<_>, _>>()?;
+
+    #[cfg(not(feature = "bytecheck"))]
+    let messages = message_iter.collect::<Vec<_>>();
 
     assert_eq!(messages.len(), 3);
 

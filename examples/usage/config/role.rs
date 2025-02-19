@@ -4,7 +4,7 @@ use redlight::{
     config::{Cacheable, ICachedRole},
     rkyv_util::util::BitflagsRkyv,
 };
-use rkyv::{rancor::Fallible, util::AlignedVec, with::InlineAsBox, Archive, Serialize};
+use rkyv::{rancor::Source, util::AlignedVec, with::InlineAsBox, Archive, Serialize};
 use twilight_model::guild::{Permissions, Role};
 
 // We're only interested in the role's name and permissions
@@ -28,10 +28,6 @@ impl<'a> ICachedRole<'a> for CachedRole<'a> {
     }
 }
 
-impl Fallible for CachedRole<'_> {
-    type Error = rkyv::rancor::Error;
-}
-
 impl Cacheable for CachedRole<'_> {
     type Bytes = AlignedVec<8>;
 
@@ -39,7 +35,7 @@ impl Cacheable for CachedRole<'_> {
         None
     }
 
-    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
         // The `name` field is of variable length so we need to serialize into
         // a resizable buffer. Furthermore, no field requires scratch space
         // so our serializer only needs to implement `rkyv::ser::Writer` but

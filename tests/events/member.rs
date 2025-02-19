@@ -6,16 +6,11 @@ use std::{
 
 use redlight::{
     config::{CacheConfig, Cacheable, ICachedMember, Ignore},
-    error::{CacheError, UpdateArchiveError},
+    error::CacheError,
     rkyv_util::util::BitflagsRkyv,
     CachedArchive, RedisCache,
 };
-use rkyv::{
-    rancor::{Fallible, Panic},
-    ser::writer::Buffer,
-    util::Align,
-    Archive, Deserialize, Serialize,
-};
+use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, Archive, Deserialize, Serialize};
 use twilight_model::{
     gateway::{
         event::Event,
@@ -67,27 +62,27 @@ async fn test_member() -> Result<(), CacheError> {
             }
         }
 
-        fn on_member_update(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>>
-        {
+        fn on_member_update<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
             Some(|archived, update| {
                 archived
                     .update_by_deserializing(
                         |deserialized| deserialized.pending = update.pending,
                         &mut (),
                     )
-                    .map_err(UpdateArchiveError::unwrap_ser)
+                    .map_err(Source::new)
             })
         }
 
-        fn update_via_partial(
-        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>>
-        {
+        fn update_via_partial<E: Source>(
+        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
             Some(|archived, member| {
-                archived.update_archive(|sealed| {
-                    rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
-                    *flags = member.flags.bits().into();
-                })
+                archived
+                    .update_archive(|sealed| {
+                        rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
+                        *flags = member.flags.bits().into();
+                    })
+                    .map_err(Source::new)
             })
         }
     }
@@ -99,16 +94,12 @@ async fn test_member() -> Result<(), CacheError> {
             None
         }
 
-        fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+        fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             let mut bytes = Align([0_u8; 16]);
             rkyv::api::high::to_bytes_in(self, Buffer::from(&mut *bytes))?;
 
             Ok(bytes.0)
         }
-    }
-
-    impl Fallible for CachedMember {
-        type Error = Panic;
     }
 
     impl PartialEq<Member> for ArchivedCachedMember {
@@ -178,10 +169,17 @@ async fn test_member() -> Result<(), CacheError> {
 
     let mut iter = cache.iter().guild_members(guild_id).await?;
 
-    let member = iter.next_item().await.expect("missing member")?;
+    let member_res = iter.next().expect("missing member");
+
+    #[cfg(feature = "bytecheck")]
+    let member = member_res?;
+
+    #[cfg(not(feature = "bytecheck"))]
+    let member = member_res;
+
     assert_eq!(member.deref(), &expected_member);
 
-    assert!(iter.next_item().await.is_none());
+    assert!(iter.next().is_none());
 
     Ok(())
 }

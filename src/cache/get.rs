@@ -15,7 +15,7 @@ use crate::{
     error::CacheError,
     key::RedisKey,
     redis::{Cmd, FromRedisValue},
-    util::BytesWrap,
+    util::{convert_ids_set, convert_ids_vec, BytesWrap},
     CacheResult, CachedArchive, RedisCache,
 };
 
@@ -159,18 +159,6 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         channel_id: Id<ChannelMarker>,
     ) -> CacheResult<Vec<Id<MessageMarker>>> {
-        fn convert_ids(ids: Vec<u64>) -> Vec<Id<MessageMarker>> {
-            #[cfg(feature = "bytecheck")]
-            if ids.iter().any(|&id| id == 0) {
-                tracing::warn!("IDs must not be zero");
-
-                return ids.into_iter().filter_map(Id::new_checked).collect();
-            }
-
-            // SAFETY: we ensured that all u64s are non-zero
-            unsafe { std::mem::transmute(ids) }
-        }
-
         let mut conn = self.connection().await?;
 
         let key = RedisKey::ChannelMessages {
@@ -178,9 +166,9 @@ impl<C: CacheConfig> RedisCache<C> {
         };
 
         Cmd::zrange(key, 0, -1)
-            .query_async::<_, Vec<u64>>(&mut conn)
+            .query_async(&mut conn)
             .await
-            .map(convert_ids)
+            .map(convert_ids_vec)
             .map_err(CacheError::Redis)
     }
 
@@ -190,6 +178,11 @@ impl<C: CacheConfig> RedisCache<C> {
         user_id: Id<UserMarker>,
     ) -> CacheResult<HashSet<Id<GuildMarker>>> {
         self.get_ids(RedisKey::UserGuilds { id: user_id }).await
+    }
+
+    /// Get all cached emoji ids.
+    pub async fn emoji_ids(&self) -> CacheResult<HashSet<Id<EmojiMarker>>> {
+        self.get_ids(RedisKey::Emojis).await
     }
 
     /// Get all cached guild ids.
@@ -205,6 +198,16 @@ impl<C: CacheConfig> RedisCache<C> {
     /// Get all cached role ids.
     pub async fn role_ids(&self) -> CacheResult<HashSet<Id<RoleMarker>>> {
         self.get_ids(RedisKey::Roles).await
+    }
+
+    /// Get all cached stage instance ids.
+    pub async fn stage_instance_ids(&self) -> CacheResult<HashSet<Id<StageMarker>>> {
+        self.get_ids(RedisKey::StageInstances).await
+    }
+
+    /// Get all cached sticker ids.
+    pub async fn sticker_ids(&self) -> CacheResult<HashSet<Id<StickerMarker>>> {
+        self.get_ids(RedisKey::Stickers).await
     }
 
     /// Get all currently unavailable guild ids.
@@ -311,7 +314,9 @@ impl<C> RedisCache<C> {
 
         #[cfg(feature = "bytecheck")]
         {
-            CachedArchive::new(bytes).map(Some)
+            CachedArchive::new(bytes)
+                .map_err(CacheError::Validation)
+                .map(Some)
         }
 
         #[cfg(not(feature = "bytecheck"))]
@@ -323,7 +328,9 @@ impl<C> RedisCache<C> {
     async fn get_ids<T>(&self, key: RedisKey) -> CacheResult<HashSet<Id<T>>> {
         let mut conn = self.connection().await?;
 
-        Self::get_ids_static(key, &mut conn).await.map(convert_ids)
+        Self::get_ids_static(key, &mut conn)
+            .await
+            .map(convert_ids_set)
     }
 
     pub(crate) async fn get_ids_static<T>(
@@ -340,18 +347,6 @@ impl<C> RedisCache<C> {
     }
 }
 
-fn convert_ids<T>(ids: HashSet<u64>) -> HashSet<Id<T>> {
-    #[cfg(feature = "bytecheck")]
-    if ids.iter().any(|&id| id == 0) {
-        tracing::warn!("IDs must not be zero");
-
-        return ids.into_iter().filter_map(Id::new_checked).collect();
-    }
-
-    // SAFETY: we ensured that all u64s are non-zero
-    unsafe { std::mem::transmute(ids) }
-}
-
 #[cfg(test)]
 #[cfg(feature = "bytecheck")]
 mod tests {
@@ -359,7 +354,7 @@ mod tests {
 
     use twilight_model::id::{marker::GenericMarker, Id};
 
-    use super::convert_ids;
+    use super::convert_ids_set;
 
     #[test]
     fn test_convert_ids_zero() {
@@ -367,7 +362,7 @@ mod tests {
         ids.insert(3);
         ids.insert(0);
         ids.insert(5);
-        let converted: HashSet<Id<GenericMarker>> = convert_ids(ids);
+        let converted: HashSet<Id<GenericMarker>> = convert_ids_set(ids);
 
         assert_eq!(converted.len(), 2);
     }

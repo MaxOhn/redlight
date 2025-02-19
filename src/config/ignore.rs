@@ -1,9 +1,6 @@
 use std::time::Duration;
 
-use rkyv::{
-    rancor::{Fallible, Panic},
-    Archive, Place,
-};
+use rkyv::{rancor::Source, Archive, Place};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
@@ -42,8 +39,8 @@ impl ICachedChannel<'_> for Ignore {
         Self
     }
 
-    fn on_pins_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), Self::Error>> {
+    fn on_pins_update<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -71,8 +68,8 @@ impl ICachedGuild<'_> for Ignore {
         Self
     }
 
-    fn on_guild_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), Self::Error>> {
+    fn on_guild_update<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -82,13 +79,13 @@ impl ICachedMember<'_> for Ignore {
         Self
     }
 
-    fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), Self::Error>> {
+    fn update_via_partial<E>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
         None
     }
 
-    fn on_member_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), Self::Error>> {
+    fn on_member_update<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -98,13 +95,13 @@ impl ICachedMessage<'_> for Ignore {
         Self
     }
 
-    fn on_message_update(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), Self::Error>> {
+    fn on_message_update<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), E>> {
         None
     }
 
-    fn on_reaction_event(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), Self::Error>> {
+    fn on_reaction_event<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), E>> {
         None
     }
 }
@@ -138,8 +135,8 @@ impl ICachedUser<'_> for Ignore {
         Self
     }
 
-    fn update_via_partial(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), Self::Error>> {
+    fn update_via_partial<E>() -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), E>>
+    {
         None
     }
 }
@@ -159,7 +156,7 @@ impl Cacheable for Ignore {
         None
     }
 
-    fn serialize_one(&self) -> Result<Self::Bytes, Self::Error> {
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
         Ok([])
     }
 }
@@ -169,8 +166,4 @@ impl Archive for Ignore {
     type Resolver = ();
 
     fn resolve(&self, (): Self::Resolver, _: Place<Self::Archived>) {}
-}
-
-impl Fallible for Ignore {
-    type Error = Panic;
 }
