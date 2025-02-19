@@ -13,7 +13,7 @@ mod metrics;
 use std::marker::PhantomData;
 
 use tracing::instrument;
-use twilight_model::gateway::event::Event;
+use twilight_model::gateway::{event::Event, payload::incoming::GuildCreate};
 
 use crate::{
     cache::pipe::Pipe,
@@ -125,17 +125,24 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::ChannelUpdate(event) => self.store_channel(&mut pipe, event)?,
             Event::CommandPermissionsUpdate(_) => {}
+            Event::EntitlementCreate(_) => {}
+            Event::EntitlementDelete(_) => {}
+            Event::EntitlementUpdate(_) => {}
             Event::GatewayClose(_) => {}
             Event::GatewayHeartbeat(_) => {}
             Event::GatewayHeartbeatAck => {}
             Event::GatewayHello(_) => {}
             Event::GatewayInvalidateSession(_) => {}
             Event::GatewayReconnect => {}
-            Event::GiftCodeUpdate => {}
             Event::GuildAuditLogEntryCreate(_) => {}
-            Event::GuildCreate(event) => self.store_guild(&mut pipe, event)?,
+            Event::GuildCreate(event) => match &**event {
+                GuildCreate::Available(guild) => self.store_guild(&mut pipe, guild)?,
+                GuildCreate::Unavailable(guild) => {
+                    self.store_unavailable_guild(&mut pipe, guild.id).await?;
+                }
+            },
             Event::GuildDelete(event) => {
-                if event.unavailable {
+                if event.unavailable == Some(true) {
                     self.store_unavailable_guild(&mut pipe, event.id).await?;
                 } else {
                     self.delete_guild(&mut pipe, event.id).await?;
@@ -209,9 +216,10 @@ impl<C: CacheConfig> RedisCache<C> {
             Event::MessageDeleteBulk(event) => {
                 self.delete_messages(&mut pipe, &event.ids, event.channel_id);
             }
+            Event::MessagePollVoteAdd(_) => {}
+            Event::MessagePollVoteRemove(_) => {}
             Event::MessageUpdate(event) => self.store_message_update(&mut pipe, event).await?,
             Event::PresenceUpdate(event) => self.store_presence(&mut pipe, event)?,
-            Event::PresencesReplace => {}
             Event::ReactionAdd(event) => {
                 if let (Some(guild_id), Some(member)) = (event.guild_id, &event.member) {
                     self.store_member(&mut pipe, guild_id, member)?;

@@ -211,7 +211,7 @@ async fn test_guild() -> Result<(), CacheError> {
 
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
-    let guild_create = Event::GuildCreate(Box::new(GuildCreate(expected.clone())));
+    let guild_create = Event::GuildCreate(Box::new(GuildCreate::Available(expected.clone())));
     cache.update(&guild_create).await?;
 
     let guild = cache.guild(expected.id).await?.expect("missing guild");
@@ -260,12 +260,14 @@ pub fn guild() -> Guild {
         emojis: Vec::new(),
         explicit_content_filter: ExplicitContentFilter::AllMembers,
         features: vec![GuildFeature::Community, GuildFeature::Featurable],
+        guild_scheduled_events: Vec::new(),
         icon: None,
         id: Id::new(776),
         joined_at: None,
         large: false,
         max_members: None,
         max_presences: None,
+        max_stage_video_channel_users: None,
         max_video_channel_users: None,
         member_count: None,
         members: Vec::new(),
@@ -290,7 +292,7 @@ pub fn guild() -> Guild {
         system_channel_flags: SystemChannelFlags::SUPPRESS_GUILD_REMINDER_NOTIFICATIONS,
         system_channel_id: None,
         threads: Vec::new(),
-        unavailable: false,
+        unavailable: Some(false),
         vanity_url_code: None,
         verification_level: VerificationLevel::Medium,
         voice_states: Vec::new(),

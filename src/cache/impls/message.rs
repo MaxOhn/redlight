@@ -93,9 +93,7 @@ impl<C: CacheConfig> RedisCache<C> {
         pipe: &mut Pipe<'_, C>,
         update: &MessageUpdate,
     ) -> CacheResult<()> {
-        if let Some(ref user) = update.author {
-            self.store_user(pipe, user)?;
-        }
+        self.store_user(pipe, &update.author)?;
 
         if !C::Message::WANTED {
             return Ok(());

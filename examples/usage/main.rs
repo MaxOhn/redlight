@@ -3,7 +3,7 @@ mod config;
 use std::{env, error::Error};
 
 use redlight::RedisCache;
-use twilight_gateway::{Intents, Shard, ShardId};
+use twilight_gateway::{EventTypeFlags, Intents, Shard, ShardId, StreamExt as _};
 
 use self::config::Config;
 
@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Receive events and update the cache
     loop {
-        let event = shard.next_event().await.unwrap();
+        let event = shard.next_event(EventTypeFlags::all()).await.unwrap()?;
         cache.update(&event).await?;
     }
 }

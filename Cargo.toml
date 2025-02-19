@@ -36,14 +36,14 @@ rkyv = { version = "0.8.8", default-features = false, features = ["alloc"] }
 thiserror = { version = "~1.0.47", default-features = false }
 tokio = { version = "1.40.0", default-features = false, features = ["rt"] }
 tracing = { version = "0.1.37", default-features = false, features = ["std", "attributes"] }
-twilight-gateway = { version = "0.15.2", default-features = false, optional = true }
-twilight-model = { version = "0.15.2", default-features = false }
+twilight-gateway = { version = "0.16.0", default-features = false, optional = true }
+twilight-model = { version = "0.16.0", default-features = false }
 
 [dev-dependencies]
 dotenvy = { version = "0.15" }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
-twilight-gateway = { version = "0.15", default-features = false, features = ["rustls-native-roots"] }
+twilight-gateway = { version = "0.16.0", default-features = false, features = ["rustls-native-roots"] }
 
 [[test]]
 name = "integration"

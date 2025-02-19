@@ -1,7 +1,6 @@
 mod cold_resume;
 mod events;
 mod metrics;
-mod util;
 
 use std::{env, sync::OnceLock};
 

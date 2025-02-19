@@ -9,6 +9,7 @@ pub fn user() -> User {
         accent_color: Some(123),
         avatar: Some(ImageHash::new([5; 16], false)),
         avatar_decoration: Some(ImageHash::new([6; 16], false)),
+        avatar_decoration_data: None,
         banner: Some(ImageHash::new([7; 16], false)),
         bot: false,
         discriminator: 1234,

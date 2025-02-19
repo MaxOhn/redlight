@@ -15,8 +15,8 @@ use twilight_model::{
     channel::{
         message::{
             sticker::{MessageSticker, StickerFormatType},
-            Mention, MessageActivity, MessageActivityType, MessageFlags, MessageType, Reaction,
-            ReactionType, RoleSubscriptionData,
+            EmojiReactionType, Mention, MessageActivity, MessageActivityType, MessageFlags,
+            MessageType, Reaction, ReactionCountDetails, RoleSubscriptionData,
         },
         ChannelMention, ChannelType, Message,
     },
@@ -78,17 +78,12 @@ async fn test_message() -> Result<(), CacheError> {
             Some(|archived, update| {
                 archived
                     .update_archive(|sealed| {
-                        if let Some(update_kind) = update.kind {
-                            rkyv::munge::munge! {
-                                let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
-                            };
+                        rkyv::munge::munge! {
+                            let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
+                        };
 
-                            *kind = u8::from(update_kind);
-
-                            if let Some(update_timestamp) = update.timestamp {
-                                *timestamp = update_timestamp.as_micros().into();
-                            }
-                        }
+                        *kind = u8::from(update.kind);
+                        *timestamp = update.timestamp.as_micros().into();
                     })
                     .map_err(Source::new)
             })
@@ -133,7 +128,7 @@ async fn test_message() -> Result<(), CacheError> {
     let cache = RedisCache::<Config>::new_with_pool(pool()).await?;
 
     let mut expected = message();
-    expected.timestamp = Timestamp::from_micros(1_234_456_780).unwrap();
+    expected.timestamp = Timestamp::from_micros(123_456_789).unwrap();
 
     let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
     cache.update(&message_create).await?;
@@ -143,7 +138,7 @@ async fn test_message() -> Result<(), CacheError> {
     assert_eq!(message.deref(), &expected);
 
     let update = message_update();
-    expected.kind = update.kind.unwrap();
+    expected.kind = update.kind;
 
     let message_update = Event::MessageUpdate(Box::new(update));
     cache.update(&message_update).await?;
@@ -154,7 +149,7 @@ async fn test_message() -> Result<(), CacheError> {
 
     // more recent message
     expected.id = Id::new(expected.id.get() + 1);
-    expected.timestamp = Timestamp::from_secs(123_456_789).unwrap();
+    expected.timestamp = Timestamp::from_micros(1_234_567_899).unwrap();
     expected.flags = Some(MessageFlags::empty());
 
     let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
@@ -162,7 +157,7 @@ async fn test_message() -> Result<(), CacheError> {
 
     // older message
     expected.id = Id::new(expected.id.get() + 1);
-    expected.timestamp = Timestamp::from_secs(12_345_678_901).unwrap();
+    expected.timestamp = Timestamp::from_micros(1_234_567_890).unwrap();
     expected.flags = Some(MessageFlags::all());
 
     let message_create = Event::MessageCreate(Box::new(MessageCreate(expected.clone())));
@@ -190,6 +185,7 @@ async fn test_message() -> Result<(), CacheError> {
 }
 
 pub fn message() -> Message {
+    #[allow(deprecated)]
     Message {
         activity: Some(MessageActivity {
             kind: MessageActivityType::Join,
@@ -199,6 +195,7 @@ pub fn message() -> Message {
         application_id: None,
         attachments: Vec::new(),
         author: user(),
+        call: None,
         channel_id: Id::new(222),
         components: Vec::new(),
         content: "message content".to_owned(),
@@ -208,6 +205,7 @@ pub fn message() -> Message {
         guild_id: Some(Id::new(111)),
         id: Id::new(909),
         interaction: None,
+        interaction_metadata: None,
         kind: MessageType::Regular,
         member: Some(partial_member()),
         mention_channels: vec![ChannelMention {
@@ -227,13 +225,21 @@ pub fn message() -> Message {
             name: "mention name".to_owned(),
             public_flags: UserFlags::ACTIVE_DEVELOPER,
         }],
+        message_snapshots: Vec::new(),
         pinned: false,
+        poll: None,
         reactions: vec![Reaction {
             count: 1,
-            emoji: ReactionType::Unicode {
+            emoji: EmojiReactionType::Unicode {
                 name: "🍕".to_owned(),
             },
             me: false,
+            burst_colors: Vec::new(),
+            count_details: ReactionCountDetails {
+                burst: 0,
+                normal: 0,
+            },
+            me_burst: false,
         }],
         reference: None,
         referenced_message: None,
@@ -248,7 +254,7 @@ pub fn message() -> Message {
             id: Id::new(78),
             name: "sticker name".to_owned(),
         }],
-        timestamp: Timestamp::parse("2021-01-01T01:01:01+00:00").unwrap(),
+        timestamp: Timestamp::from_micros(123_456_789).unwrap(),
         thread: None,
         tts: false,
         webhook_id: None,
@@ -256,23 +262,5 @@ pub fn message() -> Message {
 }
 
 pub fn message_update() -> MessageUpdate {
-    let msg = message();
-
-    MessageUpdate {
-        attachments: None,
-        author: None,
-        channel_id: msg.channel_id,
-        content: None,
-        edited_timestamp: None,
-        embeds: None,
-        guild_id: None,
-        id: msg.id,
-        kind: Some(MessageType::Call),
-        mention_everyone: None,
-        mention_roles: None,
-        mentions: None,
-        pinned: None,
-        timestamp: None,
-        tts: None,
-    }
+    MessageUpdate(message())
 }
