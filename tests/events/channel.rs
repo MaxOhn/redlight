@@ -68,7 +68,7 @@ async fn test_channel() -> Result<(), CacheError> {
         parent_id: Option<Id<ChannelMarker>>,
     }
 
-    impl<'a> Debug for ArchivedCachedChannel<'a> {
+    impl Debug for ArchivedCachedChannel<'_> {
         fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             f.debug_struct("ArchivedCachedChannel")
                 .field("name", &self.name.as_deref())

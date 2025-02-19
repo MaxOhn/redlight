@@ -38,7 +38,7 @@ impl<'c, C> RedisCacheIter<'c, C> {
     }
 }
 
-impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
+impl<C: CacheConfig> RedisCacheIter<'_, C> {
     /// Iterate over all cached message entries of a channel.
     ///
     /// The items are ordered by message timestamp i.e. most recent to oldest.
@@ -438,10 +438,10 @@ impl<'c, C: CacheConfig> RedisCacheIter<'c, C> {
     }
 }
 
-impl<'c, C> Clone for RedisCacheIter<'c, C> {
+impl<C> Clone for RedisCacheIter<'_, C> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'c, C> Copy for RedisCacheIter<'c, C> {}
+impl<C> Copy for RedisCacheIter<'_, C> {}

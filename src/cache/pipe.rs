@@ -102,7 +102,7 @@ impl<'c, C> Pipe<'c, C> {
     }
 }
 
-impl<'c, C: CacheConfig> Pipe<'c, C> {
+impl<C: CacheConfig> Pipe<'_, C> {
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedArchive<T>>>
     where
