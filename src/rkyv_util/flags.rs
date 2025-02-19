@@ -20,7 +20,7 @@ use twilight_model::{
 ///
 /// ```
 /// # use rkyv::Archive;
-/// use redlight::rkyv_util::util::BitflagsRkyv;
+/// use redlight::rkyv_util::flags::BitflagsRkyv;
 /// use rkyv::with::Map;
 /// use twilight_model::guild::{MemberFlags, Permissions};
 ///

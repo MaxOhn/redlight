@@ -37,7 +37,7 @@ pub use self::{
 /// #     gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}
 /// # };
 /// use redlight::config::{CacheConfig, Cacheable, ICachedChannel, ICachedMessage, Ignore};
-/// use redlight::rkyv_util::{id::IdRkyv, util::BitflagsRkyv};
+/// use redlight::rkyv_util::{flags::BitflagsRkyv, id::IdRkyv};
 /// use rkyv::with::{Map, InlineAsBox};
 /// use twilight_model::{channel::ChannelFlags, id::{Id, marker::ChannelMarker}};
 ///
@@ -57,6 +57,7 @@ pub use self::{
 ///     type Message<'a> = CachedMessage<'a>; // <-
 ///     type Presence<'a> = Ignore;
 ///     type Role<'a> = Ignore;
+///     type ScheduledEvent<'a> = Ignore;
 ///     type StageInstance<'a> = Ignore;
 ///     type Sticker<'a> = Ignore;
 ///     type User<'a> = Ignore;

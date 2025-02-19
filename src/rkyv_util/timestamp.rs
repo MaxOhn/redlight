@@ -12,7 +12,7 @@ use twilight_model::util::{datetime::TimestampParseError, Timestamp};
 ///
 /// ```
 /// # use rkyv::Archive;
-/// use redlight::rkyv_util::util::TimestampRkyv;
+/// use redlight::rkyv_util::timestamp::TimestampRkyv;
 /// use twilight_model::util::Timestamp;
 ///
 /// #[derive(Archive)]
