@@ -26,9 +26,9 @@
 //! which twilight's types generally don't satisfy so we won't be able to use
 //! crates such as `bincode`, `bare`, `postcard`, etc. Crates such as
 //! `flexbuffer`, `capnp`, or `prost` are based on language-agnostic schemas
-//! which are way too painful to setup and define so those are no options
-//! either. Other crates fall short due to unfitness for production, immaturity,
-//! or just insufficient performance.
+//! which are too painful to setup and define so those are no options either.
+//! Other crates fall short due to unfitness for production, immaturity, or
+//! just insufficient performance.
 //!
 //! Among the remaining options, [`rkyv`] shines the brightest not only because
 //! of its performance and rising popularity, but also because of its key
@@ -43,8 +43,8 @@
 //!
 //! As such, `redlight` provides cached data in form of a [`CachedArchive<T>`]
 //! instance. [`CachedArchive`] is essentially just a wrapper around some bytes
-//! but it also implements [`Deref`] with `Target = Archived<T>`, meaning that
-//! you can use it just like you would an archived `T`.
+//! but it also implements [`Deref<Target = Archived<T>>`](std::ops::Deref),
+//! meaning it can be used just like an archived `T`.
 //!
 //! # Why use `redlight`?
 //!
@@ -54,7 +54,7 @@
 //!       resume previous gateway sessions.
 //!     - `twilight-cache-inmemory` is required to *own* all its data, meaning
 //!       it always needs to clone it out of incoming events. `redlight` on the
-//!       other hand just needs to serialize it which is done via reference.
+//!       other hand needs to serialize it which is done via reference.
 //!     - The configuration offers a way to cache only the bits and fields that
 //!       you're interested in instead of the whole thing.
 //!     - `redlight` provides redis' built-in expire feature, meaning you can
@@ -96,9 +96,8 @@
 //! [`serde`]: https://docs.rs/serde/latest/serde/
 //! [benchmark]: https://github.com/djkoloski/rust_serialization_benchmark#minecraft_savedata
 //! [`rkyv`]: https://docs.rs/rkyv/latest/rkyv/
-//! [`CachedArchive<T>`]: crate::value::CachedArchive
-//! [`CachedArchive`]: crate::value::CachedArchive
-//! [`Deref`]: std::ops::Deref
+//! [`CachedArchive<T>`]: crate::cached::CachedArchive
+//! [`CachedArchive`]: crate::cached::CachedArchive
 //! [`bb8`]: https://docs.rs/bb8/latest/bb8/
 //! [`bb8-redis`]: https://docs.rs/bb8-redis/latest/bb8_redis/
 //! [`deadpool`]: https://docs.rs/deadpool/latest/deadpool/
