@@ -133,7 +133,7 @@ mod key;
 mod util;
 
 #[cfg(any(feature = "bb8", feature = "deadpool"))]
-mod value;
+mod cached;
 
 #[cfg(any(feature = "bb8", feature = "deadpool"))]
 /// Types and traits to configure the cache.
@@ -160,7 +160,7 @@ pub mod stats;
 pub(crate) mod redis;
 
 #[cfg(any(feature = "bb8", feature = "deadpool"))]
-pub use self::{cache::RedisCache, key::RedisKey, value::CachedArchive};
+pub use self::{cache::RedisCache, cached::CachedArchive, key::RedisKey};
 
 #[cfg(any(feature = "bb8", feature = "deadpool"))]
 type CacheResult<T> = Result<T, error::CacheError>;
