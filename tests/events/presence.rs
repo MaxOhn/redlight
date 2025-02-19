@@ -36,6 +36,7 @@ async fn test_presence() -> Result<(), CacheError> {
         type Message<'a> = Ignore;
         type Presence<'a> = CachedPresence;
         type Role<'a> = Ignore;
+        type ScheduledEvent<'a> = Ignore;
         type StageInstance<'a> = Ignore;
         type Sticker<'a> = Ignore;
         type User<'a> = Ignore;

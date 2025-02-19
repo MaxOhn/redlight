@@ -153,22 +153,22 @@ impl<C: CacheConfig> RedisCache<C> {
             }
             Event::GuildIntegrationsUpdate(_) => {}
             Event::GuildScheduledEventCreate(event) => {
-                if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user)?;
-                }
+                self.store_scheduled_event(&mut pipe, event)?;
             }
             Event::GuildScheduledEventDelete(event) => {
-                if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user)?;
-                }
+                self.delete_scheduled_event(&mut pipe, event)?;
             }
             Event::GuildScheduledEventUpdate(event) => {
-                if let Some(ref user) = event.creator {
-                    self.store_user(&mut pipe, user)?;
-                }
+                self.store_scheduled_event(&mut pipe, event)?;
             }
-            Event::GuildScheduledEventUserAdd(_) => {}
-            Event::GuildScheduledEventUserRemove(_) => {}
+            Event::GuildScheduledEventUserAdd(event) => {
+                self.store_scheduled_event_user_add(&mut pipe, event)
+                    .await?;
+            }
+            Event::GuildScheduledEventUserRemove(event) => {
+                self.store_scheduled_event_user_remove(&mut pipe, event)
+                    .await?;
+            }
             Event::GuildStickersUpdate(event) => {
                 self.store_stickers(&mut pipe, event.guild_id, &event.stickers)?;
             }

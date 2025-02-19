@@ -12,8 +12,8 @@ pub use self::{
     checked::CheckedArchive,
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
-        ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedStageInstance,
-        ICachedSticker, ICachedUser, ICachedVoiceState,
+        ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedScheduledEvent,
+        ICachedStageInstance, ICachedSticker, ICachedUser, ICachedVoiceState,
     },
     ignore::Ignore,
     reaction_event::ReactionEvent,
@@ -131,6 +131,7 @@ pub trait CacheConfig: Send + Sync + 'static {
     type Message<'a>: ICachedMessage<'a>;
     type Presence<'a>: ICachedPresence<'a>;
     type Role<'a>: ICachedRole<'a>;
+    type ScheduledEvent<'a>: ICachedScheduledEvent<'a>;
     type StageInstance<'a>: ICachedStageInstance<'a>;
     type Sticker<'a>: ICachedSticker<'a>;
     type User<'a>: ICachedUser<'a>;

@@ -90,6 +90,7 @@ pub enum SerializeErrorKind {
     Message,
     Presence,
     Role,
+    ScheduledEvent,
     StageInstance,
     Sticker,
     User,
@@ -123,6 +124,8 @@ pub enum UpdateErrorKind {
     PartialMember,
     PartialUser,
     Reaction,
+    ScheduledEventUserAdd,
+    ScheduledEventUserRemove,
 }
 
 #[derive(Debug, ThisError)]
@@ -161,6 +164,7 @@ pub enum MetaErrorKind {
     Message,
     Presence,
     Role,
+    ScheduledEvent,
     StageInstance,
     Sticker,
     User,

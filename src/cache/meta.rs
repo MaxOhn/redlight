@@ -8,8 +8,9 @@ use super::{
     impls::{
         channel::ChannelMetaKey, emoji::EmojiMetaKey, guild::GuildMetaKey,
         integration::IntegrationMetaKey, member::MemberMetaKey, message::MessageMetaKey,
-        presence::PresenceMetaKey, role::RoleMetaKey, stage_instance::StageInstanceMetaKey,
-        sticker::StickerMetaKey, user::UserMetaKey, voice_state::VoiceStateMetaKey,
+        presence::PresenceMetaKey, role::RoleMetaKey, scheduled_event::ScheduledEventMetaKey,
+        stage_instance::StageInstanceMetaKey, sticker::StickerMetaKey, user::UserMetaKey,
+        voice_state::VoiceStateMetaKey,
     },
     pipe::Pipe,
 };
@@ -29,6 +30,7 @@ pub(crate) enum MetaKey {
     Message(MessageMetaKey),
     Presence(PresenceMetaKey),
     Role(RoleMetaKey),
+    ScheduledEvent(ScheduledEventMetaKey),
     StageInstance(StageInstanceMetaKey),
     Sticker(StickerMetaKey),
     User(UserMetaKey),
@@ -46,6 +48,9 @@ impl MetaKey {
             Some(RedisKey::MESSAGE_PREFIX) => IMetaKey::parse(split).map(Self::Message),
             Some(RedisKey::PRESENCE_PREFIX) => IMetaKey::parse(split).map(Self::Presence),
             Some(RedisKey::ROLE_PREFIX) => IMetaKey::parse(split).map(Self::Role),
+            Some(RedisKey::SCHEDULED_EVENT_PREFIX) => {
+                IMetaKey::parse(split).map(Self::ScheduledEvent)
+            }
             Some(RedisKey::STAGE_INSTANCE_PREFIX) => {
                 IMetaKey::parse(split).map(Self::StageInstance)
             }
@@ -117,6 +122,17 @@ impl MetaKey {
                 meta.handle_archived(pipe, archived);
                 meta.handle_expire(pipe);
             }
+            MetaKey::ScheduledEvent(meta) => {
+                let key = meta.redis_key();
+
+                let Some(bytes) = Self::fetch_bytes(conn, pipe, key).await? else {
+                    return Ok(());
+                };
+
+                let archived = <ScheduledEventMetaKey as HasArchived>::Meta::as_archive(&bytes)?;
+                meta.handle_archived(pipe, archived);
+                meta.handle_expire(pipe);
+            }
             MetaKey::StageInstance(meta) => {
                 let key = meta.redis_key();
 
@@ -179,6 +195,7 @@ impl Debug for MetaKey {
             Self::Message(meta) => Debug::fmt(meta, f),
             Self::Presence(meta) => Debug::fmt(meta, f),
             Self::Role(meta) => Debug::fmt(meta, f),
+            Self::ScheduledEvent(meta) => Debug::fmt(meta, f),
             Self::StageInstance(meta) => Debug::fmt(meta, f),
             Self::Sticker(meta) => Debug::fmt(meta, f),
             Self::User(meta) => Debug::fmt(meta, f),

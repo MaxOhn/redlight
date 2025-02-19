@@ -3,11 +3,15 @@ use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
         payload::incoming::{
-            invite_create::PartialUser, ChannelPinsUpdate, GuildUpdate, MemberUpdate, MessageUpdate,
+            invite_create::PartialUser, ChannelPinsUpdate, GuildScheduledEventUserAdd,
+            GuildScheduledEventUserRemove, GuildUpdate, MemberUpdate, MessageUpdate,
         },
         presence::Presence,
     },
-    guild::{Emoji, Guild, GuildIntegration, Member, PartialMember, Role},
+    guild::{
+        scheduled_event::GuildScheduledEvent, Emoji, Guild, GuildIntegration, Member,
+        PartialMember, Role,
+    },
     id::{
         marker::{ChannelMarker, GuildMarker},
         Id,
@@ -167,6 +171,44 @@ pub trait ICachedPresence<'a>: Cacheable {
 pub trait ICachedRole<'a>: Cacheable {
     /// Create an instance from a [`Role`] reference.
     fn from_role(role: &'a Role) -> Self;
+}
+
+/// Create a type from a [`GuildScheduledEvent`] reference.
+pub trait ICachedScheduledEvent<'a>: Cacheable {
+    /// Create an instance from a [`GuildScheduledEvent`] reference.
+    fn from_scheduled_event(event: &'a GuildScheduledEvent) -> Self;
+
+    /// Specify how user-add events are handled.
+    ///
+    /// If the events are not of interest, return `None`.
+    /// Otherwise, return a function that updates the currently cached message.
+    ///
+    /// The returned function should take two arguments:
+    ///   - a mutable reference to the current entry which must be updated
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
+    ///   - a [`GuildScheduledEventUserAdd`]
+    // Abstracting the type through a type definition would likely cause
+    // more confusion than do good so we'll allow the complexity.
+    #[allow(clippy::type_complexity)]
+    fn on_user_add_event<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserAdd) -> Result<(), E>>;
+
+    /// Specify how user-remove events are handled.
+    ///
+    /// If the events are not of interest, return `None`.
+    /// Otherwise, return a function that updates the currently cached message.
+    ///
+    /// The returned function should take two arguments:
+    ///   - a mutable reference to the current entry which must be updated
+    ///     either through [`CachedArchive::update_archive`] or
+    ///     [`CachedArchive::update_by_deserializing`].
+    ///   - a [`GuildScheduledEventUserRemove`]
+    // Abstracting the type through a type definition would likely cause
+    // more confusion than do good so we'll allow the complexity.
+    #[allow(clippy::type_complexity)]
+    fn on_user_remove_event<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserRemove) -> Result<(), E>>;
 }
 
 /// Create a type from a [`StageInstance`] reference.

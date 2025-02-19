@@ -51,6 +51,7 @@ impl<C: CacheConfig> RedisCache<C> {
         self.store_roles(pipe, guild.id, &guild.roles)?;
         self.store_stickers(pipe, guild.id, &guild.stickers)?;
         self.store_channels(pipe, guild.id, &guild.threads)?;
+        self.store_scheduled_events(pipe, guild.id, &guild.guild_scheduled_events)?;
         self.store_stage_instances(pipe, guild.id, &guild.stage_instances)?;
         self.store_voice_states(pipe, guild.id, &guild.voice_states)?;
 
@@ -135,6 +136,11 @@ impl<C: CacheConfig> RedisCache<C> {
             pipe.smembers(key);
         }
 
+        if C::ScheduledEvent::WANTED {
+            let key = RedisKey::GuildScheduledEvents { id: guild_id };
+            pipe.smembers(key);
+        }
+
         if C::StageInstance::WANTED {
             let key = RedisKey::GuildStageInstances { id: guild_id };
             pipe.smembers(key);
@@ -172,6 +178,7 @@ impl<C: CacheConfig> RedisCache<C> {
         delete_integration::<C>(&mut iter, guild_id, &mut keys_to_delete)?;
         delete_presence::<C>(&mut iter, guild_id, &mut keys_to_delete)?;
         delete_role::<C>(pipe, &mut iter, guild_id, &mut keys_to_delete)?;
+        delete_event::<C>(pipe, &mut iter, guild_id, &mut keys_to_delete)?;
         delete_stage::<C>(pipe, &mut iter, guild_id, &mut keys_to_delete)?;
         delete_sticker::<C>(pipe, &mut iter, guild_id, &mut keys_to_delete)?;
         delete_voice_state::<C>(&mut iter, guild_id, &mut keys_to_delete)?;
@@ -204,6 +211,7 @@ impl<C: CacheConfig> RedisCache<C> {
             + usize::from(C::Member::WANTED || C::User::WANTED)
             + usize::from(C::Presence::WANTED)
             + usize::from(C::Role::WANTED)
+            + usize::from(C::ScheduledEvent::WANTED)
             + usize::from(C::StageInstance::WANTED)
             + usize::from(C::Sticker::WANTED)
             + usize::from(C::VoiceState::WANTED);
@@ -240,6 +248,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         if C::Role::WANTED {
             add_smembers_keys(pipe, guild_ids, |id| RedisKey::GuildRoles { id });
+        }
+
+        if C::ScheduledEvent::WANTED {
+            add_smembers_keys(pipe, guild_ids, |id| RedisKey::GuildScheduledEvents { id });
         }
 
         if C::StageInstance::WANTED {
@@ -280,6 +292,7 @@ impl<C: CacheConfig> RedisCache<C> {
         delete_integrations::<C>(&mut iter, guild_ids, &mut keys_to_delete);
         delete_presences::<C>(&mut iter, guild_ids, &mut keys_to_delete);
         delete_roles::<C>(pipe, &mut iter, guild_ids, &mut keys_to_delete);
+        delete_events::<C>(pipe, &mut iter, guild_ids, &mut keys_to_delete);
         delete_stages::<C>(pipe, &mut iter, guild_ids, &mut keys_to_delete);
         delete_stickers::<C>(pipe, &mut iter, guild_ids, &mut keys_to_delete);
         delete_voice_states::<C>(&mut iter, guild_ids, &mut keys_to_delete);
@@ -503,6 +516,45 @@ fn delete_role<C: CacheConfig>(
     });
 
     keys_to_delete.extend(role_keys);
+
+    Ok(())
+}
+
+fn delete_event<C: CacheConfig>(
+    pipe: &mut Pipe<'_, C>,
+    iter: &mut IntoIter<Vec<u64>>,
+    guild_id: Id<GuildMarker>,
+    keys_to_delete: &mut Vec<RedisKey>,
+) -> CacheResult<()> {
+    if !C::ScheduledEvent::WANTED {
+        return Ok(());
+    }
+
+    let key = RedisKey::GuildScheduledEvents { id: guild_id };
+    keys_to_delete.push(key);
+
+    let event_ids = iter.next().ok_or(CacheError::InvalidResponse)?;
+
+    let key = RedisKey::ScheduledEvents;
+    pipe.srem(key, event_ids.as_slice());
+
+    if C::ScheduledEvent::expire().is_some() {
+        let event_keys = event_ids
+            .iter()
+            .map(|event_id| RedisKey::ScheduledEventMeta {
+                id: Id::new(*event_id),
+            });
+
+        keys_to_delete.extend(event_keys);
+    }
+
+    let event_keys = event_ids
+        .into_iter()
+        .map(|event_id| RedisKey::ScheduledEvent {
+            id: Id::new(event_id),
+        });
+
+    keys_to_delete.extend(event_keys);
 
     Ok(())
 }
@@ -854,6 +906,49 @@ fn delete_roles<C: CacheConfig>(
         .iter()
         .copied()
         .map(|guild_id| RedisKey::GuildRoles {
+            id: Id::new(guild_id),
+        });
+
+    keys_to_delete.extend(guild_keys);
+}
+
+fn delete_events<C: CacheConfig>(
+    pipe: &mut Pipe<'_, C>,
+    iter: &mut IntoIter<Vec<u64>>,
+    guild_ids: &[u64],
+    keys_to_delete: &mut Vec<RedisKey>,
+) {
+    if !C::ScheduledEvent::WANTED {
+        return;
+    }
+
+    let event_ids: Vec<_> = iter.by_ref().take(guild_ids.len()).flatten().collect();
+
+    let key = RedisKey::ScheduledEvents;
+    pipe.srem(key, event_ids.as_slice());
+
+    if C::ScheduledEvent::expire().is_some() {
+        let event_keys = event_ids
+            .iter()
+            .map(|event_id| RedisKey::ScheduledEventMeta {
+                id: Id::new(*event_id),
+            });
+
+        keys_to_delete.extend(event_keys);
+    }
+
+    let event_keys = event_ids
+        .into_iter()
+        .map(|event_id| RedisKey::ScheduledEvent {
+            id: Id::new(event_id),
+        });
+
+    keys_to_delete.extend(event_keys);
+
+    let guild_keys = guild_ids
+        .iter()
+        .copied()
+        .map(|guild_id| RedisKey::GuildScheduledEvents {
             id: Id::new(guild_id),
         });
 

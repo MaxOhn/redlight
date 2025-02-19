@@ -49,6 +49,7 @@ async fn test_message() -> Result<(), CacheError> {
         type Message<'a> = CachedMessage;
         type Presence<'a> = Ignore;
         type Role<'a> = Ignore;
+        type ScheduledEvent<'a> = Ignore;
         type StageInstance<'a> = Ignore;
         type Sticker<'a> = Ignore;
         type User<'a> = Ignore;

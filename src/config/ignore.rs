@@ -5,11 +5,15 @@ use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
         payload::incoming::{
-            invite_create::PartialUser, ChannelPinsUpdate, GuildUpdate, MemberUpdate, MessageUpdate,
+            invite_create::PartialUser, ChannelPinsUpdate, GuildScheduledEventUserAdd,
+            GuildScheduledEventUserRemove, GuildUpdate, MemberUpdate, MessageUpdate,
         },
         presence::Presence,
     },
-    guild::{Emoji, Guild, GuildIntegration, Member, PartialMember, Role},
+    guild::{
+        scheduled_event::GuildScheduledEvent, Emoji, Guild, GuildIntegration, Member,
+        PartialMember, Role,
+    },
     id::{
         marker::{ChannelMarker, GuildMarker},
         Id,
@@ -18,7 +22,7 @@ use twilight_model::{
     voice::VoiceState,
 };
 
-use super::ReactionEvent;
+use super::{from::ICachedScheduledEvent, ReactionEvent};
 use crate::{
     config::{
         Cacheable, ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild,
@@ -115,6 +119,22 @@ impl ICachedPresence<'_> for Ignore {
 impl ICachedRole<'_> for Ignore {
     fn from_role(_: &'_ Role) -> Self {
         Self
+    }
+}
+
+impl ICachedScheduledEvent<'_> for Ignore {
+    fn from_scheduled_event(_: &'_ GuildScheduledEvent) -> Self {
+        Self
+    }
+
+    fn on_user_add_event<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserAdd) -> Result<(), E>> {
+        None
+    }
+
+    fn on_user_remove_event<E: Source>(
+    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserRemove) -> Result<(), E>> {
+        None
     }
 }
 

@@ -143,6 +143,7 @@ mod config {
         type Message<'a> = Ignore;
         type Presence<'a> = Ignore;
         type Role<'a> = Ignore;
+        type ScheduledEvent<'a> = Ignore;
         type StageInstance<'a> = CachedStageInstance; // <-
         type Sticker<'a> = Ignore;
         type User<'a> = Ignore;

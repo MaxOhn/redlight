@@ -44,6 +44,7 @@ async fn test_stickers() -> Result<(), CacheError> {
         type Message<'a> = Ignore;
         type Presence<'a> = Ignore;
         type Role<'a> = Ignore;
+        type ScheduledEvent<'a> = Ignore;
         type StageInstance<'a> = Ignore;
         type Sticker<'a> = CachedSticker<'a>;
         type User<'a> = Ignore;

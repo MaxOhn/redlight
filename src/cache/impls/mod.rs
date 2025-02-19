@@ -7,6 +7,7 @@ pub(super) mod member;
 pub(super) mod message;
 pub(super) mod presence;
 pub(super) mod role;
+pub(super) mod scheduled_event;
 pub(super) mod stage_instance;
 pub(super) mod sticker;
 pub(super) mod user;

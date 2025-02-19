@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rkyv::{rancor::Source, Archive};
+use rkyv::rancor::Source;
 
 use super::CheckedArchive;
 
@@ -39,7 +39,7 @@ use super::CheckedArchive;
 ///     }
 /// }
 /// ```
-pub trait Cacheable: Archive + CheckedArchive + Sized {
+pub trait Cacheable: CheckedArchive + Sized {
     /// The resulting byte buffer after serialization.
     type Bytes: AsRef<[u8]>;
 

@@ -34,6 +34,7 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
     const GUILD_COUNT: &str = "guild_count";
     const MESSAGE_COUNT: &str = "message_count";
     const ROLE_COUNT: &str = "role_count";
+    const SCHEDULED_EVENT_COUNT: &str = "scheduled_event_count";
     const STAGE_INSTANCE_COUNT: &str = "stage_instance_count";
     const STICKER_COUNT: &str = "sticker_count";
     const UNAVAILABLE_GUILD_COUNT: &str = "unavailable_guild_count";
@@ -44,6 +45,7 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
     describe_gauge!(GUILD_COUNT, "Amount of cached guilds");
     describe_gauge!(MESSAGE_COUNT, "Amount of cached messages");
     describe_gauge!(ROLE_COUNT, "Amount of cached roles");
+    describe_gauge!(SCHEDULED_EVENT_COUNT, "Amount of cached scheduled events");
     describe_gauge!(STAGE_INSTANCE_COUNT, "Amount of cached stage instances");
     describe_gauge!(STICKER_COUNT, "Amount of cached stickers");
     describe_gauge!(UNAVAILABLE_GUILD_COUNT, "Amount of unavailable guilds");
@@ -79,6 +81,10 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
 
         if C::Role::WANTED {
             pipe.scard(RedisKey::Roles);
+        }
+
+        if C::ScheduledEvent::WANTED {
+            pipe.scard(RedisKey::ScheduledEvents);
         }
 
         if C::StageInstance::WANTED {
@@ -135,6 +141,10 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
 
         if C::Role::WANTED {
             gauge!(ROLE_COUNT).set(next_scard());
+        }
+
+        if C::ScheduledEvent::WANTED {
+            gauge!(SCHEDULED_EVENT_COUNT).set(next_scard());
         }
 
         if C::StageInstance::WANTED {

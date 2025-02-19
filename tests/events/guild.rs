@@ -57,6 +57,7 @@ async fn test_guild() -> Result<(), CacheError> {
         type Message<'a> = Ignore;
         type Presence<'a> = Ignore;
         type Role<'a> = Ignore;
+        type ScheduledEvent<'a> = Ignore;
         type StageInstance<'a> = Ignore;
         type Sticker<'a> = CachedSticker;
         type User<'a> = Ignore;

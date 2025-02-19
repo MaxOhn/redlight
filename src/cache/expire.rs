@@ -21,6 +21,7 @@ impl<C: CacheConfig> RedisCache<C> {
             || C::Message::expire().is_some()
             || C::Presence::expire().is_some()
             || C::Role::expire().is_some()
+            || C::ScheduledEvent::expire().is_some()
             || C::StageInstance::expire().is_some()
             || C::Sticker::expire().is_some()
             || C::User::expire().is_some()

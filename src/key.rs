@@ -4,7 +4,7 @@ use itoa::Buffer;
 use twilight_model::id::{
     marker::{
         ChannelMarker, EmojiMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker,
-        StageMarker, StickerMarker, UserMarker,
+        ScheduledEventMarker, StageMarker, StickerMarker, UserMarker,
     },
     Id,
 };
@@ -55,6 +55,8 @@ pub enum RedisKey {
     GuildPresences { id: Id<GuildMarker> },
     /// Set of role ids
     GuildRoles { id: Id<GuildMarker> },
+    /// Set of scheduled event ids
+    GuildScheduledEvents { id: Id<GuildMarker> },
     /// Set of stage instance ids
     GuildStageInstances { id: Id<GuildMarker> },
     /// Set of sticker ids
@@ -97,6 +99,14 @@ pub enum RedisKey {
     #[cfg(feature = "cold_resume")]
     /// Serialized `SessionsWrapper`
     Sessions,
+    /// Serialized `CacheConfig::ScheduledEvent`
+    ScheduledEvent { id: Id<ScheduledEventMarker> },
+    /// Serialized `ScheduledEventMeta`.
+    ///
+    /// Used for bookkeeping on expire events.
+    ScheduledEventMeta { id: Id<ScheduledEventMarker> },
+    /// Set of scheduled event ids
+    ScheduledEvents,
     /// Serialized `CacheConfig::StageInstance`
     StageInstance { id: Id<StageMarker> },
     /// Serialized `StageInstanceMeta`.
@@ -144,6 +154,7 @@ impl RedisKey {
     pub(crate) const GUILD_MEMBERS_PREFIX: &'static [u8] = b"GUILD_MEMBERS";
     pub(crate) const GUILD_PRESENCES_PREFIX: &'static [u8] = b"GUILD_PRESENCES";
     pub(crate) const GUILD_ROLES_PREFIX: &'static [u8] = b"GUILD_ROLES";
+    pub(crate) const GUILD_SCHEDULED_EVENTS_PREFIX: &'static [u8] = b"GUILD_SCHEDULED_EVENTS";
     pub(crate) const GUILD_STAGE_INSTANCES_PREFIX: &'static [u8] = b"GUILD_STAGE_INSTANCES";
     pub(crate) const GUILD_STICKERS_PREFIX: &'static [u8] = b"GUILD_STICKERS";
     pub(crate) const GUILD_VOICE_STATES_PREFIX: &'static [u8] = b"GUILD_VOICE_STATES";
@@ -159,6 +170,9 @@ impl RedisKey {
     pub(crate) const ROLES_PREFIX: &'static [u8] = b"ROLES";
     #[cfg(feature = "cold_resume")]
     pub(crate) const SESSIONS_PREFIX: &'static [u8] = b"SESSIONS";
+    pub(crate) const SCHEDULED_EVENT_PREFIX: &'static [u8] = b"SCHEDULED_EVENT";
+    pub(crate) const SCHEDULED_EVENT_META_PREFIX: &'static [u8] = b"SCHEDULED_EVENT_META";
+    pub(crate) const SCHEDULED_EVENTS_PREFIX: &'static [u8] = b"SCHEDULED_EVENTS";
     pub(crate) const STAGE_INSTANCE_PREFIX: &'static [u8] = b"STAGE_INSTANCE";
     pub(crate) const STAGE_INSTANCE_META_PREFIX: &'static [u8] = b"STAGE_INSTANCE_META";
     pub(crate) const STAGE_INSTANCES_PREFIX: &'static [u8] = b"STAGE_INSTANCES";
@@ -276,6 +290,7 @@ impl ToRedisArgs for RedisKey {
             Self::GuildMembers { id } => name_id(Self::GUILD_MEMBERS_PREFIX, *id),
             Self::GuildPresences { id } => name_id(Self::GUILD_PRESENCES_PREFIX, *id),
             Self::GuildRoles { id } => name_id(Self::GUILD_ROLES_PREFIX, *id),
+            Self::GuildScheduledEvents { id } => name_id(Self::GUILD_SCHEDULED_EVENTS_PREFIX, *id),
             Self::GuildStageInstances { id } => name_id(Self::GUILD_STAGE_INSTANCES_PREFIX, *id),
             Self::GuildStickers { id } => name_id(Self::GUILD_STICKERS_PREFIX, *id),
             Self::GuildVoiceStates { id } => name_id(Self::GUILD_VOICE_STATES_PREFIX, *id),
@@ -291,6 +306,9 @@ impl ToRedisArgs for RedisKey {
             Self::Roles => Cow::Borrowed(Self::ROLES_PREFIX),
             #[cfg(feature = "cold_resume")]
             Self::Sessions => Cow::Borrowed(Self::SESSIONS_PREFIX),
+            Self::ScheduledEvent { id } => name_id(Self::SCHEDULED_EVENT_PREFIX, *id),
+            Self::ScheduledEventMeta { id } => name_id(Self::SCHEDULED_EVENT_META_PREFIX, *id),
+            Self::ScheduledEvents => Cow::Borrowed(Self::SCHEDULED_EVENTS_PREFIX),
             Self::StageInstance { id } => name_id(Self::STAGE_INSTANCE_PREFIX, *id),
             Self::StageInstanceMeta { id } => name_id(Self::STAGE_INSTANCE_META_PREFIX, *id),
             Self::StageInstances => Cow::Borrowed(Self::STAGE_INSTANCES_PREFIX),

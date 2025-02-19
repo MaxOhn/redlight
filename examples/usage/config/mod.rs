@@ -25,6 +25,7 @@ impl CacheConfig for Config {
     type Message<'a> = Ignore;
     type Presence<'a> = Ignore;
     type Role<'a> = CachedRole<'a>; // <-
+    type ScheduledEvent<'a> = Ignore;
     type StageInstance<'a> = Ignore;
     type Sticker<'a> = Ignore;
     type User<'a> = CachedUser; // <-
