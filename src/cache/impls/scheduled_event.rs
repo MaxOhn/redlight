@@ -1,4 +1,3 @@
-use bb8_redis::redis::Pipeline;
 use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
@@ -19,6 +18,7 @@ use crate::{
     error::{
         MetaError, MetaErrorKind, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind,
     },
+    redis::Pipeline,
     rkyv_util::id::IdRkyv,
     util::{BytesWrap, ZippedVecs},
     CacheResult, RedisCache, RedisKey,
