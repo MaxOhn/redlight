@@ -1,7 +1,11 @@
+use metrics::{describe_gauge, gauge};
+use tracing::{error, trace};
+
 use super::RedisCache;
 use crate::{
     config::{CacheConfig, Cacheable},
-    redis::{Connection, Pool},
+    key::RedisKey,
+    redis::{Connection, Pipeline, Pool},
 };
 
 impl<C: CacheConfig> RedisCache<C> {
@@ -24,11 +28,6 @@ impl<C: CacheConfig> RedisCache<C> {
 }
 
 async fn metrics_loop<C: CacheConfig>(pool: Pool) {
-    use metrics::{describe_gauge, gauge};
-    use tracing::{error, trace};
-
-    use crate::{config::Cacheable, key::RedisKey, redis::Pipeline};
-
     const CHANNEL_COUNT: &str = "channel_count";
     const EMOJI_COUNT: &str = "emoji_count";
     const GUILD_COUNT: &str = "guild_count";
@@ -62,42 +61,7 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
     loop {
         interval.tick().await;
 
-        if C::Channel::WANTED {
-            pipe.scard(RedisKey::Channels);
-        }
-
-        if C::Emoji::WANTED {
-            pipe.scard(RedisKey::Emojis);
-        }
-
-        if C::Guild::WANTED {
-            pipe.scard(RedisKey::Guilds);
-            pipe.scard(RedisKey::UnavailableGuilds);
-        }
-
-        if C::Message::WANTED {
-            pipe.scard(RedisKey::Messages);
-        }
-
-        if C::Role::WANTED {
-            pipe.scard(RedisKey::Roles);
-        }
-
-        if C::ScheduledEvent::WANTED {
-            pipe.scard(RedisKey::ScheduledEvents);
-        }
-
-        if C::StageInstance::WANTED {
-            pipe.scard(RedisKey::StageInstances);
-        }
-
-        if C::Sticker::WANTED {
-            pipe.scard(RedisKey::Stickers);
-        }
-
-        if C::User::WANTED {
-            pipe.scard(RedisKey::Users);
-        }
+        add_scards::<C>(&mut pipe);
 
         let mut conn = match Connection::get(&pool).await {
             Ok(conn) => conn,
@@ -158,5 +122,44 @@ async fn metrics_loop<C: CacheConfig>(pool: Pool) {
         if C::User::WANTED {
             gauge!(USER_COUNT).set(next_scard());
         }
+    }
+}
+
+fn add_scards<C: CacheConfig>(pipe: &mut Pipeline) {
+    if C::Channel::WANTED {
+        pipe.scard(RedisKey::Channels);
+    }
+
+    if C::Emoji::WANTED {
+        pipe.scard(RedisKey::Emojis);
+    }
+
+    if C::Guild::WANTED {
+        pipe.scard(RedisKey::Guilds);
+        pipe.scard(RedisKey::UnavailableGuilds);
+    }
+
+    if C::Message::WANTED {
+        pipe.scard(RedisKey::Messages);
+    }
+
+    if C::Role::WANTED {
+        pipe.scard(RedisKey::Roles);
+    }
+
+    if C::ScheduledEvent::WANTED {
+        pipe.scard(RedisKey::ScheduledEvents);
+    }
+
+    if C::StageInstance::WANTED {
+        pipe.scard(RedisKey::StageInstances);
+    }
+
+    if C::Sticker::WANTED {
+        pipe.scard(RedisKey::Stickers);
+    }
+
+    if C::User::WANTED {
+        pipe.scard(RedisKey::Users);
     }
 }
