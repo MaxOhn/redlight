@@ -21,7 +21,7 @@ use rkyv::{
     ser::writer::Buffer,
     util::{Align, AlignedVec},
     with::Map,
-    Archive, Deserialize, Serialize,
+    Archive, Archived, Deserialize, Serialize,
 };
 use twilight_model::{
     channel::message::Sticker,
@@ -105,7 +105,7 @@ async fn test_guild() -> Result<(), CacheError> {
         }
 
         fn on_guild_update<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &GuildUpdate) -> Result<(), E>> {
             Some(|archived, update| {
                 archived
                     .update_by_deserializing(

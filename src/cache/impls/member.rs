@@ -1,3 +1,4 @@
+use rkyv::Archived;
 use tracing::{instrument, trace};
 use twilight_model::{
     gateway::payload::incoming::MemberUpdate,
@@ -94,7 +95,7 @@ impl<C: CacheConfig> RedisCache<C> {
             user: user_id,
         };
 
-        let Some(mut member) = pipe.get::<C::Member<'static>>(key).await? else {
+        let Some(mut member) = pipe.get::<Archived<C::Member<'static>>>(key).await? else {
             return Ok(());
         };
 
@@ -205,7 +206,7 @@ impl<C: CacheConfig> RedisCache<C> {
             user: user.id,
         };
 
-        let Some(mut member) = pipe.get::<C::Member<'static>>(key).await? else {
+        let Some(mut member) = pipe.get::<Archived<C::Member<'static>>>(key).await? else {
             return Ok(());
         };
 

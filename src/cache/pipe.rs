@@ -4,7 +4,7 @@ use rkyv::util::AlignedVec;
 use tracing::{instrument, trace};
 
 use crate::{
-    config::{CacheConfig, Cacheable},
+    config::{CacheConfig, CheckedArchived},
     key::RedisKey,
     redis::{Cmd, ConnectionState, FromRedisValue, Pipeline, ToRedisArgs},
     util::BytesWrap,
@@ -106,7 +106,7 @@ impl<C: CacheConfig> Pipe<'_, C> {
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get<T>(&mut self, key: RedisKey) -> CacheResult<Option<CachedArchive<T>>>
     where
-        T: Cacheable,
+        T: CheckedArchived,
     {
         let conn = self.conn.get().await?;
 

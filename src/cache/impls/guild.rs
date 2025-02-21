@@ -1,5 +1,6 @@
 use std::vec::IntoIter;
 
+use rkyv::Archived;
 use tracing::{instrument, trace};
 use twilight_model::{
     gateway::payload::incoming::GuildUpdate,
@@ -85,7 +86,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Guild { id: guild_id };
 
-        let Some(mut guild) = pipe.get::<C::Guild<'static>>(key).await? else {
+        let Some(mut guild) = pipe.get::<Archived<C::Guild<'static>>>(key).await? else {
             return Ok(());
         };
 

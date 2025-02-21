@@ -1,6 +1,6 @@
 use std::ptr;
 
-use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer};
+use rkyv::{api::high::to_bytes_in, rancor::Source, ser::writer::Buffer, Archived};
 use tracing::{instrument, trace};
 use twilight_model::{
     channel::Message,
@@ -105,7 +105,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::Message { id: update.id };
 
-        let Some(mut message) = pipe.get::<C::Message<'static>>(key).await? else {
+        let Some(mut message) = pipe.get::<Archived<C::Message<'static>>>(key).await? else {
             return Ok(());
         };
 
@@ -150,7 +150,7 @@ impl<C: CacheConfig> RedisCache<C> {
         let channel_id = event.channel_id();
         let key = RedisKey::Message { id: msg_id };
 
-        let Some(mut message) = pipe.get::<C::Message<'static>>(key).await? else {
+        let Some(mut message) = pipe.get::<Archived<C::Message<'static>>>(key).await? else {
             return Ok(());
         };
 

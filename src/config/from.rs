@@ -1,4 +1,4 @@
-use rkyv::rancor::Source;
+use rkyv::{rancor::Source, Archived};
 use twilight_model::{
     channel::{message::Sticker, Channel, Message, StageInstance},
     gateway::{
@@ -42,7 +42,7 @@ pub trait ICachedChannel<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_pins_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &ChannelPinsUpdate) -> Result<(), E>>;
 }
 
 /// Create a type from a [`CurrentUser`] reference.
@@ -76,7 +76,7 @@ pub trait ICachedGuild<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_guild_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &GuildUpdate) -> Result<(), E>>;
 }
 
 /// Create a type from a [`GuildIntegration`] reference.
@@ -104,7 +104,7 @@ pub trait ICachedMember<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialMember) -> Result<(), E>>;
 
     /// Specify how [`MemberUpdate`] events are handled.
     ///
@@ -120,7 +120,7 @@ pub trait ICachedMember<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_member_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MemberUpdate) -> Result<(), E>>;
 }
 
 /// Create a type from a [`Message`] reference.
@@ -142,7 +142,7 @@ pub trait ICachedMessage<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_message_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MessageUpdate) -> Result<(), E>>;
 
     /// Specify how reaction events are handled.
     ///
@@ -158,7 +158,7 @@ pub trait ICachedMessage<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_reaction_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, ReactionEvent<'_>) -> Result<(), E>>;
 }
 
 /// Create a type from a [`Presence`] reference.
@@ -192,7 +192,7 @@ pub trait ICachedScheduledEvent<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn on_user_add_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserAdd) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &GuildScheduledEventUserAdd) -> Result<(), E>>;
 
     /// Specify how user-remove events are handled.
     ///
@@ -207,8 +207,9 @@ pub trait ICachedScheduledEvent<'a>: Cacheable {
     // Abstracting the type through a type definition would likely cause
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
-    fn on_user_remove_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserRemove) -> Result<(), E>>;
+    fn on_user_remove_event<E: Source>() -> Option<
+        fn(&mut CachedArchive<Archived<Self>>, &GuildScheduledEventUserRemove) -> Result<(), E>,
+    >;
 }
 
 /// Create a type from a [`StageInstance`] reference.
@@ -242,7 +243,7 @@ pub trait ICachedUser<'a>: Cacheable {
     // more confusion than do good so we'll allow the complexity.
     #[allow(clippy::type_complexity)]
     fn update_via_partial<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), E>>;
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialUser) -> Result<(), E>>;
 }
 
 /// Create a type from a [`VoiceState`] reference.

@@ -18,7 +18,7 @@ use rkyv::{
     rancor::Source,
     util::AlignedVec,
     with::{InlineAsBox, Map},
-    Archive, Serialize,
+    Archive, Archived, Serialize,
 };
 use twilight_model::{
     channel::{Channel, ChannelFlags, ChannelType, VideoQualityMode},
@@ -93,7 +93,8 @@ async fn test_channel() -> Result<(), CacheError> {
         }
 
         fn on_pins_update<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &ChannelPinsUpdate) -> Result<(), E>>
+        {
             Some(|value, update| {
                 value
                     .update_archive(|sealed| {

@@ -44,7 +44,7 @@ impl ICachedChannel<'_> for Ignore {
     }
 
     fn on_pins_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &ChannelPinsUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -73,7 +73,7 @@ impl ICachedGuild<'_> for Ignore {
     }
 
     fn on_guild_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildUpdate) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &GuildUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -83,13 +83,13 @@ impl ICachedMember<'_> for Ignore {
         Self
     }
 
-    fn update_via_partial<E>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
+    fn update_via_partial<E>() -> Option<fn(&mut CachedArchive<()>, &PartialMember) -> Result<(), E>>
+    {
         None
     }
 
     fn on_member_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &MemberUpdate) -> Result<(), E>> {
         None
     }
 }
@@ -100,12 +100,12 @@ impl ICachedMessage<'_> for Ignore {
     }
 
     fn on_message_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &MessageUpdate) -> Result<(), E>> {
         None
     }
 
     fn on_reaction_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, ReactionEvent<'_>) -> Result<(), E>> {
         None
     }
 }
@@ -128,12 +128,12 @@ impl ICachedScheduledEvent<'_> for Ignore {
     }
 
     fn on_user_add_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserAdd) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &GuildScheduledEventUserAdd) -> Result<(), E>> {
         None
     }
 
     fn on_user_remove_event<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &GuildScheduledEventUserRemove) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<()>, &GuildScheduledEventUserRemove) -> Result<(), E>> {
         None
     }
 }
@@ -155,7 +155,7 @@ impl ICachedUser<'_> for Ignore {
         Self
     }
 
-    fn update_via_partial<E>() -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), E>>
+    fn update_via_partial<E>() -> Option<fn(&mut CachedArchive<()>, &PartialUser) -> Result<(), E>>
     {
         None
     }

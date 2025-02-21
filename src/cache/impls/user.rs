@@ -1,3 +1,4 @@
+use rkyv::Archived;
 use tracing::{instrument, trace};
 use twilight_model::{
     gateway::payload::incoming::invite_create::PartialUser,
@@ -107,7 +108,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::User { id };
 
-        let Some(mut user) = pipe.get::<C::User<'static>>(key).await? else {
+        let Some(mut user) = pipe.get::<Archived<C::User<'static>>>(key).await? else {
             return Ok(());
         };
 

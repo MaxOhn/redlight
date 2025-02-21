@@ -2,7 +2,7 @@ use std::{iter::FusedIterator, marker::PhantomData, vec::IntoIter};
 
 use rkyv::util::AlignedVec;
 
-use crate::{config::Cacheable, util::BytesWrap, CachedArchive};
+use crate::{config::CheckedArchived, util::BytesWrap, CachedArchive};
 
 type Bytes = BytesWrap<AlignedVec<16>>;
 
@@ -21,7 +21,7 @@ pub struct OptionalCacheIter<T> {
     _item: PhantomData<T>,
 }
 
-impl<T> OptionalCacheIter<T> {
+impl<T: CheckedArchived> OptionalCacheIter<T> {
     pub(crate) fn new(bytes: Vec<Bytes>) -> Self {
         Self {
             inner: bytes.into_iter(),
@@ -30,7 +30,7 @@ impl<T> OptionalCacheIter<T> {
     }
 }
 
-impl<T: Cacheable> Iterator for OptionalCacheIter<T> {
+impl<T: CheckedArchived> Iterator for OptionalCacheIter<T> {
     type Item = Option<EntryResult<T>>;
 
     #[inline]
@@ -53,7 +53,7 @@ impl<T: Cacheable> Iterator for OptionalCacheIter<T> {
     }
 }
 
-fn process_bytes<T: Cacheable>(BytesWrap(bytes): Bytes) -> Option<EntryResult<T>> {
+fn process_bytes<T: CheckedArchived>(BytesWrap(bytes): Bytes) -> Option<EntryResult<T>> {
     if bytes.is_empty() {
         return None;
     }
@@ -67,13 +67,13 @@ fn process_bytes<T: Cacheable>(BytesWrap(bytes): Bytes) -> Option<EntryResult<T>
     Some(archived)
 }
 
-fn fold<T: Cacheable, B>(
+fn fold<T: CheckedArchived, B>(
     mut f: impl FnMut(B, Option<EntryResult<T>>) -> B,
 ) -> impl FnMut(B, Bytes) -> B {
     move |acc, elt| f(acc, process_bytes(elt))
 }
 
-impl<T: Cacheable> DoubleEndedIterator for OptionalCacheIter<T> {
+impl<T: CheckedArchived> DoubleEndedIterator for OptionalCacheIter<T> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner.next_back().map(process_bytes)
@@ -89,14 +89,14 @@ impl<T: Cacheable> DoubleEndedIterator for OptionalCacheIter<T> {
     }
 }
 
-impl<T: Cacheable> ExactSizeIterator for OptionalCacheIter<T> {
+impl<T: CheckedArchived> ExactSizeIterator for OptionalCacheIter<T> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
-impl<T: Cacheable> FusedIterator for OptionalCacheIter<T> {}
+impl<T: CheckedArchived> FusedIterator for OptionalCacheIter<T> {}
 
 /// Iterator over [`EntryResult<T>`].
 #[derive(Clone, Debug)]
@@ -110,7 +110,7 @@ impl<T> CacheIter<T> {
     }
 }
 
-impl<T: Cacheable> Iterator for CacheIter<T> {
+impl<T: CheckedArchived> Iterator for CacheIter<T> {
     type Item = EntryResult<T>;
 
     #[inline]
@@ -124,7 +124,7 @@ impl<T: Cacheable> Iterator for CacheIter<T> {
     }
 }
 
-fn process_next<T: Cacheable>(
+fn process_next<T: CheckedArchived>(
     iter: &mut OptionalCacheIter<T>,
     mut f: impl FnMut(&mut OptionalCacheIter<T>) -> Option<Option<EntryResult<T>>>,
 ) -> Option<EntryResult<T>> {
@@ -137,11 +137,11 @@ fn process_next<T: Cacheable>(
     }
 }
 
-impl<T: Cacheable> DoubleEndedIterator for CacheIter<T> {
+impl<T: CheckedArchived> DoubleEndedIterator for CacheIter<T> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         process_next(&mut self.inner, OptionalCacheIter::next_back)
     }
 }
 
-impl<T: Cacheable> FusedIterator for CacheIter<T> {}
+impl<T: CheckedArchived> FusedIterator for CacheIter<T> {}

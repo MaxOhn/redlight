@@ -9,7 +9,7 @@ pub mod ignore;
 
 pub use self::{
     cacheable::{Cacheable, SerializeMany},
-    checked::CheckedArchive,
+    checked::{CheckedArchive, CheckedArchived},
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
         ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedScheduledEvent,
@@ -31,7 +31,7 @@ pub use self::{
 /// ```
 /// # use std::{time::Duration};
 /// # use redlight::{CachedArchive, config::ReactionEvent};
-/// # use rkyv::{Archive, Serialize, rancor::Source};
+/// # use rkyv::{Archive, Archived, Serialize, rancor::Source};
 /// # use twilight_model::{
 /// #     channel::{message::Message, Channel},
 /// #     gateway::payload::incoming::{ChannelPinsUpdate, MessageUpdate}
@@ -77,8 +77,9 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_channel(_: &'a Channel) -> Self { unimplemented!() }
-///     # fn on_pins_update<E: Source>() -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate)
-///     #     -> Result<(), E>> { None }
+///     # fn on_pins_update<E: Source>()
+///     #     -> Option<fn(&mut CachedArchive<Archived<Self>>, &ChannelPinsUpdate) -> Result<(), E>>
+///     # { None }
 /// }
 ///
 /// impl Cacheable for CachedChannel {
@@ -101,10 +102,12 @@ pub use self::{
 ///     // ...
 ///     # */
 ///     # fn from_message(_: &'a Message) -> Self { unimplemented!() }
-///     # fn on_message_update<E: Source>() -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate)
-///     #     -> Result<(), E>> { None }
-///     # fn on_reaction_event<E: Source>() -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>)
-///     #     -> Result<(), E>> { None }
+///     # fn on_message_update<E: Source>()
+///     #     -> Option<fn(&mut CachedArchive<Archived<Self>>, &MessageUpdate) -> Result<(), E>>
+///     # { None }
+///     # fn on_reaction_event<E: Source>()
+///     #     -> Option<fn(&mut CachedArchive<Archived<Self>>, ReactionEvent<'_>) -> Result<(), E>>
+///     # { None }
 /// }
 ///
 /// impl Cacheable for CachedMessage<'_> {

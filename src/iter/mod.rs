@@ -1,5 +1,6 @@
 mod cache_iter;
 
+use rkyv::Archived;
 use twilight_model::id::{
     marker::{
         ChannelMarker, EmojiMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker,
@@ -10,7 +11,7 @@ use twilight_model::id::{
 
 pub use self::cache_iter::{CacheIter, EntryResult, OptionalCacheIter};
 use crate::{
-    config::{CacheConfig, Cacheable},
+    config::{CacheConfig, CheckedArchived},
     error::CacheError,
     key::RedisKey,
     redis::{Cmd, Connection},
@@ -45,7 +46,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn channel_messages(
         &self,
         channel_id: Id<ChannelMarker>,
-    ) -> CacheResult<CacheIter<C::Message<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Message<'static>>>> {
         let mut conn = self.cache.connection().await?;
 
         let key = RedisKey::ChannelMessages {
@@ -67,7 +68,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached channel entries.
-    pub async fn channels(&self) -> CacheResult<CacheIter<C::Channel<'static>>> {
+    pub async fn channels(&self) -> CacheResult<CacheIter<Archived<C::Channel<'static>>>> {
         self.iter_all(RedisKey::Channels, Id::<ChannelMarker>::into)
             .await
     }
@@ -76,7 +77,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn channels_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Channel<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Channel<'static>>>>
     where
         I: IntoIterator<Item = Id<ChannelMarker>>,
     {
@@ -84,7 +85,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached emoji entries.
-    pub async fn emojis(&self) -> CacheResult<CacheIter<C::Emoji<'static>>> {
+    pub async fn emojis(&self) -> CacheResult<CacheIter<Archived<C::Emoji<'static>>>> {
         self.iter_all(RedisKey::Emojis, Id::<EmojiMarker>::into)
             .await
     }
@@ -93,7 +94,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn emojis_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Emoji<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Emoji<'static>>>>
     where
         I: IntoIterator<Item = Id<EmojiMarker>>,
     {
@@ -101,7 +102,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached guild entries.
-    pub async fn guilds(&self) -> CacheResult<CacheIter<C::Guild<'static>>> {
+    pub async fn guilds(&self) -> CacheResult<CacheIter<Archived<C::Guild<'static>>>> {
         self.iter_all(RedisKey::Guilds, Id::<GuildMarker>::into)
             .await
     }
@@ -110,7 +111,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guilds_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Guild<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Guild<'static>>>>
     where
         I: IntoIterator<Item = Id<GuildMarker>>,
     {
@@ -118,7 +119,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached message entries.
-    pub async fn messages(&self) -> CacheResult<CacheIter<C::Message<'static>>> {
+    pub async fn messages(&self) -> CacheResult<CacheIter<Archived<C::Message<'static>>>> {
         self.iter_all(RedisKey::Messages, Id::<MessageMarker>::into)
             .await
     }
@@ -127,7 +128,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn messages_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Message<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Message<'static>>>>
     where
         I: IntoIterator<Item = Id<MessageMarker>>,
     {
@@ -135,12 +136,15 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached role entries.
-    pub async fn roles(&self) -> CacheResult<CacheIter<C::Role<'static>>> {
+    pub async fn roles(&self) -> CacheResult<CacheIter<Archived<C::Role<'static>>>> {
         self.iter_all(RedisKey::Roles, Id::<RoleMarker>::into).await
     }
 
     /// Iterate over the cached role entry for each given id.
-    pub async fn roles_by_ids<I>(&self, ids: I) -> CacheResult<OptionalCacheIter<C::Role<'static>>>
+    pub async fn roles_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Role<'static>>>>
     where
         I: IntoIterator<Item = Id<RoleMarker>>,
     {
@@ -148,7 +152,9 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached stage instance entries.
-    pub async fn stage_instances(&self) -> CacheResult<CacheIter<C::StageInstance<'static>>> {
+    pub async fn stage_instances(
+        &self,
+    ) -> CacheResult<CacheIter<Archived<C::StageInstance<'static>>>> {
         self.iter_all(RedisKey::StageInstances, Id::<StageMarker>::into)
             .await
     }
@@ -157,7 +163,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn stage_instances_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::StageInstance<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::StageInstance<'static>>>>
     where
         I: IntoIterator<Item = Id<StageMarker>>,
     {
@@ -165,7 +171,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached sticker entries.
-    pub async fn stickers(&self) -> CacheResult<CacheIter<C::Sticker<'static>>> {
+    pub async fn stickers(&self) -> CacheResult<CacheIter<Archived<C::Sticker<'static>>>> {
         self.iter_all(RedisKey::Stickers, Id::<StickerMarker>::into)
             .await
     }
@@ -174,7 +180,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn stickers_by_ids<I>(
         &self,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Sticker<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Sticker<'static>>>>
     where
         I: IntoIterator<Item = Id<StickerMarker>>,
     {
@@ -182,12 +188,15 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     }
 
     /// Iterate over all cached user entries.
-    pub async fn users(&self) -> CacheResult<CacheIter<C::User<'static>>> {
+    pub async fn users(&self) -> CacheResult<CacheIter<Archived<C::User<'static>>>> {
         self.iter_all(RedisKey::Users, Id::<UserMarker>::into).await
     }
 
     /// Iterate over the cached user entry for each given id.
-    pub async fn users_by_ids<I>(&self, ids: I) -> CacheResult<OptionalCacheIter<C::User<'static>>>
+    pub async fn users_by_ids<I>(
+        &self,
+        ids: I,
+    ) -> CacheResult<OptionalCacheIter<Archived<C::User<'static>>>>
     where
         I: IntoIterator<Item = Id<UserMarker>>,
     {
@@ -198,7 +207,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_channels(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Channel<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Channel<'static>>>> {
         let key = RedisKey::GuildChannels { id: guild_id };
 
         self.iter_all(key, Id::<ChannelMarker>::into).await
@@ -208,7 +217,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_emojis(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Emoji<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Emoji<'static>>>> {
         let key = RedisKey::GuildEmojis { id: guild_id };
 
         self.iter_all(key, Id::<EmojiMarker>::into).await
@@ -218,7 +227,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_integrations(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Integration<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Integration<'static>>>> {
         let key = RedisKey::GuildIntegrations { id: guild_id };
 
         let key_fn = move |id| RedisKey::Integration {
@@ -234,7 +243,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
         &self,
         guild_id: Id<GuildMarker>,
         ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Integration<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Integration<'static>>>>
     where
         I: IntoIterator<Item = Id<IntegrationMarker>>,
     {
@@ -253,7 +262,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_members(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Member<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Member<'static>>>> {
         let key = RedisKey::GuildMembers { id: guild_id };
 
         let key_fn = move |user| RedisKey::Member {
@@ -269,7 +278,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Member<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Member<'static>>>>
     where
         I: IntoIterator<Item = Id<UserMarker>>,
     {
@@ -288,7 +297,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_presences(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Presence<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Presence<'static>>>> {
         let key = RedisKey::GuildPresences { id: guild_id };
 
         let key_fn = move |user| RedisKey::Presence {
@@ -304,7 +313,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::Presence<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::Presence<'static>>>>
     where
         I: IntoIterator<Item = Id<UserMarker>>,
     {
@@ -323,7 +332,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_roles(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Role<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Role<'static>>>> {
         let key = RedisKey::GuildRoles { id: guild_id };
 
         self.iter_all(key, Id::<RoleMarker>::into).await
@@ -333,7 +342,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_stage_instances(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::StageInstance<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::StageInstance<'static>>>> {
         let key = RedisKey::GuildStageInstances { id: guild_id };
 
         self.iter_all(key, Id::<StageMarker>::into).await
@@ -343,7 +352,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_stickers(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::Sticker<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::Sticker<'static>>>> {
         let key = RedisKey::GuildStickers { id: guild_id };
 
         self.iter_all(key, Id::<StickerMarker>::into).await
@@ -353,7 +362,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     pub async fn guild_voice_states(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<CacheIter<C::VoiceState<'static>>> {
+    ) -> CacheResult<CacheIter<Archived<C::VoiceState<'static>>>> {
         let key = RedisKey::GuildVoiceStates { id: guild_id };
 
         let key_fn = move |user| RedisKey::VoiceState {
@@ -369,7 +378,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_ids: I,
-    ) -> CacheResult<OptionalCacheIter<C::VoiceState<'static>>>
+    ) -> CacheResult<OptionalCacheIter<Archived<C::VoiceState<'static>>>>
     where
         I: IntoIterator<Item = Id<UserMarker>>,
     {
@@ -386,7 +395,7 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
 
     async fn iter_all<T, M, F>(&self, ids_key: RedisKey, key_fn: F) -> CacheResult<CacheIter<T>>
     where
-        T: Cacheable,
+        T: CheckedArchived,
         F: Fn(Id<M>) -> RedisKey,
     {
         let mut conn = self.cache.connection().await?;
@@ -403,21 +412,18 @@ impl<C: CacheConfig> RedisCacheIter<'_, C> {
     where
         I: IntoIterator<Item = K>,
         RedisKey: From<K>,
-        T: Cacheable,
+        T: CheckedArchived,
     {
         let keys: Vec<_> = ids.into_iter().map(RedisKey::from).collect();
 
         self.iter_by_keys(&keys, None).await
     }
 
-    async fn iter_by_keys<'a, T>(
+    async fn iter_by_keys<'a, T: CheckedArchived>(
         &'a self,
         keys: &[RedisKey],
         conn: Option<&mut Connection<'a>>,
-    ) -> CacheResult<OptionalCacheIter<T>>
-    where
-        T: Cacheable,
-    {
+    ) -> CacheResult<OptionalCacheIter<T>> {
         let bytes = if keys.is_empty() {
             Vec::new()
         } else {

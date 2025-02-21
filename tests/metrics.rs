@@ -20,7 +20,7 @@ use redlight::{
     error::CacheError,
     CachedArchive, RedisCache,
 };
-use rkyv::{rancor::Source, Archive, Serialize};
+use rkyv::{rancor::Source, Archive, Archived, Serialize};
 use twilight_model::{
     channel::{message::Sticker, Channel},
     gateway::{
@@ -66,7 +66,8 @@ async fn test_metrics() -> Result<(), CacheError> {
         }
 
         fn on_pins_update<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &ChannelPinsUpdate) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &ChannelPinsUpdate) -> Result<(), E>>
+        {
             None
         }
     }

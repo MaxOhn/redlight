@@ -145,7 +145,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::ScheduledEvent { id: event_id };
 
-        let Some(mut archived) = pipe.get::<C::ScheduledEvent<'static>>(key).await? else {
+        let Some(mut archived) = pipe
+            .get::<Archived<C::ScheduledEvent<'static>>>(key)
+            .await?
+        else {
             return Ok(());
         };
 
@@ -189,7 +192,10 @@ impl<C: CacheConfig> RedisCache<C> {
 
         let key = RedisKey::ScheduledEvent { id: event_id };
 
-        let Some(mut archived) = pipe.get::<C::ScheduledEvent<'static>>(key).await? else {
+        let Some(mut archived) = pipe
+            .get::<Archived<C::ScheduledEvent<'static>>>(key)
+            .await?
+        else {
             return Ok(());
         };
 

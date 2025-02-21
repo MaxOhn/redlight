@@ -7,7 +7,7 @@ use redlight::{
 };
 use rkyv::{
     option::ArchivedOption, rancor::Source, ser::writer::Buffer, traits::NoUndef, util::Align,
-    with::Map, Archive, Serialize,
+    with::Map, Archive, Archived, Serialize,
 };
 use twilight_model::{
     gateway::payload::incoming::invite_create::PartialUser,
@@ -67,7 +67,7 @@ impl<'a> ICachedUser<'a> for CachedUser {
     }
 
     fn update_via_partial<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialUser) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialUser) -> Result<(), E>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Since `update_archive` is much more performant, we'll choose

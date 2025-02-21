@@ -4,18 +4,18 @@ use rkyv::{
     rancor::{BoxedError, Strategy},
     seal::Seal,
     util::AlignedVec,
-    Archive, Archived, Deserialize,
+    Deserialize, Portable,
 };
 
 use crate::{
-    config::Cacheable,
+    config::{Cacheable, CheckedArchived},
     error::{UpdateArchiveError, ValidationError},
 };
 
 /// Archived form of a cache entry.
 ///
-/// Implements [`Deref`] to `T::Archived` so fields and methods of the archived
-/// type are easily accessible.
+/// Implements [`Deref`] to `T` so fields and methods of the type are easily
+/// accessible.
 ///
 /// # Example
 ///
@@ -40,9 +40,9 @@ use crate::{
 ///     field: String,
 /// }
 ///
-/// fn foo(archive: CachedArchive<CachedEntry<'_>>) {
+/// fn foo(archive: CachedArchive<ArchivedCachedEntry<'_>>) {
 ///     // The key property of `CachedArchive` is that it derefs
-///     // into the archived form of the generic type.
+///     // into the generic type.
 ///     let _: &ArchivedCachedEntry<'_> = &archive;
 ///
 ///     let id: Archived<u32> = archive.id;
@@ -85,11 +85,12 @@ impl<T> CachedArchive<T> {
     }
 }
 
-impl<T: Cacheable> CachedArchive<T> {
+impl<T: CheckedArchived> CachedArchive<T> {
     /// Update the contained value by mutating the archive itself.
     ///
-    /// This should be preferred over [`update_by_deserializing`] when possible
-    /// as it is much more performant.
+    /// This should be preferred over [`update_by_deserializing`] as it is much
+    /// more performant. However, since the [`Seal`] api is rather limited,
+    /// this is not always possible.
     ///
     /// # Example
     ///
@@ -115,7 +116,7 @@ impl<T: Cacheable> CachedArchive<T> {
     ///     new_num: u32,
     /// }
     ///
-    /// fn handle_archive(archive: &mut CachedArchive<CachedData>, update: &UpdateEvent) {
+    /// fn handle_archive(archive: &mut CachedArchive<ArchivedCachedData>, update: &UpdateEvent) {
     ///     archive.update_archive(|sealed| {
     ///         rkyv::munge::munge!(let ArchivedCachedData { mut num } = sealed);
     ///         *num = update.new_num.into()
@@ -124,23 +125,22 @@ impl<T: Cacheable> CachedArchive<T> {
     /// ```
     ///
     /// [`update_by_deserializing`]: CachedArchive::update_by_deserializing
-    pub fn update_archive(
-        &mut self,
-        f: impl FnOnce(Seal<'_, Archived<T>>),
-    ) -> Result<(), ValidationError> {
+    pub fn update_archive(&mut self, f: impl FnOnce(Seal<'_, T>)) -> Result<(), ValidationError> {
         let bytes = self.bytes.as_mut_slice();
 
         #[cfg(feature = "bytecheck")]
-        let sealed = rkyv::access_mut::<Archived<T>, _>(bytes)?;
+        let sealed = rkyv::access_mut::<T, _>(bytes)?;
 
         #[cfg(not(feature = "bytecheck"))]
-        let sealed = unsafe { rkyv::access_unchecked_mut::<Archived<T>>(bytes) };
+        let sealed = unsafe { rkyv::access_unchecked_mut::<T>(bytes) };
 
         f(sealed);
 
         Ok(())
     }
+}
 
+impl<T: Portable> CachedArchive<T> {
     /// Update the contained value by deserializing the archive, mutating it,
     /// and then serializing again.
     ///
@@ -172,7 +172,7 @@ impl<T: Cacheable> CachedArchive<T> {
     /// }
     ///
     /// fn handle_archive(
-    ///     archive: &mut CachedArchive<CachedData>,
+    ///     archive: &mut CachedArchive<ArchivedCachedData>,
     ///     update: &UpdateEvent,
     /// ) {
     ///     // Updating a Vec like this generally cannot be done through a
@@ -187,17 +187,18 @@ impl<T: Cacheable> CachedArchive<T> {
     ///
     /// [`update_archive`]: CachedArchive::update_archive
     #[allow(clippy::similar_names)]
-    pub fn update_by_deserializing<D>(
+    pub fn update_by_deserializing<C, D>(
         &mut self,
-        f: impl FnOnce(&mut T),
+        f: impl FnOnce(&mut C),
         deserializer: &mut D,
     ) -> Result<(), UpdateArchiveError>
     where
-        T::Archived: Deserialize<T, Strategy<D, BoxedError>>,
+        C: Cacheable,
+        T: Deserialize<C, Strategy<D, BoxedError>>,
     {
-        let archived: &T::Archived = &*self;
+        let archived: &T = &*self;
 
-        let mut deserialized: T = rkyv::api::deserialize_using(archived, deserializer)
+        let mut deserialized: C = rkyv::api::deserialize_using(archived, deserializer)
             .map_err(UpdateArchiveError::Deserialization)?;
 
         f(&mut deserialized);
@@ -215,25 +216,25 @@ impl<T: Cacheable> CachedArchive<T> {
 
 #[cfg(feature = "bytecheck")]
 const _: () = {
-    impl<T: Cacheable> CachedArchive<T> {
+    impl<T: CheckedArchived> CachedArchive<T> {
         /// Create a new [`CachedArchive`].
         ///
         /// # Errors
         ///
         /// Returns an error if the given bytes do not match the archived type.
         pub fn new(bytes: AlignedVec<16>) -> Result<Self, ValidationError> {
-            rkyv::access::<Archived<T>, _>(bytes.as_slice())?;
+            rkyv::access::<T, _>(bytes.as_slice())?;
 
             Ok(Self::new_unchecked(bytes))
         }
     }
 };
 
-impl<T: Archive> Deref for CachedArchive<T> {
-    type Target = <T as Archive>::Archived;
+impl<T: Portable> Deref for CachedArchive<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { rkyv::access_unchecked::<Archived<T>>(self.bytes.as_slice()) }
+        unsafe { rkyv::access_unchecked::<T>(self.bytes.as_slice()) }
     }
 }
 

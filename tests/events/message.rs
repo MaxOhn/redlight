@@ -10,7 +10,9 @@ use redlight::{
     rkyv_util::{flags::BitflagsRkyv, util::RkyvAsU8},
     CachedArchive, RedisCache,
 };
-use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, with::Map, Archive, Serialize};
+use rkyv::{
+    rancor::Source, ser::writer::Buffer, util::Align, with::Map, Archive, Archived, Serialize,
+};
 use twilight_model::{
     channel::{
         message::{
@@ -75,7 +77,8 @@ async fn test_message() -> Result<(), CacheError> {
         }
 
         fn on_message_update<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MessageUpdate) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MessageUpdate) -> Result<(), E>>
+        {
             Some(|archived, update| {
                 archived
                     .update_archive(|sealed| {
@@ -91,7 +94,8 @@ async fn test_message() -> Result<(), CacheError> {
         }
 
         fn on_reaction_event<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, ReactionEvent<'_>) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, ReactionEvent<'_>) -> Result<(), E>>
+        {
             None
         }
     }

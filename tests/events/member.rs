@@ -10,7 +10,9 @@ use redlight::{
     rkyv_util::flags::BitflagsRkyv,
     CachedArchive, RedisCache,
 };
-use rkyv::{rancor::Source, ser::writer::Buffer, util::Align, Archive, Deserialize, Serialize};
+use rkyv::{
+    rancor::Source, ser::writer::Buffer, util::Align, Archive, Archived, Deserialize, Serialize,
+};
 use twilight_model::{
     gateway::{
         event::Event,
@@ -64,7 +66,8 @@ async fn test_member() -> Result<(), CacheError> {
         }
 
         fn on_member_update<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MemberUpdate) -> Result<(), E>>
+        {
             Some(|archived, update| {
                 archived
                     .update_by_deserializing(
@@ -76,7 +79,8 @@ async fn test_member() -> Result<(), CacheError> {
         }
 
         fn update_via_partial<E: Source>(
-        ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
+        ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialMember) -> Result<(), E>>
+        {
             Some(|archived, member| {
                 archived
                     .update_archive(|sealed| {

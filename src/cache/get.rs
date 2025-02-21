@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use rkyv::util::AlignedVec;
+use rkyv::{util::AlignedVec, Archived};
 use twilight_model::id::{
     marker::{
         ChannelMarker, EmojiMarker, GuildMarker, IntegrationMarker, MessageMarker, RoleMarker,
@@ -11,7 +11,7 @@ use twilight_model::id::{
 
 use super::Connection;
 use crate::{
-    config::{CacheConfig, Cacheable},
+    config::{CacheConfig, CheckedArchived},
     error::CacheError,
     key::RedisKey,
     redis::{Cmd, FromRedisValue},
@@ -24,14 +24,14 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn channel(
         &self,
         channel_id: Id<ChannelMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Channel<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Channel<'static>>>>> {
         self.get_single(channel_id).await
     }
 
     /// Get the current user entry.
     pub async fn current_user(
         &self,
-    ) -> CacheResult<Option<CachedArchive<C::CurrentUser<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::CurrentUser<'static>>>>> {
         self.get_single(RedisKey::CurrentUser).await
     }
 
@@ -39,7 +39,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn emoji(
         &self,
         emoji_id: Id<EmojiMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Emoji<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Emoji<'static>>>>> {
         self.get_single(emoji_id).await
     }
 
@@ -47,7 +47,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn guild(
         &self,
         guild_id: Id<GuildMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Guild<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Guild<'static>>>>> {
         self.get_single(guild_id).await
     }
 
@@ -56,7 +56,7 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         guild_id: Id<GuildMarker>,
         integration_id: Id<IntegrationMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Integration<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Integration<'static>>>>> {
         let key = RedisKey::Integration {
             guild: guild_id,
             id: integration_id,
@@ -70,7 +70,7 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Member<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Member<'static>>>>> {
         let key = RedisKey::Member {
             guild: guild_id,
             user: user_id,
@@ -83,7 +83,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn message(
         &self,
         msg_id: Id<MessageMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Message<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Message<'static>>>>> {
         self.get_single(msg_id).await
     }
 
@@ -92,7 +92,7 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Presence<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Presence<'static>>>>> {
         let key = RedisKey::Presence {
             guild: guild_id,
             user: user_id,
@@ -105,7 +105,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn role(
         &self,
         role_id: Id<RoleMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Role<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Role<'static>>>>> {
         self.get_single(role_id).await
     }
 
@@ -113,7 +113,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn stage_instance(
         &self,
         stage_instance_id: Id<StageMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::StageInstance<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::StageInstance<'static>>>>> {
         self.get_single(stage_instance_id).await
     }
 
@@ -121,7 +121,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn sticker(
         &self,
         sticker_id: Id<StickerMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::Sticker<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::Sticker<'static>>>>> {
         self.get_single(sticker_id).await
     }
 
@@ -129,7 +129,7 @@ impl<C: CacheConfig> RedisCache<C> {
     pub async fn user(
         &self,
         user_id: Id<UserMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::User<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::User<'static>>>>> {
         self.get_single(user_id).await
     }
 
@@ -138,7 +138,7 @@ impl<C: CacheConfig> RedisCache<C> {
         &self,
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
-    ) -> CacheResult<Option<CachedArchive<C::VoiceState<'static>>>> {
+    ) -> CacheResult<Option<CachedArchive<Archived<C::VoiceState<'static>>>>> {
         let key = RedisKey::VoiceState {
             guild: guild_id,
             user: user_id,
@@ -301,7 +301,7 @@ impl<C> RedisCache<C> {
     async fn get_single<K, V>(&self, key: K) -> CacheResult<Option<CachedArchive<V>>>
     where
         RedisKey: From<K>,
-        V: Cacheable,
+        V: CheckedArchived,
     {
         let mut conn = self.connection().await?;
 

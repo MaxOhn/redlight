@@ -5,7 +5,7 @@ use redlight::{
     rkyv_util::id::IdRkyvMap,
     CachedArchive,
 };
-use rkyv::{rancor::Source, util::AlignedVec, Archive, Deserialize, Serialize};
+use rkyv::{rancor::Source, util::AlignedVec, Archive, Archived, Deserialize, Serialize};
 use twilight_model::{
     gateway::payload::incoming::MemberUpdate,
     guild::{Member, PartialMember},
@@ -33,7 +33,7 @@ impl<'a> ICachedMember<'a> for CachedMember {
     }
 
     fn update_via_partial<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &PartialMember) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialMember) -> Result<(), E>> {
         Some(|archive, partial| {
             // We can use either `update_archive` or `update_by_deserializing`.
             // Our archived fields will be of variable length so we cannot update
@@ -53,7 +53,7 @@ impl<'a> ICachedMember<'a> for CachedMember {
     }
 
     fn on_member_update<E: Source>(
-    ) -> Option<fn(&mut CachedArchive<Self>, &MemberUpdate) -> Result<(), E>> {
+    ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MemberUpdate) -> Result<(), E>> {
         Some(|archive, partial| {
             archive
                 .update_by_deserializing(

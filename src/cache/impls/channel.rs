@@ -100,7 +100,7 @@ impl<C: CacheConfig> RedisCache<C> {
             id: update.channel_id,
         };
 
-        let Some(mut channel) = pipe.get::<C::Channel<'static>>(key).await? else {
+        let Some(mut channel) = pipe.get::<Archived<C::Channel<'static>>>(key).await? else {
             return Ok(());
         };
 
