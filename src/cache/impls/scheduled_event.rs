@@ -20,7 +20,7 @@ use crate::{
     },
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesWrap, ZippedVecs},
+    util::BytesWrap,
     CacheResult, RedisCache, RedisKey,
 };
 
@@ -99,8 +99,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
-            .unzip();
+            .collect::<CacheResult<(Vec<(RedisKey, BytesWrap<_>)>, Vec<u64>)>>()?;
 
         if event_entries.is_empty() {
             return Ok(());

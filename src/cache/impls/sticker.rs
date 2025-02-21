@@ -18,7 +18,7 @@ use crate::{
     key::RedisKey,
     redis::Pipeline,
     rkyv_util::id::IdRkyv,
-    util::{BytesWrap, ZippedVecs},
+    util::BytesWrap,
     CacheResult, RedisCache,
 };
 
@@ -51,8 +51,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 Ok(((key, BytesWrap(bytes)), id.get()))
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
-            .unzip();
+            .collect::<CacheResult<(Vec<(RedisKey, BytesWrap<_>)>, Vec<u64>)>>()?;
 
         if sticker_entries.is_empty() {
             return Ok(());

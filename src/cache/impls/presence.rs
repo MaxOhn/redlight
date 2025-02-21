@@ -16,7 +16,7 @@ use crate::{
     error::{SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
-    util::{BytesWrap, ZippedVecs},
+    util::BytesWrap,
     CacheResult, RedisCache,
 };
 
@@ -84,8 +84,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     Ok(((key, BytesWrap(bytes)), user_id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
-                .unzip();
+                .collect::<CacheResult<(Vec<(RedisKey, BytesWrap<_>)>, Vec<u64>)>>()?;
 
             if !presence_entries.is_empty() {
                 pipe.mset(&presence_entries, C::Presence::expire());

@@ -16,7 +16,7 @@ use crate::{
     error::{CacheError, SerializeError, SerializeErrorKind},
     key::RedisKey,
     redis::Pipeline,
-    util::{BytesWrap, ZippedVecs},
+    util::BytesWrap,
     CacheResult, RedisCache,
 };
 
@@ -98,8 +98,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                 Some(res)
             })
-            .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
-            .unzip();
+            .collect::<CacheResult<(Vec<(RedisKey, BytesWrap<_>)>, Vec<u64>)>>()?;
 
         if voice_states.is_empty() {
             return Ok(());

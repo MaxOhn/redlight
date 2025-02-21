@@ -19,7 +19,7 @@ use crate::{
     error::{ExpireError, SerializeError, SerializeErrorKind, UpdateError, UpdateErrorKind},
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},
-    util::{BytesWrap, ZippedVecs},
+    util::BytesWrap,
     CacheResult, RedisCache,
 };
 
@@ -141,8 +141,7 @@ impl<C: CacheConfig> RedisCache<C> {
 
                     Ok(((key, BytesWrap(bytes)), user_id.get()))
                 })
-                .collect::<CacheResult<ZippedVecs<(RedisKey, BytesWrap<_>), u64>>>()?
-                .unzip();
+                .collect::<CacheResult<(Vec<(RedisKey, BytesWrap<_>)>, Vec<u64>)>>()?;
 
             if !member_tuples.is_empty() {
                 pipe.mset(&member_tuples, C::Member::expire());
