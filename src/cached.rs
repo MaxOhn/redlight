@@ -203,12 +203,11 @@ impl<T: Portable> CachedArchive<T> {
 
         f(&mut deserialized);
 
-        let bytes = deserialized
-            .serialize_one()
-            .map_err(UpdateArchiveError::Serialization)?;
-
         self.bytes.clear();
-        self.bytes.extend_from_slice(bytes.as_ref());
+
+        deserialized
+            .serialize_into(&mut self.bytes)
+            .map_err(UpdateArchiveError::Serialization)?;
 
         Ok(())
     }

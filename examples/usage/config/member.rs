@@ -75,12 +75,33 @@ impl Cacheable for CachedMember {
         None
     }
 
-    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
+    // This method is optional to be implemented. By default it just forwards
+    // to the `serialize_one` method so feel free to skip this.
+    // However, when using `CachedArchive<_>::update_by_deserializing`,
+    // implementing this method can improve performance by directly
+    // serializing into the given bytes instead of first serializing into a
+    // new buffer and then copying that buffer.
+    fn serialize_into<E: Source, const N: usize>(
+        &self,
+        bytes: &mut AlignedVec<N>,
+    ) -> Result<(), E> {
         // Serializing a `Vec` requires scratch space so our serializer must
-        // implement `rkyv::ser::Allocator`. We could use `rkyv::to_bytes` but
-        // since our fields don't require an alignment of 16, we can use
-        // `rkyv::api::high::to_bytes_in` instead to specify our own alignment.
-        rkyv::api::high::to_bytes_in(self, AlignedVec::<8>::new())
+        // implement `rkyv::ser::Allocator` but nothing more; perfect for a
+        // plain `ArchivedVec`. With `rkyv::api::high::to_bytes_in` we can use
+        // the `bytes` we were given as buffer.
+        rkyv::api::high::to_bytes_in(self, bytes)?;
+
+        Ok(())
+    }
+
+    // This method is required to be implemented.
+    fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
+        // Since `serialize_into` is implemented, we might as well just
+        // leverage that.
+        let mut bytes = AlignedVec::<8>::new();
+        self.serialize_into(&mut bytes)?;
+
+        Ok(bytes)
     }
 
     // Let's be fancy and implement this optional method to slightly improve
@@ -101,7 +122,7 @@ impl SerializeMany<CachedMember> for SerializeWithRecycle {
 
     fn serialize_next<E: Source>(&mut self, next: &CachedMember) -> Result<Self::Bytes, E> {
         self.writer.clear();
-        rkyv::api::high::to_bytes_in(next, &mut self.writer)?;
+        next.serialize_into(&mut self.writer)?;
 
         let mut bytes = AlignedVec::<8>::new();
         bytes.extend_from_slice(self.writer.as_slice());

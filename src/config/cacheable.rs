@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rkyv::rancor::Source;
+use rkyv::{rancor::Source, util::AlignedVec};
 
 use super::CheckedArchive;
 
@@ -69,6 +69,21 @@ pub trait Cacheable: CheckedArchive + Sized {
     /// [`Sharing`]: rkyv::ser::Sharing
     fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E>;
 
+    /// How to serialize this type into an [`AlignedVec`].
+    ///
+    /// By default this method utilizes [`serialize_one`]. If [`Self::Bytes`]
+    /// is an [`AlignedVec`], this method could be specialized to improve
+    /// performance.
+    fn serialize_into<E: Source, const N: usize>(
+        &self,
+        bytes: &mut AlignedVec<N>,
+    ) -> Result<(), E> {
+        let serialized = self.serialize_one()?;
+        bytes.extend_from_slice(serialized.as_ref());
+
+        Ok(())
+    }
+
     /// Returns a serializer capable of serializing multiple instances in a row.
     ///
     /// This serializer is able to keep state inbetween serializations to
@@ -83,7 +98,7 @@ pub trait Cacheable: CheckedArchive + Sized {
     }
 }
 
-/// A serializer to serialize multiple instances in a row.
+/// A serializer to serialize multiple instances of `C` in a row.
 pub trait SerializeMany<C: Cacheable> {
     /// The resulting byte buffer after serialization.
     type Bytes: AsRef<[u8]>;

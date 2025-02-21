@@ -81,6 +81,9 @@ async fn test_stickers() -> Result<(), CacheError> {
         fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::to_bytes(self)
         }
+
+        // we don't update by deserializing so a `serialize_into` impl is not
+        // necessary
     }
 
     impl PartialEq<Sticker> for ArchivedCachedSticker<'_> {

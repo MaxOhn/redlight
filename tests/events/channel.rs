@@ -127,6 +127,9 @@ async fn test_channel() -> Result<(), CacheError> {
         fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
             rkyv::api::high::to_bytes_in(self, AlignedVec::<8>::new())
         }
+
+        // we don't update by deserializing so a `serialize_into` impl is not
+        // necessary
     }
 
     impl PartialEq<Channel> for ArchivedCachedChannel<'_> {

@@ -137,7 +137,19 @@ async fn test_guild() -> Result<(), CacheError> {
         }
 
         fn serialize_one<E: Source>(&self) -> Result<Self::Bytes, E> {
-            rkyv::to_bytes(self)
+            let mut bytes = AlignedVec::new();
+            self.serialize_into(&mut bytes)?;
+
+            Ok(bytes)
+        }
+
+        fn serialize_into<E: Source, const N: usize>(
+            &self,
+            bytes: &mut AlignedVec<N>,
+        ) -> Result<(), E> {
+            rkyv::api::high::to_bytes_in(self, bytes)?;
+
+            Ok(())
         }
     }
 
