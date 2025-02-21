@@ -109,6 +109,20 @@ impl<T> ArchivedId<T> {
             _phantom: PhantomData,
         }
     }
+
+    /// Convert an [`ArchivedId<T>`] to an [`Id<T>`].
+    pub const fn to_native(self) -> Id<T> {
+        // SAFETY: `self.value` is non-zero
+        unsafe { Id::new_unchecked(self.value.get()) }
+    }
+
+    /// Convert an [`Id<T>`] to an [`ArchivedId<T>`].
+    pub const fn from_native(id: Id<T>) -> Self {
+        Self {
+            value: Archived::<NonZeroU64>::from_native(id.into_nonzero()),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T> Clone for ArchivedId<T> {
@@ -132,17 +146,14 @@ impl<T> Debug for ArchivedId<T> {
 }
 
 impl<T> From<Id<T>> for ArchivedId<T> {
-    fn from(value: Id<T>) -> Self {
-        Self {
-            value: value.into_nonzero().into(),
-            _phantom: PhantomData,
-        }
+    fn from(id: Id<T>) -> Self {
+        Self::from_native(id)
     }
 }
 
 impl<T> From<ArchivedId<T>> for Id<T> {
     fn from(id: ArchivedId<T>) -> Self {
-        Id::from(NonZeroU64::from(id.value))
+        id.to_native()
     }
 }
 
