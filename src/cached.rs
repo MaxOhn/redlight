@@ -4,6 +4,7 @@ use rkyv::{
     rancor::{BoxedError, Strategy},
     seal::Seal,
     util::AlignedVec,
+    with::DeserializeWith,
     Deserialize, Portable,
 };
 
@@ -198,7 +199,6 @@ impl<T: Portable> CachedArchive<T> {
     /// ```
     ///
     /// [`update_archive`]: CachedArchive::update_archive
-    #[allow(clippy::similar_names)]
     pub fn update_by_deserializing<C, D>(
         &mut self,
         f: impl FnOnce(&mut C),
@@ -208,6 +208,9 @@ impl<T: Portable> CachedArchive<T> {
         C: Cacheable,
         T: Deserialize<C, Strategy<D, BoxedError>>,
     {
+        // clippy disapproves the usage of "deserializer" and "deserialized"
+        #![allow(clippy::similar_names)]
+
         let archived: &T = &*self;
 
         let mut deserialized: C = rkyv::api::deserialize_using(archived, deserializer)
@@ -222,6 +225,22 @@ impl<T: Portable> CachedArchive<T> {
             .map_err(UpdateArchiveError::Serialization)?;
 
         Ok(())
+    }
+
+    /// Convenience method to deserialize the archive.
+    pub fn try_deserialize<U, D, E>(&self, deserializer: &mut D) -> Result<U, E>
+    where
+        T: Deserialize<U, Strategy<D, E>>,
+    {
+        self.deserialize(Strategy::wrap(deserializer))
+    }
+
+    /// Convenience method to deserialize the archive with a given wrapper `W`.
+    pub fn try_deserialize_with<W, U, D, E>(&self, deserializer: &mut D) -> Result<U, E>
+    where
+        W: DeserializeWith<T, U, Strategy<D, E>>,
+    {
+        W::deserialize_with(self, Strategy::wrap(deserializer))
     }
 }
 
