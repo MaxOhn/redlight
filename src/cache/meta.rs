@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
-use rkyv::{rancor::Source, Archived};
+use rkyv::{rancor::Source, Archive, Archived};
 use tracing::{instrument, trace};
 use twilight_model::id::Id;
 
@@ -15,7 +15,7 @@ use super::{
     pipe::Pipe,
 };
 use crate::{
-    config::CheckedArchive,
+    config::CheckedArchived,
     error::ExpireError,
     key::RedisKey,
     redis::{DedicatedConnection, Pipeline},
@@ -228,7 +228,9 @@ pub(crate) trait HasArchived: Sized {
 }
 
 /// Additional data for a [`IMetaKey`] that gets archived in the cache.
-pub(crate) trait IMeta<Key: HasArchived>: CheckedArchive + Sized {
+pub(crate) trait IMeta<Key: HasArchived>:
+    Archive<Archived: CheckedArchived> + Sized
+{
     type Bytes: AsRef<[u8]>;
 
     fn to_bytes<E: Source>(&self) -> Result<Self::Bytes, E>;

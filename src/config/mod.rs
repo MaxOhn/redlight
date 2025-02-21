@@ -9,7 +9,7 @@ pub mod ignore;
 
 pub use self::{
     cacheable::{Cacheable, SerializeMany},
-    checked::{CheckedArchive, CheckedArchived},
+    checked::CheckedArchived,
     from::{
         ICachedChannel, ICachedCurrentUser, ICachedEmoji, ICachedGuild, ICachedIntegration,
         ICachedMember, ICachedMessage, ICachedPresence, ICachedRole, ICachedScheduledEvent,

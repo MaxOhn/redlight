@@ -1,18 +1,8 @@
-pub use validation::{CheckedArchive, CheckedArchived};
+pub use validation::CheckedArchived;
 
 #[cfg(feature = "bytecheck")]
 mod validation {
-    use rkyv::{
-        api::high::HighValidator, bytecheck::CheckBytes, rancor::BoxedError, Archive, Portable,
-    };
-
-    /// Auxiliary trait ensuring properties related to the `bytecheck` feature
-    /// flag.
-    ///
-    /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive: Archive<Archived: CheckedArchived> {}
-
-    impl<T> CheckedArchive for T where T: Archive<Archived: CheckedArchived> {}
+    use rkyv::{api::high::HighValidator, bytecheck::CheckBytes, rancor::BoxedError, Portable};
 
     /// Auxiliary trait ensuring properties related to the `bytecheck` feature
     /// flag.
@@ -28,15 +18,7 @@ mod validation {
 
 #[cfg(not(feature = "bytecheck"))]
 mod validation {
-    use rkyv::{Archive, Portable};
-
-    /// Auxiliary trait ensuring properties related to the `bytecheck` feature
-    /// flag.
-    ///
-    /// Automatically implemented for all appropriate types.
-    pub trait CheckedArchive: Archive {}
-
-    impl<T: Archive> CheckedArchive for T {}
+    use rkyv::Portable;
 
     /// Auxiliary trait ensuring properties related to the `bytecheck` feature
     /// flag.

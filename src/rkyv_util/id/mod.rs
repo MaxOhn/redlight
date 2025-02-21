@@ -18,19 +18,24 @@ use twilight_model::id::Id;
 
 pub use self::map::IdRkyvMap;
 
-/// Used to archive [`Id<T>`].
+/// Used to archive [`Id<T>`] or niche [`ArchivedId<T>`].
 ///
 /// # Example
 ///
 /// ```
 /// # use rkyv::Archive;
 /// use redlight::rkyv_util::id::IdRkyv;
+/// use rkyv::with::MapNiche;
 /// use twilight_model::id::Id;
 ///
 /// #[derive(Archive)]
 /// struct Cached<T> {
 ///     #[rkyv(with = IdRkyv)]
 ///     id: Id<T>,
+///     // The first `IdRkyv` we use to archive the inner `Id` and the second
+///     // `IdRkyv` we use to niche the option for better memory efficiency.
+///     #[rkyv(with = MapNiche<IdRkyv, IdRkyv>)]
+///     opt: Option<Id<T>>,
 /// }
 /// ```
 pub struct IdRkyv;
@@ -78,7 +83,7 @@ where
 
 impl<T> Niching<ArchivedId<T>> for IdRkyv {
     unsafe fn is_niched(niched: *const ArchivedId<T>) -> bool {
-        <Zero as Niching<Archived<NonZeroU64>>>::is_niched(niched.cast())
+        unsafe { <Zero as Niching<Archived<NonZeroU64>>>::is_niched(niched.cast()) }
     }
 
     fn resolve_niched(out: Place<ArchivedId<T>>) {

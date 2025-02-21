@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use rkyv::{rancor::Source, util::AlignedVec};
+use rkyv::{rancor::Source, util::AlignedVec, Archive};
 
-use super::CheckedArchive;
+use super::CheckedArchived;
 
 /// Trait to configure the serialization and handling of cached entries.
 ///
@@ -39,7 +39,7 @@ use super::CheckedArchive;
 ///     }
 /// }
 /// ```
-pub trait Cacheable: CheckedArchive + Sized {
+pub trait Cacheable: Archive<Archived: CheckedArchived> + Sized {
     /// The resulting byte buffer after serialization.
     type Bytes: AsRef<[u8]>;
 
@@ -74,6 +74,8 @@ pub trait Cacheable: CheckedArchive + Sized {
     /// By default this method utilizes [`serialize_one`]. If [`Self::Bytes`]
     /// is an [`AlignedVec`], this method could be specialized to improve
     /// performance.
+    ///
+    /// [`serialize_one`]: Cacheable::serialize_one
     fn serialize_into<E: Source, const N: usize>(
         &self,
         bytes: &mut AlignedVec<N>,

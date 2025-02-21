@@ -86,6 +86,18 @@ impl<T> CachedArchive<T> {
 }
 
 impl<T: CheckedArchived> CachedArchive<T> {
+    /// Create a new [`CachedArchive`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the given bytes do not match the archived type.
+    #[cfg(feature = "bytecheck")]
+    pub fn new(bytes: AlignedVec<16>) -> Result<Self, ValidationError> {
+        rkyv::access::<T, _>(bytes.as_slice())?;
+
+        Ok(Self::new_unchecked(bytes))
+    }
+
     /// Update the contained value by mutating the archive itself.
     ///
     /// This should be preferred over [`update_by_deserializing`] as it is much
@@ -212,22 +224,6 @@ impl<T: Portable> CachedArchive<T> {
         Ok(())
     }
 }
-
-#[cfg(feature = "bytecheck")]
-const _: () = {
-    impl<T: CheckedArchived> CachedArchive<T> {
-        /// Create a new [`CachedArchive`].
-        ///
-        /// # Errors
-        ///
-        /// Returns an error if the given bytes do not match the archived type.
-        pub fn new(bytes: AlignedVec<16>) -> Result<Self, ValidationError> {
-            rkyv::access::<T, _>(bytes.as_slice())?;
-
-            Ok(Self::new_unchecked(bytes))
-        }
-    }
-};
 
 impl<T: Portable> Deref for CachedArchive<T> {
     type Target = T;
