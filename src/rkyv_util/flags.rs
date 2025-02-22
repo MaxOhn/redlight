@@ -62,6 +62,12 @@ impl<T> ArchivedBitflags<T> {
     }
 }
 
+impl<T: Flags<Bits = Bits>> ArchivedBitflags<T> {
+    pub fn to_native(self) -> T {
+        T::from_bits_truncate(self.bits.to_native())
+    }
+}
+
 impl<T: Flags<Bits = Bits>> From<T> for ArchivedBitflags<T> {
     fn from(flags: T) -> Self {
         Self::new(flags.bits())
@@ -106,7 +112,7 @@ macro_rules! impl_bitflags {
 
         impl<D: Fallible + ?Sized> Deserialize<$ty, D> for ArchivedBitflags<$ty> {
             fn deserialize(&self, _: &mut D) -> Result<$ty, <D as Fallible>::Error> {
-                Ok($ty::from_bits_truncate(self.bits.to_native()))
+                Ok(self.to_native())
             }
         }
     };
