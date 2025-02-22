@@ -25,7 +25,7 @@ use crate::rkyv_util::id::IdRkyv;
 ///
 /// #[derive(Archive)]
 /// struct Cached<'a, T> {
-///     #[rkyv(with = IdRkyvMap)]
+///     #[rkyv(with = IdRkyvMap)] // same as `with = MapNiche<IdRkyv, IdRkyv>`
 ///     id_opt: Option<Id<T>>,
 ///     #[rkyv(with = IdRkyvMap)]
 ///     id_vec: Vec<Id<T>>,
@@ -110,7 +110,7 @@ macro_rules! impl_non_zero {
                     let pos =
                         serializer.align_for::<<With<Id<T>, IdRkyv> as Archive>::Archived>()?;
 
-                    // # Safety: `NonZeroU64` and `Archived<NonZeroU64>` share
+                    // SAFETY: `NonZeroU64` and `Archived<NonZeroU64>` share
                     // the same layout.
                     let as_bytes = unsafe {
                         slice::from_raw_parts(ids.as_ptr().cast::<u8>(), mem::size_of_val(ids))
@@ -132,7 +132,7 @@ macro_rules! impl_non_zero {
                 D: Fallible + ?Sized,
             {
                 if cfg!(target_endian = $endian) {
-                    // # Safety: `NonZeroU64` and `Archived<NonZeroU64>` share
+                    // SAFETY: `NonZeroU64` and `Archived<NonZeroU64>` share
                     // the same layout.
                     let slice = unsafe { &*(ptr::from_ref(archived.as_slice()) as *const [Id<T>]) };
 

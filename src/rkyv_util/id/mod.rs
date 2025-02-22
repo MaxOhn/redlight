@@ -47,7 +47,7 @@ pub struct IdRkyv;
     derive(rkyv::bytecheck::CheckBytes),
     bytecheck(crate = rkyv::bytecheck),
 )]
-#[repr(C)]
+#[repr(transparent)]
 pub struct ArchivedId<T> {
     value: Archived<NonZeroU64>,
     _phantom: PhantomData<fn(T) -> T>,
@@ -83,23 +83,25 @@ where
 
 impl<T> Niching<ArchivedId<T>> for IdRkyv {
     unsafe fn is_niched(niched: *const ArchivedId<T>) -> bool {
+        // SAFETY: `ArchivedId<T>` is a transparent wrapper of `Archived<NonZeroU64>`
         unsafe { <Zero as Niching<Archived<NonZeroU64>>>::is_niched(niched.cast()) }
     }
 
     fn resolve_niched(out: Place<ArchivedId<T>>) {
-        <Zero as Niching<Archived<NonZeroU64>>>::resolve_niched(unsafe { out.cast_unchecked() });
+        munge!(let ArchivedId { value, _phantom } = out);
+        <Zero as Niching<Archived<NonZeroU64>>>::resolve_niched(value);
     }
 }
 
 impl<T> ArchivedId<T> {
     /// Return the inner primitive value.
-    pub fn get(self) -> u64 {
+    pub const fn get(self) -> u64 {
         self.into_nonzero().get()
     }
 
     /// Return the [`NonZeroU64`] representation of the ID.
-    pub fn into_nonzero(self) -> NonZeroU64 {
-        self.value.into()
+    pub const fn into_nonzero(self) -> NonZeroU64 {
+        self.value.to_native()
     }
 
     /// Cast an archived ID from one type to another.
@@ -177,7 +179,8 @@ impl<T> PartialEq<ArchivedId<T>> for Id<T> {
     }
 }
 
-unsafe impl<T> NoUndef for ArchivedId<T> {}
+// SAFETY: `ArchivedId<T>` is essentially a wrapper of `Archived<NonZeroU64>`
+unsafe impl<T> NoUndef for ArchivedId<T> where Archived<NonZeroU64>: NoUndef {}
 
 #[cfg(test)]
 mod tests {
