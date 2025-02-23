@@ -10,7 +10,8 @@ use rkyv::{
 };
 use twilight_gateway::Session;
 
-type Sessions<H> = HashMap<u64, Session, H>;
+type ShardId = u32;
+type Sessions<H> = HashMap<ShardId, Session, H>;
 
 pub struct SessionsRkyv;
 
@@ -40,22 +41,22 @@ where
     }
 }
 
-impl<H, D> DeserializeWith<ArchivedSessions, HashMap<u64, Session, H>, D> for SessionsRkyv
+impl<H, D> DeserializeWith<ArchivedSessions, HashMap<ShardId, Session, H>, D> for SessionsRkyv
 where
-    Archived<u64>: Deserialize<u64, D>,
+    Archived<ShardId>: Deserialize<ShardId, D>,
     D: Fallible + ?Sized,
     H: Default + BuildHasher,
 {
     fn deserialize_with(
         archived: &ArchivedSessions,
         _: &mut D,
-    ) -> Result<HashMap<u64, Session, H>, D::Error> {
+    ) -> Result<HashMap<ShardId, Session, H>, D::Error> {
         let mut result = HashMap::with_capacity_and_hasher(archived.len(), H::default());
 
         for entry in archived.iter() {
-            let shard_id = entry.shard_id.into();
+            let shard_id = entry.shard_id.to_native();
             let session_id = entry.session_id.as_ref().to_owned();
-            let session_sequence = entry.session_sequence.into();
+            let session_sequence = entry.session_sequence.to_native();
             result.insert(shard_id, Session::new(session_sequence, session_id));
         }
 
@@ -64,7 +65,7 @@ where
 }
 
 struct SessionEntry<'a> {
-    shard_id: u64,
+    shard_id: ShardId,
     session_id: &'a str,
     session_sequence: u64,
 }
@@ -77,13 +78,13 @@ struct SessionEntry<'a> {
 )]
 #[repr(C)]
 pub struct ArchivedSessionEntry {
-    pub shard_id: Archived<u64>,
+    pub shard_id: Archived<ShardId>,
     pub session_id: Archived<Box<str>>,
     pub session_sequence: Archived<u64>,
 }
 
 struct SessionEntryResolver {
-    shard_id: Resolver<u64>,
+    shard_id: Resolver<ShardId>,
     session_id: Resolver<Box<str>>,
     session_sequence: Resolver<u64>,
 }

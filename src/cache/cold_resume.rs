@@ -34,7 +34,7 @@ impl<C> RedisCache<C> {
     #[instrument(level = "trace", skip_all)]
     pub async fn freeze<S>(
         &self,
-        sessions: &HashMap<u64, Session, S>,
+        sessions: &HashMap<u32, Session, S>,
         expire: Option<Duration>,
     ) -> CacheResult<()>
     where
@@ -77,7 +77,7 @@ impl<C> RedisCache<C> {
     pub async fn defrost_with_hasher<S>(
         &self,
         flush_if_missing: bool,
-    ) -> CacheResult<Option<HashMap<u64, Session, S>>>
+    ) -> CacheResult<Option<HashMap<u32, Session, S>>>
     where
         S: BuildHasher + Default,
     {
@@ -120,7 +120,7 @@ impl<C> RedisCache<C> {
     pub async fn defrost(
         &self,
         flush_if_missing: bool,
-    ) -> CacheResult<Option<HashMap<u64, Session>>> {
+    ) -> CacheResult<Option<HashMap<u32, Session>>> {
         self.defrost_with_hasher::<RandomState>(flush_if_missing)
             .await
     }
