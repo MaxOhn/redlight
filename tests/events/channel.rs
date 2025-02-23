@@ -96,23 +96,23 @@ async fn test_channel() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &ChannelPinsUpdate) -> Result<(), E>>
         {
             Some(|value, update| {
-                value
-                    .update_archive(|sealed| {
-                        if let Some(new_timestamp) = update.last_pin_timestamp {
-                            rkyv::munge::munge! {
-                                let ArchivedCachedChannel { last_pin_timestamp, .. } = sealed
-                            };
+                value.update_archive(|sealed| {
+                    if let Some(new_timestamp) = update.last_pin_timestamp {
+                        rkyv::munge::munge! {
+                            let ArchivedCachedChannel { last_pin_timestamp, .. } = sealed
+                        };
 
-                            // Cannot mutate from `Some` to `None` or vice versa so we
-                            // just update `Some` values
-                            if let Some(mut last_pin_timestamp) =
-                                ArchivedOption::as_seal(last_pin_timestamp)
-                            {
-                                *last_pin_timestamp = ArchivedTimestamp::new(&new_timestamp);
-                            }
+                        // Cannot mutate from `Some` to `None` or vice versa so we
+                        // just update `Some` values
+                        if let Some(mut last_pin_timestamp) =
+                            ArchivedOption::as_seal(last_pin_timestamp)
+                        {
+                            *last_pin_timestamp = ArchivedTimestamp::new(&new_timestamp);
                         }
-                    })
-                    .map_err(Source::new)
+                    }
+                });
+
+                Ok(())
             })
         }
     }

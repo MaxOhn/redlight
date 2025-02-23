@@ -73,23 +73,23 @@ impl<'a> ICachedUser<'a> for CachedUser {
             // Since `update_archive` is much more performant, we'll choose
             // that even though that means we won't be able to update
             // `Option`'s properly.
-            archive
-                .update_archive(|sealed| {
-                    // `munge!` is a great way to access fields of a sealed value
-                    rkyv::munge::munge!(let ArchivedCachedUser { avatar, mut id, .. } = sealed);
+            archive.update_archive(|sealed| {
+                // `munge!` is a great way to access fields of a sealed value
+                rkyv::munge::munge!(let ArchivedCachedUser { avatar, mut id, .. } = sealed);
 
-                    *id = ArchivedId::from(partial.id);
+                *id = ArchivedId::from(partial.id);
 
-                    // A serialized `Option` cannot be mutated from `Some` to
-                    // `None` or vice versa so the only updating we're allowed to
-                    // do here is for `Some` to `Some`.
-                    if let Some(new_avatar) = partial.avatar {
-                        if let Some(mut avatar) = ArchivedOption::as_seal(avatar) {
-                            *avatar = ArchivedImageHash::from(new_avatar);
-                        }
+                // A serialized `Option` cannot be mutated from `Some` to
+                // `None` or vice versa so the only updating we're allowed to
+                // do here is for `Some` to `Some`.
+                if let Some(new_avatar) = partial.avatar {
+                    if let Some(mut avatar) = ArchivedOption::as_seal(avatar) {
+                        *avatar = ArchivedImageHash::from(new_avatar);
                     }
-                })
-                .map_err(Source::new)
+                }
+            });
+
+            Ok(())
         })
     }
 }

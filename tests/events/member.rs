@@ -82,12 +82,12 @@ async fn test_member() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &PartialMember) -> Result<(), E>>
         {
             Some(|archived, member| {
-                archived
-                    .update_archive(|sealed| {
-                        rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
-                        *flags = member.flags.into();
-                    })
-                    .map_err(Source::new)
+                archived.update_archive(|sealed| {
+                    rkyv::munge::munge!(let ArchivedCachedMember { mut flags, .. } = sealed);
+                    *flags = member.flags.into();
+                });
+
+                Ok(())
             })
         }
     }

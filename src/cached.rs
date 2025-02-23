@@ -138,18 +138,13 @@ impl<T: CheckedArchived> CachedArchive<T> {
     /// ```
     ///
     /// [`update_by_deserializing`]: CachedArchive::update_by_deserializing
-    pub fn update_archive(&mut self, f: impl FnOnce(Seal<'_, T>)) -> Result<(), ValidationError> {
+    pub fn update_archive(&mut self, f: impl FnOnce(Seal<'_, T>)) {
         let bytes = self.bytes.as_mut_slice();
 
-        #[cfg(feature = "bytecheck")]
-        let sealed = rkyv::access_mut::<T, _>(bytes)?;
-
-        #[cfg(not(feature = "bytecheck"))]
+        // SAFETY: The `CachedArchive` is checked upon creation
         let sealed = unsafe { rkyv::access_unchecked_mut::<T>(bytes) };
 
         f(sealed);
-
-        Ok(())
     }
 }
 

@@ -80,16 +80,16 @@ async fn test_message() -> Result<(), CacheError> {
         ) -> Option<fn(&mut CachedArchive<Archived<Self>>, &MessageUpdate) -> Result<(), E>>
         {
             Some(|archived, update| {
-                archived
-                    .update_archive(|sealed| {
-                        rkyv::munge::munge! {
-                            let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
-                        };
+                archived.update_archive(|sealed| {
+                    rkyv::munge::munge! {
+                        let ArchivedCachedMessage { mut kind, mut timestamp, .. } = sealed
+                    };
 
-                        *kind = u8::from(update.kind);
-                        *timestamp = update.timestamp.as_micros().into();
-                    })
-                    .map_err(Source::new)
+                    *kind = u8::from(update.kind);
+                    *timestamp = update.timestamp.as_micros().into();
+                });
+
+                Ok(())
             })
         }
 
