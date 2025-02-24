@@ -226,24 +226,47 @@ impl<'a> ValidBitflagNiching for &'a [(); 0] {}
 
 #[cfg(test)]
 mod tests {
-    use rkyv::{rancor::Error, with::With};
+    use rkyv::{
+        niche::niched_option::NichedOption,
+        rancor::Error,
+        with::{MapNiche, With},
+    };
 
     use super::*;
 
     #[test]
     fn test_rkyv_bitflags() -> Result<(), Error> {
-        let flags = MemberFlags::COMPLETED_ONBOARDING | MemberFlags::DID_REJOIN;
-        let bytes = rkyv::to_bytes(With::<_, BitflagsRkyv>::cast(&flags))?;
+        let flags = [
+            Some(MemberFlags::COMPLETED_ONBOARDING | MemberFlags::DID_REJOIN),
+            Some(MemberFlags::all()),
+            Some(MemberFlags::empty()),
+            None,
+        ];
 
-        #[cfg(feature = "bytecheck")]
-        let archived: &ArchivedBitflags<MemberFlags> = rkyv::access(&bytes)?;
+        for flags in flags {
+            let bytes = rkyv::to_bytes(With::<_, MapNiche<BitflagsRkyv, InvalidBitflags>>::cast(
+                &flags,
+            ))?;
 
-        #[cfg(not(feature = "bytecheck"))]
-        let archived: &ArchivedBitflags<MemberFlags> = unsafe { rkyv::access_unchecked(&bytes) };
+            #[cfg(feature = "bytecheck")]
+            let archived: &NichedOption<
+                ArchivedBitflags<MemberFlags>,
+                InvalidBitflags,
+            > = rkyv::access(&bytes)?;
 
-        let deserialized: MemberFlags = rkyv::deserialize(With::<_, BitflagsRkyv>::cast(archived))?;
+            #[cfg(not(feature = "bytecheck"))]
+            let archived: &NichedOption<
+                ArchivedBitflags<MemberFlags>,
+                InvalidBitflags,
+            > = unsafe { rkyv::access_unchecked(&bytes) };
 
-        assert_eq!(flags, deserialized);
+            let deserialized: Option<MemberFlags> =
+                rkyv::deserialize(With::<_, MapNiche<BitflagsRkyv, InvalidBitflags>>::cast(
+                    archived,
+                ))?;
+
+            assert_eq!(flags, deserialized);
+        }
 
         Ok(())
     }
