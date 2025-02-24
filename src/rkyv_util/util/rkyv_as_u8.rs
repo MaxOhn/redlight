@@ -5,7 +5,8 @@ use rkyv::{
 };
 
 /// Used to archive any `T` for which `u8: From<T>` holds such as
-/// [`IntegrationExpireBehavior`] or [`StickerType`].
+/// [`IntegrationExpireBehavior`], [`PermissionOverwriteType`] or
+/// [`StickerType`].
 ///
 /// # Example
 ///
@@ -27,6 +28,7 @@ use rkyv::{
 /// ```
 ///
 /// [`IntegrationExpireBehavior`]: twilight_model::guild::IntegrationExpireBehavior
+/// [`PermissionOverwriteType`]: twilight_model::channel::permission_overwrite::PermissionOverwriteType
 /// [`StickerType`]: twilight_model::channel::message::sticker::StickerType
 pub struct RkyvAsU8;
 
