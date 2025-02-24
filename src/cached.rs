@@ -133,7 +133,7 @@ impl<T: CheckedArchived> CachedArchive<T> {
     ///     archive.update_archive(|sealed| {
     ///         rkyv::munge::munge!(let ArchivedCachedData { mut num } = sealed);
     ///         *num = update.new_num.into()
-    ///     }).unwrap();
+    ///     });
     /// }
     /// ```
     ///
