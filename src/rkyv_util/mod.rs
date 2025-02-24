@@ -1,6 +1,7 @@
 pub mod flags;
 pub mod guild;
 pub mod id;
+pub mod image_hash;
 pub mod integration;
 pub mod presence;
 pub mod stage_instance;
