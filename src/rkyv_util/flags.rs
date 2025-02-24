@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use bitflags::Flags;
 use rkyv::{
+    niche::niching::Niching,
     rancor::Fallible,
     traits::NoUndef,
     with::{ArchiveWith, DeserializeWith, SerializeWith},
@@ -14,24 +15,32 @@ use twilight_model::{
     user::UserFlags,
 };
 
-/// Used to archive flag type such as [`Permissions`] or [`MemberFlags`].
+/// Used to archive bitflag types such as [`Permissions`] or [`MemberFlags`].
+///
+/// In case of bitflags wrapped in an [`Option`], instead of using
+/// [`Map<BitflagsRkyv>`] you should be using
+/// [`MapNiche<BitflagsRkyv, InvalidBitflags>`]; see
+/// [`InvalidBitflags`].
 ///
 /// # Example
 ///
 /// ```
 /// # use rkyv::Archive;
-/// use redlight::rkyv_util::flags::BitflagsRkyv;
-/// use rkyv::with::Map;
+/// use redlight::rkyv_util::flags::{BitflagsRkyv, InvalidBitflags};
+/// use rkyv::with::{Map, MapNiche};
 /// use twilight_model::guild::{MemberFlags, Permissions};
 ///
 /// #[derive(Archive)]
 /// struct Cached {
 ///     #[rkyv(with = BitflagsRkyv)]
 ///     permissions: Permissions,
-///     #[rkyv(with = Map<BitflagsRkyv>)]
+///     #[rkyv(with = MapNiche<BitflagsRkyv, InvalidBitflags>)]
 ///     member_flags: Option<MemberFlags>,
 /// }
 /// ```
+///
+/// [`Map<BitflagsRkyv>`]: rkyv::with::Map
+/// [`MapNiche<BitflagsRkyv, InvalidBitflags>`]: rkyv::with::MapNiche
 pub struct BitflagsRkyv;
 
 /// Archived bitflags.
@@ -81,7 +90,7 @@ impl<T: Flags<Bits = Bits>> PartialEq<T> for ArchivedBitflags<T> {
 }
 
 macro_rules! impl_bitflags {
-    ($ty:ident) => {
+    ( $ty:ident ) => {
         impl ArchiveWith<$ty> for BitflagsRkyv {
             type Archived = ArchivedBitflags<$ty>;
             type Resolver = ();
@@ -115,6 +124,20 @@ macro_rules! impl_bitflags {
                 Ok(self.to_native())
             }
         }
+
+        impl<'a> Niching<ArchivedBitflags<$ty>> for InvalidBitflags
+        where
+            &'a [(); (Self::NICHED == $ty::all().bits()) as usize]: ValidBitflagNiching,
+        {
+            unsafe fn is_niched(niched: *const ArchivedBitflags<$ty>) -> bool {
+                unsafe { (*niched).bits.to_native() == Self::NICHED }
+            }
+
+            fn resolve_niched(out: Place<ArchivedBitflags<$ty>>) {
+                rkyv::munge::munge!(let ArchivedBitflags { bits, ..  } = out);
+                Self::NICHED.resolve((), bits);
+            }
+        }
     };
 }
 
@@ -125,6 +148,81 @@ impl_bitflags!(MessageFlags);
 impl_bitflags!(Permissions);
 impl_bitflags!(SystemChannelFlags);
 impl_bitflags!(UserFlags);
+
+/// Used to niche bitflag types such as [`Permissions`] or [`MemberFlags`].
+///
+/// # Example
+///
+/// ```
+/// # use rkyv::Archive;
+/// use redlight::rkyv_util::flags::{BitflagsRkyv, InvalidBitflags};
+/// use rkyv::with::{Map, MapNiche};
+/// use twilight_model::guild::{MemberFlags, Permissions};
+///
+/// #[derive(Archive)]
+/// struct Cached {
+///     #[rkyv(with = MapNiche<BitflagsRkyv, InvalidBitflags>)]
+///     permissions: Option<Permissions>,
+///     #[rkyv(with = MapNiche<BitflagsRkyv, InvalidBitflags>)]
+///     member_flags: Option<MemberFlags>,
+/// }
+///
+/// // Same as above but without niching
+/// #[derive(Archive)]
+/// struct Naive {
+///     #[rkyv(with = Map<BitflagsRkyv>)]
+///     permissions: Option<Permissions>,
+///     #[rkyv(with = Map<BitflagsRkyv>)]
+///     member_flags: Option<MemberFlags>,
+/// }
+///
+/// // Niching leverages bit-patterns to shrink the archived size
+/// assert!(size_of::<ArchivedCached>() < size_of::<ArchivedNaive>());
+/// ```
+pub struct InvalidBitflags;
+
+impl InvalidBitflags {
+    const NICHED: Bits = u64::MAX;
+}
+
+/// Ensures that [`InvalidBitflags`] uses an adequate bit-pattern to niche a
+/// bitflag type.
+///
+/// This code should fail to compile because the niching is invalid.
+///
+/// ```compile_fail
+/// # trait ValidBitflagNiching {}
+/// # impl<'a> ValidBitflagNiching for &'a [(); 0] {}
+/// bitflags::bitflags! {
+///     #[derive(Copy, Clone)]
+///     pub struct MyFlags: u64 {
+///         const A = u64::MAX;
+///     }
+/// }
+///
+/// fn is_valid<'a, T: ValidBitflagNiching>() {}
+/// const _: fn() = is_valid::<&[(); (u64::MAX == MyFlags::all().bits()) as usize]>;
+/// ```
+///
+/// This code should compile just fine.
+///
+/// ```no_run
+/// # trait ValidBitflagNiching {}
+/// # impl<'a> ValidBitflagNiching for &'a [(); 0] {}
+/// bitflags::bitflags! {
+///     #[derive(Copy, Clone)]
+///     pub struct MyFlags: u64 {
+///         const A = u64::MAX - 1;
+///     }
+/// }
+///
+/// fn is_valid<'a, T: ValidBitflagNiching>() {}
+/// const _: fn() = is_valid::<&[(); (u64::MAX == MyFlags::all().bits()) as usize]>;
+/// ```
+trait ValidBitflagNiching {}
+
+// Lifetime required due to <https://github.com/rust-lang/rust/issues/48214>
+impl<'a> ValidBitflagNiching for &'a [(); 0] {}
 
 #[cfg(test)]
 mod tests {
